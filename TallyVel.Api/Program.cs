@@ -1,5 +1,6 @@
 using Scalar.AspNetCore;
 using TallyVel.Api.Data;
+using TallyVel.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,6 +11,7 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddSingleton<IUserRepository>(new InMemoryUserRepository(seedUsers));
 builder.Services.AddSingleton<IStokvelRepository>(new InMemoryStokvelRepository(seedStokvels));
+builder.Services.AddScoped<StokvelMembershipService>();
 builder.Services.AddControllers();
 
 
