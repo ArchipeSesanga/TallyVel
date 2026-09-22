@@ -21,3 +21,28 @@ TallyVel doesn't move or hold your money. It's purely a tracking and record-keep
 ## Who It's For
 
 Whether it's a small savings circle with friends or a larger community stokvel, TallyVel keeps everyone on the same page.
+
+## Running the Project
+
+The API lives in `TallyVel.Api` and targets .NET 10.
+
+### From the terminal
+
+```bash
+cd TallyVel.Api
+dotnet run
+```
+
+### From VS Code
+
+Open the **Run and Debug** panel (⇧⌘D on Mac / Ctrl+Shift+D on Windows/Linux), select **TallyVel.Api** from the dropdown, and press F5. This builds the project and starts it with the debugger attached.
+
+### Viewing the Scalar UI
+
+Once the app is running in development, open:
+
+```
+http://localhost:5203/scalar/v1
+```
+
+This gives you an interactive reference for every API endpoint — no separate setup required.

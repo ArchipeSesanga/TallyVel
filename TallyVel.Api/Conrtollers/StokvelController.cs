@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
+using TallyVel.Api.Common;
 using TallyVel.Api.Data;
 using TallyVel.Api.Domain;
+using TallyVel.Api.Services;
 
 namespace TallyVel.Api.Controllers;
 
@@ -9,10 +11,12 @@ namespace TallyVel.Api.Controllers;
 public class StokvelController : ControllerBase
 {
     private readonly IStokvelRepository _stokvelRepository;
+    private readonly StokvelMembershipService _membershipService;
 
-    public StokvelController(IStokvelRepository stokvelRepository)
+    public StokvelController(IStokvelRepository stokvelRepository, StokvelMembershipService membershipService)
     {
         _stokvelRepository = stokvelRepository;
+        _membershipService = membershipService;
     }
 
     [HttpGet]
@@ -50,57 +54,54 @@ public class StokvelController : ControllerBase
     [HttpPost("{id:guid}/members")]
     public ActionResult<StokvelResponse> AddMember(Guid id, AddStokvelMemberRequest request)
     {
-        var stokvel = _stokvelRepository.GetById(id);
-        if (stokvel is null)
-            return NotFound();
-
         try
         {
-            stokvel.AddMember(request.UserId, request.Role);
+            var stokvel = _membershipService.AddMember(id, request.UserId, request.Role);
+            return Ok(StokvelResponse.FromDomain(stokvel));
         }
-        catch (InvalidOperationException ex)
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (ConflictException ex)
         {
             return Conflict(ex.Message);
         }
-
-        return Ok(StokvelResponse.FromDomain(stokvel));
     }
 
     [HttpDelete("{id:guid}/members/{userId:guid}")]
     public ActionResult<StokvelResponse> RemoveMember(Guid id, Guid userId)
     {
-        var stokvel = _stokvelRepository.GetById(id);
-        if (stokvel is null)
-            return NotFound();
-
         try
         {
-            stokvel.RemoveMember(userId);
+            var stokvel = _membershipService.RemoveMember(id, userId);
+            return Ok(StokvelResponse.FromDomain(stokvel));
         }
-        catch (InvalidOperationException ex)
+        catch (NotFoundException ex)
         {
-            return Conflict(ex.Message);
+            return NotFound(ex.Message);
         }
-
-        return Ok(StokvelResponse.FromDomain(stokvel));
+        catch (BusinessRuleViolationException ex)
+        {
+            return UnprocessableEntity(ex.Message);
+        }
     }
 
     [HttpPut("{id:guid}/members/{userId:guid}/role")]
     public ActionResult<StokvelResponse> ChangeMemberRole(Guid id, Guid userId, ChangeStokvelMemberRoleRequest request)
     {
-        var stokvel = _stokvelRepository.GetById(id);
-        if (stokvel is null)
-            return NotFound();
-
         try
         {
-            stokvel.ChangeRole(userId, request.Role);
+            var stokvel = _membershipService.ChangeRole(id, userId, request.Role);
+            return Ok(StokvelResponse.FromDomain(stokvel));
         }
-        catch (InvalidOperationException ex)
+        catch (NotFoundException ex)
         {
-            return Conflict(ex.Message);
+            return NotFound(ex.Message);
         }
-
-        return Ok(StokvelResponse.FromDomain(stokvel));
+        catch (BusinessRuleViolationException ex)
+        {
+            return UnprocessableEntity(ex.Message);
+        }
     }
 }
