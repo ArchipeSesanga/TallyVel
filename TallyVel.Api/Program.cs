@@ -11,7 +11,9 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddSingleton<IUserRepository>(new InMemoryUserRepository(seedUsers));
 builder.Services.AddSingleton<IStokvelRepository>(new InMemoryStokvelRepository(seedStokvels));
+builder.Services.AddSingleton<IContributionRepository, InMemoryContributionRepository>();
 builder.Services.AddScoped<StokvelMembershipService>();
+builder.Services.AddScoped<ContributionService>();
 builder.Services.AddControllers();
 
 
