@@ -147,4 +147,5 @@ public sealed class Stokvel
 
         return Math.Round(amount, 2, MidpointRounding.ToEven);
     }
+    
 }

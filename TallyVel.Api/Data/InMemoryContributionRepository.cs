@@ -20,4 +20,10 @@ public sealed class InMemoryContributionRepository : IContributionRepository
         if (!_contributions.TryAdd(contribution.Id, contribution))
             throw new InvalidOperationException($"A contribution with id {contribution.Id} already exists.");
     }
+
+    public bool ExistsForCycle(Guid stokvelId, Guid memberUserId, string cycle) =>
+        _contributions.Values.Any(c =>
+            c.StokvelId == stokvelId &&
+            c.MemberUserId == memberUserId &&
+            string.Equals(c.Cycle, cycle.Trim(), StringComparison.Ordinal));
 }
