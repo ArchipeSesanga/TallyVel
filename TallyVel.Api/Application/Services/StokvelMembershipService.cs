@@ -1,8 +1,7 @@
-using TallyVel.Api.Common;
-using TallyVel.Api.Data;
+using TallyVel.Api.Application.Interfaces;
 using TallyVel.Api.Domain;
 
-namespace TallyVel.Api.Services;
+namespace TallyVel.Api.Application.Services;
 
 public class StokvelMembershipService
 {

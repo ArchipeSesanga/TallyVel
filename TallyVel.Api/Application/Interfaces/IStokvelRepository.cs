@@ -1,6 +1,6 @@
 using TallyVel.Api.Domain;
 
-namespace TallyVel.Api.Data;
+namespace TallyVel.Api.Application.Interfaces;
 
 /// <summary>
 /// An abstraction over where Stokvels are stored. Same rationale as

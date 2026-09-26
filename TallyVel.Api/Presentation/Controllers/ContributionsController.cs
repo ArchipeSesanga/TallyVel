@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
-using TallyVel.Api.Common;
-using TallyVel.Api.Services;
+using TallyVel.Api.Application.Contracts;
+using TallyVel.Api.Application.Interfaces;
+using TallyVel.Api.Application.Services;
+using TallyVel.Api.Domain;
 
-namespace TallyVel.Api.Controllers;
+namespace TallyVel.Api.Presentation.Controllers;
 
 [ApiController]
 [Route("api/stokvels/{stokvelId:guid}/contributions")]
@@ -11,14 +13,32 @@ public class ContributionsController : ControllerBase
     private const string IdempotencyKeyHeader = "Idempotency-Key";
 
     private readonly ContributionService _contributionService;
+    private readonly IContributionRepository _contributionRepository;
 
-    public ContributionsController(ContributionService contributionService)
+    public ContributionsController(ContributionService contributionService, IContributionRepository contributionRepository)
     {
         _contributionService = contributionService;
+        _contributionRepository = contributionRepository;
+    }
+
+    [HttpGet]
+    public ActionResult<IEnumerable<ContributionResponse>> GetAll(Guid stokvelId) =>
+        Ok(_contributionRepository.GetAll()
+            .Where(c => c.StokvelId == stokvelId)
+            .Select(ContributionResponse.FromDomain));
+
+    [HttpGet("{id:guid}")]
+    public ActionResult<ContributionResponse> GetById(Guid stokvelId, Guid id)
+    {
+        var contribution = _contributionRepository.GetById(id);
+        if (contribution is null || contribution.StokvelId != stokvelId)
+            return Problem(detail: $"No contribution found with id {id}.", statusCode: StatusCodes.Status404NotFound, title: "Not Found");
+
+        return Ok(ContributionResponse.FromDomain(contribution));
     }
 
     [HttpPost]
-    public ActionResult<ContributionResponse> RecordContribution(Guid stokvelId, RecordContributionRequest request)
+    public async Task<ActionResult<ContributionResponse>> RecordContribution(Guid stokvelId, RecordContributionRequest request)
     {
         // The key travels as a header, not a body field, because it
         // identifies this *HTTP request attempt*, not the payment
@@ -28,8 +48,8 @@ public class ContributionsController : ControllerBase
 
         try
         {
-            var response = _contributionService.RecordContribution(stokvelId, request, idempotencyKey);
-            return StatusCode(StatusCodes.Status201Created, response);
+            var response = await _contributionService.RecordContributionAsync(stokvelId, request, idempotencyKey);
+            return CreatedAtAction(nameof(GetById), new { stokvelId, id = response.Id }, response);
         }
         catch (NotFoundException ex)
         {

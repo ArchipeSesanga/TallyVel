@@ -1,4 +1,4 @@
-namespace TallyVel.Api.Common;
+namespace TallyVel.Api.Domain;
 
 /// <summary>Requested resource does not exist. Maps to 404.</summary>
 public class NotFoundException : Exception

@@ -1,13 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
-using TallyVel.Api.Common;
-using TallyVel.Api.Data;
+using TallyVel.Api.Application.Contracts;
+using TallyVel.Api.Application.Interfaces;
+using TallyVel.Api.Application.Services;
 using TallyVel.Api.Domain;
-using TallyVel.Api.Services;
 
-namespace TallyVel.Api.Controllers;
+namespace TallyVel.Api.Presentation.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/stokvels")]
 public class StokvelController : ControllerBase
 {
     private readonly IStokvelRepository _stokvelRepository;
@@ -28,7 +28,7 @@ public class StokvelController : ControllerBase
     {
         var stokvel = _stokvelRepository.GetById(id);
         if (stokvel is null)
-            return NotFound();
+            return Problem(detail: $"No stokvel found with id {id}.", statusCode: StatusCodes.Status404NotFound, title: "Not Found");
 
         return Ok(StokvelResponse.FromDomain(stokvel));
     }
@@ -43,7 +43,7 @@ public class StokvelController : ControllerBase
         }
         catch (ArgumentException ex)
         {
-            return ValidationProblem(ex.Message);
+            return Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest, title: "Bad Request");
         }
 
         _stokvelRepository.Add(stokvel);
@@ -61,11 +61,11 @@ public class StokvelController : ControllerBase
         }
         catch (NotFoundException ex)
         {
-            return NotFound(ex.Message);
+            return Problem(detail: ex.Message, statusCode: StatusCodes.Status404NotFound, title: "Not Found");
         }
         catch (ConflictException ex)
         {
-            return Conflict(ex.Message);
+            return Problem(detail: ex.Message, statusCode: StatusCodes.Status409Conflict, title: "Conflict");
         }
     }
 
@@ -79,11 +79,11 @@ public class StokvelController : ControllerBase
         }
         catch (NotFoundException ex)
         {
-            return NotFound(ex.Message);
+            return Problem(detail: ex.Message, statusCode: StatusCodes.Status404NotFound, title: "Not Found");
         }
         catch (BusinessRuleViolationException ex)
         {
-            return UnprocessableEntity(ex.Message);
+            return Problem(detail: ex.Message, statusCode: StatusCodes.Status422UnprocessableEntity, title: "Business Rule Violation");
         }
     }
 
@@ -97,11 +97,11 @@ public class StokvelController : ControllerBase
         }
         catch (NotFoundException ex)
         {
-            return NotFound(ex.Message);
+            return Problem(detail: ex.Message, statusCode: StatusCodes.Status404NotFound, title: "Not Found");
         }
         catch (BusinessRuleViolationException ex)
         {
-            return UnprocessableEntity(ex.Message);
+            return Problem(detail: ex.Message, statusCode: StatusCodes.Status422UnprocessableEntity, title: "Business Rule Violation");
         }
     }
 }

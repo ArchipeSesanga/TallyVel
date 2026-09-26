@@ -1,6 +1,6 @@
 using TallyVel.Api.Domain;
 
-namespace TallyVel.Api.Controllers;
+namespace TallyVel.Api.Application.Contracts;
 
 /// <summary>
 /// What the caller sends to record a contribution. StokvelId is

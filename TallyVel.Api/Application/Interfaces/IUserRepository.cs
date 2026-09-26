@@ -1,6 +1,6 @@
 using TallyVel.Api.Domain;
 
-namespace TallyVel.Api.Data;
+namespace TallyVel.Api.Application.Interfaces;
 
 /// <summary>
 /// An abstraction over where Users are stored. Controllers and services

@@ -1,6 +1,6 @@
 using TallyVel.Api.Domain;
 
-namespace TallyVel.Api.Controllers;
+namespace TallyVel.Api.Application.Contracts;
 
 /// <summary>
 /// What a User looks like over the wire — deliberately excludes

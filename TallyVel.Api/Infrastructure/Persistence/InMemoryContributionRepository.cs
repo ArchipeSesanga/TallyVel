@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
+using TallyVel.Api.Application.Interfaces;
 using TallyVel.Api.Domain;
 
-namespace TallyVel.Api.Data;
+namespace TallyVel.Api.Infrastructure.Persistence;
 
 /// <summary>
 /// Holds Contributions in memory instead of a database. Same rationale

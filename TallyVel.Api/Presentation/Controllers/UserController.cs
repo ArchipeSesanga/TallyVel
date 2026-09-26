@@ -1,11 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
-using TallyVel.Api.Data;
+using TallyVel.Api.Application.Contracts;
+using TallyVel.Api.Application.Interfaces;
 using TallyVel.Api.Domain;
 
-namespace TallyVel.Api.Controllers;
+namespace TallyVel.Api.Presentation.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/users")]
 public class UserController : ControllerBase
 {
     private readonly IUserRepository _userRepository;
@@ -24,7 +25,7 @@ public class UserController : ControllerBase
     {
         var user = _userRepository.GetById(id);
         if (user is null)
-            return NotFound();
+            return Problem(detail: $"No user found with id {id}.", statusCode: StatusCodes.Status404NotFound, title: "Not Found");
 
         return Ok(UserResponse.FromDomain(user));
     }
@@ -39,7 +40,7 @@ public class UserController : ControllerBase
         }
         catch (ArgumentException ex)
         {
-            return ValidationProblem(ex.Message);
+            return Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest, title: "Bad Request");
         }
 
         _userRepository.Add(user);

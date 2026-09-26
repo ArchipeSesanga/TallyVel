@@ -1,6 +1,8 @@
+using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
-using TallyVel.Api.Data;
-using TallyVel.Api.Services;
+using TallyVel.Api.Application.Interfaces;
+using TallyVel.Api.Application.Services;
+using TallyVel.Api.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,7 +26,10 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.MapScalarApiReference(Options =>
+    {
+        Options.Theme = ScalarTheme.Moon; 
+    });
 }
 
 app.UseHttpsRedirection();
