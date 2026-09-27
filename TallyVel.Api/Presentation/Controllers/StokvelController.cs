@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using TallyVel.Api.Application.Contracts;
 using TallyVel.Api.Application.Interfaces;
@@ -12,11 +13,22 @@ public class StokvelController : ControllerBase
 {
     private readonly IStokvelRepository _stokvelRepository;
     private readonly StokvelMembershipService _membershipService;
+    private readonly IValidator<CreateStokvelRequest> _validator;
+    private readonly IValidator<AddStokvelMemberRequest> _addMemberValidator;
+    private readonly IValidator<ChangeStokvelMemberRoleRequest> _changeRoleValidator;
 
-    public StokvelController(IStokvelRepository stokvelRepository, StokvelMembershipService membershipService)
+    public StokvelController(
+        IStokvelRepository stokvelRepository,
+        StokvelMembershipService membershipService,
+        IValidator<CreateStokvelRequest> validator,
+        IValidator<AddStokvelMemberRequest> addMemberValidator,
+        IValidator<ChangeStokvelMemberRoleRequest> changeRoleValidator)
     {
         _stokvelRepository = stokvelRepository;
         _membershipService = membershipService;
+        _validator = validator;
+        _addMemberValidator = addMemberValidator;
+        _changeRoleValidator = changeRoleValidator;
     }
 
     [HttpGet]
@@ -34,9 +46,17 @@ public class StokvelController : ControllerBase
     }
 
     [HttpPost]
-    public ActionResult<StokvelResponse> Create(CreateStokvelRequest request)
+    public async Task<ActionResult<StokvelResponse>> Create(CreateStokvelRequest request)
     {
+        var validationResult = await _validator.ValidateAsync(request);
         Stokvel stokvel;
+
+        if (!validationResult.IsValid)
+        {
+            
+        // Return the model issues
+            return  ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));
+        }
         try
         {
             stokvel = new Stokvel(request.Name, request.ContributionAmount, request.Cycle, request.CreatorId);
@@ -52,8 +72,12 @@ public class StokvelController : ControllerBase
     }
 
     [HttpPost("{id:guid}/members")]
-    public ActionResult<StokvelResponse> AddMember(Guid id, AddStokvelMemberRequest request)
+    public async Task<ActionResult<StokvelResponse>> AddMember(Guid id, AddStokvelMemberRequest request)
     {
+        var validationResult = await _addMemberValidator.ValidateAsync(request);
+        if (!validationResult.IsValid)
+            return ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));
+
         try
         {
             var stokvel = _membershipService.AddMember(id, request.UserId, request.Role);
@@ -88,8 +112,12 @@ public class StokvelController : ControllerBase
     }
 
     [HttpPut("{id:guid}/members/{userId:guid}/role")]
-    public ActionResult<StokvelResponse> ChangeMemberRole(Guid id, Guid userId, ChangeStokvelMemberRoleRequest request)
+    public async Task<ActionResult<StokvelResponse>> ChangeMemberRole(Guid id, Guid userId, ChangeStokvelMemberRoleRequest request)
     {
+        var validationResult = await _changeRoleValidator.ValidateAsync(request);
+        if (!validationResult.IsValid)
+            return ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));
+
         try
         {
             var stokvel = _membershipService.ChangeRole(id, userId, request.Role);

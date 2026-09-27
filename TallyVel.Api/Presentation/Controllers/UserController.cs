@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using TallyVel.Api.Application.Contracts;
 using TallyVel.Api.Application.Interfaces;
@@ -10,10 +11,12 @@ namespace TallyVel.Api.Presentation.Controllers;
 public class UserController : ControllerBase
 {
     private readonly IUserRepository _userRepository;
+    private readonly IValidator<CreateUserRequest> _validator;
 
-    public UserController(IUserRepository userRepository)
+    public UserController(IUserRepository userRepository, IValidator<CreateUserRequest> validator)
     {
         _userRepository = userRepository;
+        _validator = validator;
     }
 
     [HttpGet]
@@ -31,20 +34,28 @@ public class UserController : ControllerBase
     }
 
     [HttpPost]
-    public ActionResult<UserResponse> Create(CreateUserRequest request)
+public async Task<ActionResult<UserResponse>> Create(CreateUserRequest request, CancellationToken ct)
+{
+
+    //validation line
+    var result = await _validator.ValidateAsync(request, ct);
+    if (!result.IsValid)
+        return ValidationProblem(new ValidationProblemDetails(result.ToDictionary()));
+
+
+    // logic for the request 
+    User user;
+    try
     {
-        User user;
-        try
-        {
-            user = new User(request.Email, request.FullName, request.PasswordHash);
-        }
-        catch (ArgumentException ex)
-        {
-            return Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest, title: "Bad Request");
-        }
-
-        _userRepository.Add(user);
-
-        return CreatedAtAction(nameof(GetById), new { id = user.Id }, UserResponse.FromDomain(user));
+        user = new User(request.Email, request.FullName, request.PasswordHash);
     }
+    catch (ArgumentException ex)
+    {
+        return Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest, title: "Bad Request");
+    }
+
+    _userRepository.Add(user);
+
+    return CreatedAtAction(nameof(GetById), new { id = user.Id }, UserResponse.FromDomain(user));
+}
 }

@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using TallyVel.Api.Application.Interfaces;
@@ -19,6 +20,8 @@ builder.Services.AddScoped<StokvelMembershipService>();
 builder.Services.AddScoped<ContributionService>();
 builder.Services.AddControllers();
 
+// This automatically scans and registers all validators found in the same assembly as Program
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 var app = builder.Build();
 

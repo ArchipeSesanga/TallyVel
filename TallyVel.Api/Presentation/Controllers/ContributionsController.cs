@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using TallyVel.Api.Application.Contracts;
 using TallyVel.Api.Application.Interfaces;
@@ -14,11 +15,16 @@ public class ContributionsController : ControllerBase
 
     private readonly ContributionService _contributionService;
     private readonly IContributionRepository _contributionRepository;
+    private readonly IValidator<RecordContributionRequest> _validator;
 
-    public ContributionsController(ContributionService contributionService, IContributionRepository contributionRepository)
+    public ContributionsController(
+        ContributionService contributionService,
+        IContributionRepository contributionRepository,
+        IValidator<RecordContributionRequest> validator)
     {
         _contributionService = contributionService;
         _contributionRepository = contributionRepository;
+        _validator = validator;
     }
 
     [HttpGet]
@@ -38,8 +44,12 @@ public class ContributionsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<ContributionResponse>> RecordContribution(Guid stokvelId, RecordContributionRequest request)
+    public async Task<ActionResult<ContributionResponse>> RecordContribution(Guid stokvelId, RecordContributionRequest request, CancellationToken ct)
     {
+        var validationResult = await _validator.ValidateAsync(request, ct);
+        if (!validationResult.IsValid)
+            return ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));
+
         // The key travels as a header, not a body field, because it
         // identifies this *HTTP request attempt*, not the payment
         // itself — it's metadata about the call, which is what headers
