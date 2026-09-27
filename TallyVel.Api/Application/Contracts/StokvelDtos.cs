@@ -1,6 +1,6 @@
 using TallyVel.Api.Domain;
 
-namespace TallyVel.Api.Controllers;
+namespace TallyVel.Api.Application.Contracts;
 
 public sealed record StokvelMembershipResponse(Guid UserId, MemberRole Role, DateTimeOffset JoinedAt)
 {

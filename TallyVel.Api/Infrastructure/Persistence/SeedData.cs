@@ -1,6 +1,6 @@
 using TallyVel.Api.Domain;
 
-namespace TallyVel.Api.Data;
+namespace TallyVel.Api.Infrastructure.Persistence;
 
 /// <summary>
 /// Produces a small, consistent set of sample Users and Stokvels so the
