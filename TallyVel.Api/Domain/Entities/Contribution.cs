@@ -7,7 +7,8 @@ namespace TallyVel.Api.Domain;
 /// invalid Contribution can never exist. The record only captures the
 /// payment itself; whether the member is actually part of the stokvel,
 /// and whether they've already paid for this cycle, are checked by
-/// whoever creates one (see ContributionService), not by this type.
+/// whoever creates one (see IContributionRepository.RecordContributionAsync),
+/// not by this type.
 /// </summary>
 public sealed class Contribution
 {

@@ -2,7 +2,6 @@ using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using TallyVel.Api.Application.Contracts;
 using TallyVel.Api.Application.Interfaces;
-using TallyVel.Api.Application.Services;
 using TallyVel.Api.Domain;
 
 namespace TallyVel.Api.Presentation.Controllers;
@@ -13,16 +12,13 @@ public class ContributionsController : ControllerBase
 {
     private const string IdempotencyKeyHeader = "Idempotency-Key";
 
-    private readonly ContributionService _contributionService;
     private readonly IContributionRepository _contributionRepository;
     private readonly IValidator<RecordContributionRequest> _validator;
 
     public ContributionsController(
-        ContributionService contributionService,
         IContributionRepository contributionRepository,
         IValidator<RecordContributionRequest> validator)
     {
-        _contributionService = contributionService;
         _contributionRepository = contributionRepository;
         _validator = validator;
     }
@@ -58,7 +54,7 @@ public class ContributionsController : ControllerBase
 
         try
         {
-            var response = await _contributionService.RecordContributionAsync(stokvelId, request, idempotencyKey);
+            var response = await _contributionRepository.RecordContributionAsync(stokvelId, request, idempotencyKey, ct);
             return CreatedAtAction(nameof(GetById), new { stokvelId, id = response.Id }, response);
         }
         catch (NotFoundException ex)
