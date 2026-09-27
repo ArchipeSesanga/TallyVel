@@ -26,9 +26,8 @@ public class UserController : ControllerBase
     [HttpGet("{id:guid}")]
     public ActionResult<UserResponse> GetById(Guid id)
     {
-        var user = _userRepository.GetById(id);
-        if (user is null)
-            return Problem(detail: $"No user found with id {id}.", statusCode: StatusCodes.Status404NotFound, title: "Not Found");
+        var user = _userRepository.GetById(id)
+            ?? throw new NotFoundException("user", id);
 
         return Ok(UserResponse.FromDomain(user));
     }

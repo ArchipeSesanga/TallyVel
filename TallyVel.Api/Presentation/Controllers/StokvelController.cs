@@ -38,9 +38,8 @@ public class StokvelController : ControllerBase
     [HttpGet("{id:guid}")]
     public ActionResult<StokvelResponse> GetById(Guid id)
     {
-        var stokvel = _stokvelRepository.GetById(id);
-        if (stokvel is null)
-            return Problem(detail: $"No stokvel found with id {id}.", statusCode: StatusCodes.Status404NotFound, title: "Not Found");
+        var stokvel = _stokvelRepository.GetById(id)
+            ?? throw new NotFoundException("stokvel", id);
 
         return Ok(StokvelResponse.FromDomain(stokvel));
     }
@@ -78,37 +77,21 @@ public class StokvelController : ControllerBase
         if (!validationResult.IsValid)
             return ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));
 
-        try
-        {
-            var stokvel = _membershipService.AddMember(id, request.UserId, request.Role);
-            return Ok(StokvelResponse.FromDomain(stokvel));
-        }
-        catch (NotFoundException ex)
-        {
-            return Problem(detail: ex.Message, statusCode: StatusCodes.Status404NotFound, title: "Not Found");
-        }
-        catch (ConflictException ex)
-        {
-            return Problem(detail: ex.Message, statusCode: StatusCodes.Status409Conflict, title: "Conflict");
-        }
+        // NotFoundException and AlreadyExistsException propagate to
+        // TallyVelExceptionHandler, the only place that turns a domain
+        // failure into a status code.
+        var stokvel = _membershipService.AddMember(id, request.UserId, request.Role);
+        return Ok(StokvelResponse.FromDomain(stokvel));
     }
 
     [HttpDelete("{id:guid}/members/{userId:guid}")]
     public ActionResult<StokvelResponse> RemoveMember(Guid id, Guid userId)
     {
-        try
-        {
-            var stokvel = _membershipService.RemoveMember(id, userId);
-            return Ok(StokvelResponse.FromDomain(stokvel));
-        }
-        catch (NotFoundException ex)
-        {
-            return Problem(detail: ex.Message, statusCode: StatusCodes.Status404NotFound, title: "Not Found");
-        }
-        catch (BusinessRuleViolationException ex)
-        {
-            return Problem(detail: ex.Message, statusCode: StatusCodes.Status422UnprocessableEntity, title: "Business Rule Violation");
-        }
+        // NotFoundException and BusinessRuleViolationException propagate to
+        // TallyVelExceptionHandler, the only place that turns a domain
+        // failure into a status code.
+        var stokvel = _membershipService.RemoveMember(id, userId);
+        return Ok(StokvelResponse.FromDomain(stokvel));
     }
 
     [HttpPut("{id:guid}/members/{userId:guid}/role")]
@@ -118,18 +101,10 @@ public class StokvelController : ControllerBase
         if (!validationResult.IsValid)
             return ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));
 
-        try
-        {
-            var stokvel = _membershipService.ChangeRole(id, userId, request.Role);
-            return Ok(StokvelResponse.FromDomain(stokvel));
-        }
-        catch (NotFoundException ex)
-        {
-            return Problem(detail: ex.Message, statusCode: StatusCodes.Status404NotFound, title: "Not Found");
-        }
-        catch (BusinessRuleViolationException ex)
-        {
-            return Problem(detail: ex.Message, statusCode: StatusCodes.Status422UnprocessableEntity, title: "Business Rule Violation");
-        }
+        // NotFoundException and BusinessRuleViolationException propagate to
+        // TallyVelExceptionHandler, the only place that turns a domain
+        // failure into a status code.
+        var stokvel = _membershipService.ChangeRole(id, userId, request.Role);
+        return Ok(StokvelResponse.FromDomain(stokvel));
     }
 }

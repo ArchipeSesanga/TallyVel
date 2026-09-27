@@ -17,10 +17,10 @@ public class StokvelMembershipService
     public Stokvel AddMember(Guid stokvelId, Guid userId, MemberRole role)
     {
         var stokvel = _stokvelRepository.GetById(stokvelId)
-            ?? throw new NotFoundException($"No stokvel found with id {stokvelId}.");
+            ?? throw new NotFoundException("stokvel", stokvelId);
 
         var user = _userRepository.GetById(userId)
-            ?? throw new NotFoundException($"No user found with id {userId}.");
+            ?? throw new NotFoundException("user", userId);
 
         try
         {
@@ -30,7 +30,7 @@ public class StokvelMembershipService
         {
             // Stokvel only throws here for "already a member" — a
             // genuine duplicate, so 409.
-            throw new ConflictException(ex.Message);
+            throw new AlreadyExistsException("member-already-exists", ex.Message);
         }
 
         return stokvel;
@@ -39,7 +39,7 @@ public class StokvelMembershipService
     public Stokvel RemoveMember(Guid stokvelId, Guid userId)
     {
         var stokvel = _stokvelRepository.GetById(stokvelId)
-            ?? throw new NotFoundException($"No stokvel found with id {stokvelId}.");
+            ?? throw new NotFoundException("stokvel", stokvelId);
 
         try
         {
@@ -47,13 +47,13 @@ public class StokvelMembershipService
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("is not a member"))
         {
-            throw new NotFoundException(ex.Message);
+            throw new NotFoundException("member", userId, ex.Message);
         }
         catch (InvalidOperationException ex)
         {
             // "Cannot remove the last remaining admin" — well-formed
             // request, state says no. 422.
-            throw new BusinessRuleViolationException(ex.Message);
+            throw new BusinessRuleViolationException("last-admin", ex.Message);
         }
 
         return stokvel;
@@ -62,7 +62,7 @@ public class StokvelMembershipService
     public Stokvel ChangeRole(Guid stokvelId, Guid userId, MemberRole newRole)
     {
         var stokvel = _stokvelRepository.GetById(stokvelId)
-            ?? throw new NotFoundException($"No stokvel found with id {stokvelId}.");
+            ?? throw new NotFoundException("stokvel", stokvelId);
 
         try
         {
@@ -70,11 +70,11 @@ public class StokvelMembershipService
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("is not a member"))
         {
-            throw new NotFoundException(ex.Message);
+            throw new NotFoundException("member", userId, ex.Message);
         }
         catch (InvalidOperationException ex)
         {
-            throw new BusinessRuleViolationException(ex.Message);
+            throw new BusinessRuleViolationException("invalid-role-change", ex.Message);
         }
 
         return stokvel;

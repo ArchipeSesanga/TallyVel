@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using TallyVel.Api.Application.Interfaces;
 using TallyVel.Api.Application.Services;
+using TallyVel.Api.Common;
 using TallyVel.Api.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,6 +20,9 @@ builder.Services.AddSingleton<IContributionRepository, InMemoryContributionRepos
 builder.Services.AddScoped<StokvelMembershipService>();
 builder.Services.AddControllers();
 
+builder.Services.AddExceptionHandler<TallyVelExceptionHandler>();
+builder.Services.AddProblemDetails();
+
 // This automatically scans and registers all validators found in the same assembly as Program
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
@@ -33,6 +37,8 @@ if (app.Environment.IsDevelopment())
         Options.Theme = ScalarTheme.Moon; 
     });
 }
+
+app.UseExceptionHandler();
 
 app.UseHttpsRedirection();
 

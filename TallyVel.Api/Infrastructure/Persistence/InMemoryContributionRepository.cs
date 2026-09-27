@@ -76,12 +76,10 @@ public sealed class InMemoryContributionRepository : IContributionRepository
                 // Same key, same payload, but the first attempt hasn't
                 // finished yet. Tell the client to retry shortly rather
                 // than processing it a second time.
-                throw new ConflictException(
-                    $"A request with Idempotency-Key '{idempotencyKey}' is still being processed. Retry shortly.");
+                throw new IdempotencyKeyInProgressException(idempotencyKey);
 
             case ReserveResult.PayloadMismatch:
-                throw new ConflictException(
-                    $"Idempotency-Key '{idempotencyKey}' was already used with a different request payload.");
+                throw new IdempotencyKeyReusedException(idempotencyKey);
         }
 
         // From here on we own the key. If anything fails, release it so
@@ -91,20 +89,22 @@ public sealed class InMemoryContributionRepository : IContributionRepository
         {
             // (c) Existence checks, stokvel before member.
             var stokvel = _stokvelRepository.GetById(stokvelId)
-                ?? throw new NotFoundException($"No stokvel found with id {stokvelId}.");
+                ?? throw new NotFoundException("stokvel", stokvelId);
 
             var member = _userRepository.GetById(request.MemberUserId)
-                ?? throw new NotFoundException($"No user found with id {request.MemberUserId}.");
+                ?? throw new NotFoundException("member", request.MemberUserId);
 
             if (stokvel.Members.All(m => m.UserId != member.Id))
             {
                 throw new BusinessRuleViolationException(
+                    "not-a-member",
                     $"User {member.Id} is not a member of stokvel {stokvelId}.");
             }
 
             if (ExistsForCycle(stokvelId, member.Id, request.Cycle))
             {
-                throw new ConflictException(
+                throw new AlreadyExistsException(
+                    "contribution-already-recorded",
                     $"User {member.Id} has already contributed to stokvel {stokvelId} for cycle '{request.Cycle}'.");
             }
 
@@ -141,7 +141,7 @@ public sealed class InMemoryContributionRepository : IContributionRepository
         // fast instead of silently inserting under the name "update".
         _contributions.AddOrUpdate(
             contribution.Id,
-            addValueFactory: _ => throw new NotFoundException($"No contribution found with id {contribution.Id}."),
+            addValueFactory: _ => throw new NotFoundException("contribution", contribution.Id),
             updateValueFactory: (_, _) => contribution);
 
         return Task.CompletedTask;

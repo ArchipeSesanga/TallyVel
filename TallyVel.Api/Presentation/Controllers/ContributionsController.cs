@@ -34,7 +34,7 @@ public class ContributionsController : ControllerBase
     {
         var contribution = _contributionRepository.GetById(id);
         if (contribution is null || contribution.StokvelId != stokvelId)
-            return Problem(detail: $"No contribution found with id {id}.", statusCode: StatusCodes.Status404NotFound, title: "Not Found");
+            throw new NotFoundException("contribution", id);
 
         return Ok(ContributionResponse.FromDomain(contribution));
     }
@@ -52,35 +52,21 @@ public class ContributionsController : ControllerBase
         // are for, not part of the domain payload.
         var idempotencyKey = Request.Headers[IdempotencyKeyHeader].ToString();
 
+        // NotFoundException, BusinessRuleViolationException, AlreadyExistsException,
+        // IdempotencyKeyReusedException and IdempotencyKeyInProgressException all
+        // propagate to TallyVelExceptionHandler, the only place that turns a
+        // domain failure into a status code.
         try
         {
             var response = await _contributionRepository.RecordContributionAsync(stokvelId, request, idempotencyKey, ct);
             return CreatedAtAction(nameof(GetById), new { stokvelId, id = response.Id }, response);
         }
-        catch (NotFoundException ex)
-        {
-            // The stokvel or member referenced in the request doesn't exist.
-            return Problem(detail: ex.Message, statusCode: StatusCodes.Status404NotFound, title: "Not Found");
-        }
-        catch (BusinessRuleViolationException ex)
-        {
-            // The request is well-formed but violates a domain rule
-            // (e.g. the member isn't part of this stokvel) — 422, not 400,
-            // because the request itself isn't malformed.
-            return Problem(detail: ex.Message, statusCode: StatusCodes.Status422UnprocessableEntity, title: "Business Rule Violation");
-        }
-        catch (ConflictException ex)
-        {
-            // Either the cycle is already paid for, or the Idempotency-Key
-            // was reused with a different payload — both are conflicts
-            // with existing state, hence 409.
-            return Problem(detail: ex.Message, statusCode: StatusCodes.Status409Conflict, title: "Conflict");
-        }
         catch (ArgumentException ex)
         {
-            // Covers both a missing Idempotency-Key and invalid domain
-            // input (blank cycle, non-positive amount, etc.) — the
-            // request itself is malformed, hence 400.
+            // Missing Idempotency-Key header, or invalid domain input
+            // (blank cycle, non-positive amount, etc.) — not one of ours,
+            // so TallyVelExceptionHandler won't touch it. The request
+            // itself is malformed, hence 400.
             return Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest, title: "Bad Request");
         }
     }
