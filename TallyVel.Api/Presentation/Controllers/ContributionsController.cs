@@ -13,13 +13,16 @@ public class ContributionsController : ControllerBase
     private const string IdempotencyKeyHeader = "Idempotency-Key";
 
     private readonly IContributionRepository _contributionRepository;
+    private readonly IContributionService _contributionService;
     private readonly IValidator<RecordContributionRequest> _validator;
 
     public ContributionsController(
         IContributionRepository contributionRepository,
+        IContributionService contributionService,
         IValidator<RecordContributionRequest> validator)
     {
         _contributionRepository = contributionRepository;
+        _contributionService = contributionService;
         _validator = validator;
     }
 
@@ -58,7 +61,7 @@ public class ContributionsController : ControllerBase
         // domain failure into a status code.
         try
         {
-            var response = await _contributionRepository.RecordContributionAsync(stokvelId, request, idempotencyKey, ct);
+            var response = await _contributionService.RecordContributionAsync(stokvelId, request, idempotencyKey, ct);
             return CreatedAtAction(nameof(GetById), new { stokvelId, id = response.Id }, response);
         }
         catch (ArgumentException ex)

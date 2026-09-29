@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="TallyVel.Api/TallyVel.Api.csproj" />
+  <Project Path="TallyVel.Tests/TallyVel.Tests.csproj" />
+</Solution>
