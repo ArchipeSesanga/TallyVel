@@ -18,6 +18,7 @@ builder.Services.AddSingleton<IStokvelRepository>(new InMemoryStokvelRepository(
 builder.Services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
 builder.Services.AddSingleton<IContributionRepository, InMemoryContributionRepository>();
 builder.Services.AddScoped<StokvelMembershipService>();
+builder.Services.AddScoped<IContributionService, ContributionServices>();
 builder.Services.AddControllers();
 
 builder.Services.AddExceptionHandler<TallyVelExceptionHandler>();
@@ -47,3 +48,5 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+public partial class Program { }

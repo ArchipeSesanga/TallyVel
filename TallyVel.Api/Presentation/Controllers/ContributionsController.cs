@@ -13,23 +13,33 @@ public class ContributionsController : ControllerBase
     private const string IdempotencyKeyHeader = "Idempotency-Key";
 
     private readonly IContributionRepository _contributionRepository;
+    private readonly IContributionService _contributionService;
     private readonly IValidator<RecordContributionRequest> _validator;
 
     public ContributionsController(
         IContributionRepository contributionRepository,
+        IContributionService contributionService,
         IValidator<RecordContributionRequest> validator)
     {
         _contributionRepository = contributionRepository;
+        _contributionService = contributionService;
         _validator = validator;
     }
 
     [HttpGet]
+    [EndpointSummary("List a stokvel's contributions")]
+    [EndpointDescription("Returns every contribution recorded against this stokvel.")]
+    [ProducesResponseType<IEnumerable<ContributionResponse>>(StatusCodes.Status200OK)]
     public ActionResult<IEnumerable<ContributionResponse>> GetAll(Guid stokvelId) =>
         Ok(_contributionRepository.GetAll()
             .Where(c => c.StokvelId == stokvelId)
             .Select(ContributionResponse.FromDomain));
 
     [HttpGet("{id:guid}")]
+    [EndpointSummary("Get a contribution by id")]
+    [EndpointDescription("Returns a single contribution, scoped to this stokvel.")]
+    [ProducesResponseType<ContributionResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public ActionResult<ContributionResponse> GetById(Guid stokvelId, Guid id)
     {
         var contribution = _contributionRepository.GetById(id);
@@ -40,6 +50,13 @@ public class ContributionsController : ControllerBase
     }
 
     [HttpPost]
+    [EndpointSummary("Record a contribution")]
+    [EndpointDescription("Records a member's payment for a stokvel cycle. Requires an Idempotency-Key header, and rejects a second contribution from the same member for the same cycle.")]
+    [ProducesResponseType<ContributionResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
     public async Task<ActionResult<ContributionResponse>> RecordContribution(Guid stokvelId, RecordContributionRequest request, CancellationToken ct)
     {
         var validationResult = await _validator.ValidateAsync(request, ct);
@@ -58,7 +75,7 @@ public class ContributionsController : ControllerBase
         // domain failure into a status code.
         try
         {
-            var response = await _contributionRepository.RecordContributionAsync(stokvelId, request, idempotencyKey, ct);
+            var response = await _contributionService.RecordContributionAsync(stokvelId, request, idempotencyKey, ct);
             return CreatedAtAction(nameof(GetById), new { stokvelId, id = response.Id }, response);
         }
         catch (ArgumentException ex)

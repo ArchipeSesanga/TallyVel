@@ -20,10 +20,17 @@ public class UserController : ControllerBase
     }
 
     [HttpGet]
+    [EndpointSummary("List all users")]
+    [EndpointDescription("Returns every registered user.")]
+    [ProducesResponseType<IEnumerable<UserResponse>>(StatusCodes.Status200OK)]
     public ActionResult<IEnumerable<UserResponse>> GetAll() =>
         Ok(_userRepository.GetAll().Select(UserResponse.FromDomain));
 
     [HttpGet("{id:guid}")]
+    [EndpointSummary("Get a user by id")]
+    [EndpointDescription("Returns a single user.")]
+    [ProducesResponseType<UserResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public ActionResult<UserResponse> GetById(Guid id)
     {
         var user = _userRepository.GetById(id)
@@ -33,6 +40,10 @@ public class UserController : ControllerBase
     }
 
     [HttpPost]
+    [EndpointSummary("Register a user")]
+    [EndpointDescription("Creates a new user account.")]
+    [ProducesResponseType<UserResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
 public async Task<ActionResult<UserResponse>> Create(CreateUserRequest request, CancellationToken ct)
 {
 

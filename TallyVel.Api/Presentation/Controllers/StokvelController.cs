@@ -32,10 +32,17 @@ public class StokvelController : ControllerBase
     }
 
     [HttpGet]
+    [EndpointSummary("List all stokvels")]
+    [EndpointDescription("Returns every stokvel currently tracked, regardless of membership.")]
+    [ProducesResponseType<IEnumerable<StokvelResponse>>(StatusCodes.Status200OK)]
     public ActionResult<IEnumerable<StokvelResponse>> GetAll() =>
         Ok(_stokvelRepository.GetAll().Select(StokvelResponse.FromDomain));
 
     [HttpGet("{id:guid}")]
+    [EndpointSummary("Get a stokvel by id")]
+    [EndpointDescription("Returns a single stokvel, including its current members and their roles.")]
+    [ProducesResponseType<StokvelResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public ActionResult<StokvelResponse> GetById(Guid id)
     {
         var stokvel = _stokvelRepository.GetById(id)
@@ -45,6 +52,10 @@ public class StokvelController : ControllerBase
     }
 
     [HttpPost]
+    [EndpointSummary("Create a stokvel")]
+    [EndpointDescription("Creates a new stokvel. The creator is automatically enrolled as its first member, with the Admin role.")]
+    [ProducesResponseType<StokvelResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     public async Task<ActionResult<StokvelResponse>> Create(CreateStokvelRequest request)
     {
         var validationResult = await _validator.ValidateAsync(request);
@@ -52,9 +63,9 @@ public class StokvelController : ControllerBase
 
         if (!validationResult.IsValid)
         {
-            
-        // Return the model issues
-            return  ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));
+
+            // Return the model issues
+            return ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));
         }
         try
         {
@@ -71,6 +82,11 @@ public class StokvelController : ControllerBase
     }
 
     [HttpPost("{id:guid}/members")]
+    [EndpointSummary("Add a member to a stokvel")]
+    [EndpointDescription("Enrolls a user into the stokvel with the given role. Fails if the user is already a member.")]
+    [ProducesResponseType<StokvelResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     public async Task<ActionResult<StokvelResponse>> AddMember(Guid id, AddStokvelMemberRequest request)
     {
         var validationResult = await _addMemberValidator.ValidateAsync(request);
@@ -85,6 +101,11 @@ public class StokvelController : ControllerBase
     }
 
     [HttpDelete("{id:guid}/members/{userId:guid}")]
+    [EndpointSummary("Remove a member from a stokvel")]
+    [EndpointDescription("Removes the member. Refuses to remove the last admin, so a stokvel always has someone who can run it. Does not delete the member's past contributions.")]
+    [ProducesResponseType<StokvelResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
     public ActionResult<StokvelResponse> RemoveMember(Guid id, Guid userId)
     {
         // NotFoundException and BusinessRuleViolationException propagate to
@@ -95,6 +116,11 @@ public class StokvelController : ControllerBase
     }
 
     [HttpPut("{id:guid}/members/{userId:guid}/role")]
+    [EndpointSummary("Change a member's role")]
+    [EndpointDescription("Changes a member's role within the stokvel. Refuses a change that would leave the stokvel without an admin.")]
+    [ProducesResponseType<StokvelResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
     public async Task<ActionResult<StokvelResponse>> ChangeMemberRole(Guid id, Guid userId, ChangeStokvelMemberRoleRequest request)
     {
         var validationResult = await _changeRoleValidator.ValidateAsync(request);
