@@ -11,20 +11,22 @@ using TallyVel.Api.Infrastructure.Persistence;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-var (seedUsers, seedStokvels) = SeedData.Generate();
-
 builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<TallyVelDbContext>(o =>
     o.UseNpgsql(builder.Configuration.GetConnectionString("TallyVel")));
 
-builder.Services.AddSingleton<IUserRepository>(new InMemoryUserRepository(seedUsers));
-builder.Services.AddSingleton<IStokvelRepository>(new InMemoryStokvelRepository(seedStokvels));
+// Repositories are Scoped: they share the request's DbContext.
+builder.Services.AddScoped<IUserRepository, EfUserRepository>();
+builder.Services.AddScoped<IStokvelRepository, EfStokvelRepository>();
+builder.Services.AddScoped<IContributionRepository, EfContributionRepository>();
+// Still in memory — idempotency keys aren't part of the database model yet.
 builder.Services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
-builder.Services.AddSingleton<IContributionRepository, InMemoryContributionRepository>();
 builder.Services.AddScoped<StokvelMembershipService>();
 builder.Services.AddScoped<IContributionService, ContributionServices>();
-builder.Services.AddControllers();
+// Saves changes made to tracked entities (e.g. stokvel memberships) at the
+// end of each successful request.
+builder.Services.AddControllers(o => o.Filters.Add<SaveChangesFilter>());
 
 builder.Services.AddExceptionHandler<TallyVelExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -33,6 +35,13 @@ builder.Services.AddProblemDetails();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 var app = builder.Build();
+
+// Fill an empty development database with the sample users and stokvels.
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    await DatabaseSeeder.SeedAsync(scope.ServiceProvider.GetRequiredService<TallyVelDbContext>());
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
