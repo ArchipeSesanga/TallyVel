@@ -23,7 +23,7 @@ public class ContributionServiceTests
         _outsider = new User("outsider@test.com", "Outsider User", "hash");
 
         // The creator is automatically the stokvel's first member (Admin).
-        _stokvel = new Stokvel("Test Stokvel", 500m, ContributionCycle.Monthly, _admin.Id);
+        _stokvel = new Stokvel("Test Stokvel", 500m, ContributionFrequency.Monthly, _admin.Id);
 
         var users = new InMemoryUserRepository(new[] { _admin, _outsider });
         var stokvels = new InMemoryStokvelRepository(new[] { _stokvel });

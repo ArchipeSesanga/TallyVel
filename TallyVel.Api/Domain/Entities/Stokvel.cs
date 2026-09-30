@@ -2,10 +2,11 @@ namespace TallyVel.Api.Domain;
 
 /// <summary>
 /// How often a stokvel expects contributions. A closed set, not a
-/// free-text field, so Cycle can never hold an unsupported or
-/// misspelled value.
+/// free-text field, so Stokvel.Cycle can never hold an unsupported or
+/// misspelled value. (Named Frequency, not Cycle, because ContributionCycle
+/// is the entity for one specific collection period.)
 /// </summary>
-public enum ContributionCycle
+public enum ContributionFrequency
 {
     Weekly,
     BiWeekly,
@@ -44,7 +45,7 @@ public sealed class Stokvel
     public Guid Id { get; }
     public string Name { get; private set; }
     public decimal ContributionAmount { get; private set; }
-    public ContributionCycle Cycle { get; private set; }
+    public ContributionFrequency Cycle { get; private set; }
     public DateTimeOffset CreatedAt { get; }
 
     private readonly List<StokvelMembership> _members = new();
@@ -56,7 +57,7 @@ public sealed class Stokvel
     /// </summary>
     public IReadOnlyCollection<StokvelMembership> Members => _members.AsReadOnly();
 
-    public Stokvel(string name, decimal contributionAmount, ContributionCycle cycle, Guid creatorId)
+    public Stokvel(string name, decimal contributionAmount, ContributionFrequency cycle, Guid creatorId)
     {
         Name = ValidateName(name);
         ContributionAmount = ValidateContributionAmount(contributionAmount);
