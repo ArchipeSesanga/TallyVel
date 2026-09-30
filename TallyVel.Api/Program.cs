@@ -1,4 +1,6 @@
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
+using TallyVel.Api.Data;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using TallyVel.Api.Application.Interfaces;
@@ -12,6 +14,9 @@ var builder = WebApplication.CreateBuilder(args);
 var (seedUsers, seedStokvels) = SeedData.Generate();
 
 builder.Services.AddOpenApi();
+
+builder.Services.AddDbContext<TallyVelDbContext>(o =>
+    o.UseNpgsql(builder.Configuration.GetConnectionString("TallyVel")));
 
 builder.Services.AddSingleton<IUserRepository>(new InMemoryUserRepository(seedUsers));
 builder.Services.AddSingleton<IStokvelRepository>(new InMemoryStokvelRepository(seedStokvels));

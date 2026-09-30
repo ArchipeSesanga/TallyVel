@@ -1,0 +1,5 @@
+Build started...
+Build succeeded.
+Unable to create a 'DbContext' of type 'TallyVelDbContext'. The exception 'No suitable constructor was found for the type 'Contribution'. The following constructors had parameters that could not be bound to properties of the type: 
+    Cannot bind 'stokvelId', 'memberUserId', 'cycle', 'amount' in 'Contribution(Guid stokvelId, Guid memberUserId, string cycle, decimal amount)'
+Note that only mapped properties can be bound to constructor parameters. Navigations to related entities, including references to owned types, cannot be bound.' was thrown while attempting to create an instance. For the different patterns supported at design time, see https://go.microsoft.com/fwlink/?linkid=851728
