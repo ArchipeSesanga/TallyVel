@@ -12,12 +12,18 @@ namespace TallyVel.Api.Domain;
 /// </summary>
 public sealed class Contribution
 {
-    public Guid Id { get; }
-    public Guid StokvelId { get; }
-    public Guid MemberUserId { get; }
-    public string Cycle { get; }
-    public decimal Amount { get; }
-    public DateTimeOffset RecordedAt { get; }
+    public Guid Id { get; private init; }
+    public Guid StokvelId { get; private init; }
+    public Guid MemberUserId { get; private init; }
+    public string Cycle { get; private init; }
+    public decimal Amount { get; private init; }
+    public DateTimeOffset RecordedAt { get; private init; }
+
+    // For EF Core only.
+    private Contribution()
+    {
+        Cycle = null!;
+    }
 
     public Contribution(Guid stokvelId, Guid memberUserId, string cycle, decimal amount)
     {

@@ -4,7 +4,7 @@ namespace TallyVel.Api.Application.Contracts;
 
 public sealed record StokvelMembershipResponse(Guid UserId, MemberRole Role, DateTimeOffset JoinedAt)
 {
-    public static StokvelMembershipResponse FromDomain(StokvelMembership membership) =>
+    public static StokvelMembershipResponse FromDomain(StokvelMember membership) =>
         new(membership.UserId, membership.Role, membership.JoinedAt);
 }
 
