@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: tallyvel-pg
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: tallyvel
+    ports:
+      - "5433:5432"
+    volumes:
+      - tallyvel-pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  tallyvel-pgdata:

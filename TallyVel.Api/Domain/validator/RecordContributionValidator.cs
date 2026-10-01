@@ -13,7 +13,9 @@ public class RecordContributionValidator : AbstractValidator<RecordContributionR
 
         RuleFor(x => x.Cycle)
             .NotEmpty()
-            .WithMessage("Cycle is required");
+            .WithMessage("Cycle is required")
+            .MaximumLength(ContributionCycle.MaxLabelLength)
+            .WithMessage($"Cycle cannot exceed {ContributionCycle.MaxLabelLength} characters");
 
         RuleFor(x => x.Amount)
             .GreaterThan(0)

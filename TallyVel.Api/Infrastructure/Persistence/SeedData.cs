@@ -22,11 +22,11 @@ public static class SeedData
        
         var users = new List<User> { thabo, lindiwe, sipho, amahle };
 
-        var familySavings = new Stokvel("Family Savings Circle", 500m, ContributionCycle.Monthly, thabo.Id);
+        var familySavings = new Stokvel("Family Savings Circle", 500m, ContributionFrequency.Monthly, thabo.Id);
         familySavings.AddMember(lindiwe.Id);
         familySavings.AddMember(sipho.Id);
 
-        var weeklyPool = new Stokvel("Weekly Grocery Pool", 150m, ContributionCycle.Weekly, lindiwe.Id);
+        var weeklyPool = new Stokvel("Weekly Grocery Pool", 150m, ContributionFrequency.Weekly, lindiwe.Id);
         weeklyPool.AddMember(amahle.Id, MemberRole.Admin);
 
         var stokvels = new List<Stokvel> { familySavings, weeklyPool };

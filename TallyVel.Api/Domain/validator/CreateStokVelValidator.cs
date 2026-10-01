@@ -4,7 +4,7 @@ using FluentValidation;
 using TallyVel.Api.Application.Contracts;
 
 
-//string Name, decimal ContributionAmount, ContributionCycle Cycle, Guid CreatorId
+//string Name, decimal ContributionAmount, ContributionFrequency Cycle, Guid CreatorId
 public class CreateStokVelValidator: AbstractValidator<CreateStokvelRequest>
 {
     public CreateStokVelValidator()

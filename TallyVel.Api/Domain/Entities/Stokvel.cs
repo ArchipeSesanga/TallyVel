@@ -2,10 +2,11 @@ namespace TallyVel.Api.Domain;
 
 /// <summary>
 /// How often a stokvel expects contributions. A closed set, not a
-/// free-text field, so Cycle can never hold an unsupported or
-/// misspelled value.
+/// free-text field, so Stokvel.Cycle can never hold an unsupported or
+/// misspelled value. (Named Frequency, not Cycle, because ContributionCycle
+/// is the entity for one specific collection period.)
 /// </summary>
-public enum ContributionCycle
+public enum ContributionFrequency
 {
     Weekly,
     BiWeekly,
@@ -25,11 +26,34 @@ public enum MemberRole
 
 /// <summary>
 /// One member's standing inside a Stokvel: who they are, what role they
-/// hold, and when they joined. Kept as a small record rather than a
+/// hold, and when they joined. Kept as its own small type rather than a
 /// bare Guid in a list, so role is captured per-membership instead of
-/// assumed elsewhere.
+/// assumed elsewhere. A class rather than a record because EF Core
+/// tracks it as an entity (keyed by StokvelId + UserId) and a role
+/// change mutates it in place instead of replacing it.
 /// </summary>
-public sealed record StokvelMembership(Guid UserId, MemberRole Role, DateTimeOffset JoinedAt);
+public sealed class StokvelMember
+{
+    public Guid StokvelId { get; private init; }
+    public Guid UserId { get; private init; }
+    public MemberRole Role { get; private set; }
+    public DateTimeOffset JoinedAt { get; private init; }
+
+    // For EF Core only.
+    private StokvelMember()
+    {
+    }
+
+    internal StokvelMember(Guid stokvelId, Guid userId, MemberRole role, DateTimeOffset joinedAt)
+    {
+        StokvelId = stokvelId;
+        UserId = userId;
+        Role = role;
+        JoinedAt = joinedAt;
+    }
+
+    internal void ChangeRole(MemberRole newRole) => Role = newRole;
+}
 
 /// <summary>
 /// A stokvel: a savings circle with a name, a contribution amount, a
@@ -41,22 +65,28 @@ public sealed class Stokvel
 {
     public const int MaxNameLength = 100;
 
-    public Guid Id { get; }
+    public Guid Id { get; private init; }
     public string Name { get; private set; }
     public decimal ContributionAmount { get; private set; }
-    public ContributionCycle Cycle { get; private set; }
-    public DateTimeOffset CreatedAt { get; }
+    public ContributionFrequency Cycle { get; private set; }
+    public DateTimeOffset CreatedAt { get; private init; }
 
-    private readonly List<StokvelMembership> _members = new();
+    private readonly List<StokvelMember> _members = new();
 
     /// <summary>
     /// Exposed read-only so callers can inspect membership but can only
     /// change it through AddMember / RemoveMember / ChangeRole, which
     /// enforce this Stokvel's invariants.
     /// </summary>
-    public IReadOnlyCollection<StokvelMembership> Members => _members.AsReadOnly();
+    public IReadOnlyCollection<StokvelMember> Members => _members.AsReadOnly();
 
-    public Stokvel(string name, decimal contributionAmount, ContributionCycle cycle, Guid creatorId)
+    // For EF Core only.
+    private Stokvel()
+    {
+        Name = null!;
+    }
+
+    public Stokvel(string name, decimal contributionAmount, ContributionFrequency cycle, Guid creatorId)
     {
         Name = ValidateName(name);
         ContributionAmount = ValidateContributionAmount(contributionAmount);
@@ -67,7 +97,7 @@ public sealed class Stokvel
 
         // The creator is always the first member, always as Admin — a
         // Stokvel can never be created without someone able to run it.
-        _members.Add(new StokvelMembership(creatorId, MemberRole.Admin, CreatedAt));
+        _members.Add(new StokvelMember(Id, creatorId, MemberRole.Admin, CreatedAt));
     }
 
     public void Rename(string newName) => Name = ValidateName(newName);
@@ -86,7 +116,7 @@ public sealed class Stokvel
         if (_members.Any(m => m.UserId == userId))
             throw new InvalidOperationException("This user is already a member of this stokvel.");
 
-        _members.Add(new StokvelMembership(userId, role, DateTimeOffset.UtcNow));
+        _members.Add(new StokvelMember(Id, userId, role, DateTimeOffset.UtcNow));
     }
 
     /// <summary>
@@ -111,11 +141,8 @@ public sealed class Stokvel
     /// </summary>
     public void ChangeRole(Guid userId, MemberRole newRole)
     {
-        var index = _members.FindIndex(m => m.UserId == userId);
-        if (index == -1)
-            throw new InvalidOperationException("This user is not a member of this stokvel.");
-
-        var member = _members[index];
+        var member = _members.FirstOrDefault(m => m.UserId == userId)
+            ?? throw new InvalidOperationException("This user is not a member of this stokvel.");
 
         if (member.Role == MemberRole.Admin
             && newRole != MemberRole.Admin
@@ -124,7 +151,7 @@ public sealed class Stokvel
             throw new InvalidOperationException("Cannot demote the last remaining admin of a stokvel.");
         }
 
-        _members[index] = member with { Role = newRole };
+        member.ChangeRole(newRole);
     }
 
     private static string ValidateName(string? name)

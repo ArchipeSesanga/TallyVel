@@ -17,7 +17,7 @@ public sealed class User
 {
     public const int MaxFullNameLength = 150;
 
-    public Guid Id { get; }
+    public Guid Id { get; private init; }
     public string Email { get; private set; }
     public string FullName { get; private set; }
 
@@ -26,7 +26,15 @@ public sealed class User
     // User.
     public string PasswordHash { get; private set; }
 
-    public DateTimeOffset CreatedAt { get; }
+    public DateTimeOffset CreatedAt { get; private init; }
+
+    // For EF Core only.
+    private User()
+    {
+        Email = null!;
+        FullName = null!;
+        PasswordHash = null!;
+    }
 
     public User(string email, string fullName, string passwordHash)
     {
