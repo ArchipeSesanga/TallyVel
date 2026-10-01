@@ -15,6 +15,9 @@ namespace TallyVel.Api.Infrastructure.Persistence;
 /// </summary>
 public sealed class EfContributionRepository : IContributionRepository
 {
+
+    //these are my 2 rules that can fail on update of the db
+    //so i initialise them here to catch the errors when i make a request 
     private const string OneContributionPerCycleIndex = "IX_Contributions_StokvelId_MemberUserId_Cycle";
     private const string CycleLabelKey = "AK_ContributionCycles_StokvelId_Label";
 
@@ -29,11 +32,13 @@ public sealed class EfContributionRepository : IContributionRepository
 
     public Contribution? GetById(Guid id) => _db.Contributions.FirstOrDefault(c => c.Id == id);
 
+    //this methos will check if the user has already contributed 
+    
     public bool ExistsForCycle(Guid stokvelId, Guid memberUserId, string cycle)
     {
         var label = cycle.Trim();
         return _db.Contributions.Any(c =>
-            c.StokvelId == stokvelId && c.MemberUserId == memberUserId && c.Cycle == label);
+            c.StokvelId == stokvelId && c.MemberUserId == memberUserId && c.Cycle == label); 
     }
 
     public async Task AddAsync(Contribution contribution)
