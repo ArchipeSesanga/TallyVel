@@ -10,6 +10,17 @@ using TallyVel.Api.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Logging: ILogger<T> is resolvable from DI for every class. Levels come
+// from the "Logging" section of appsettings.*.json.
+builder.Logging.ClearProviders();
+builder.Logging.AddSimpleConsole(o =>
+{
+    o.TimestampFormat = "yyyy-MM-dd HH:mm:ss ";
+    o.IncludeScopes = true;
+    o.SingleLine = true;
+});
+builder.Logging.AddDebug();
+
 // Add services to the container.
 builder.Services.AddOpenApi();
 
@@ -40,7 +51,9 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
-    await DatabaseSeeder.SeedAsync(scope.ServiceProvider.GetRequiredService<TallyVelDbContext>());
+    await DatabaseSeeder.SeedAsync(
+        scope.ServiceProvider.GetRequiredService<TallyVelDbContext>(),
+        scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(DatabaseSeeder)));
 }
 
 // Configure the HTTP request pipeline.

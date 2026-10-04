@@ -21,10 +21,12 @@ namespace TallyVel.Api.Infrastructure.Persistence;
 public sealed class SaveChangesFilter : IAsyncActionFilter
 {
     private readonly TallyVelDbContext _db;
+    private readonly ILogger<SaveChangesFilter> _logger;
 
-    public SaveChangesFilter(TallyVelDbContext db)
+    public SaveChangesFilter(TallyVelDbContext db, ILogger<SaveChangesFilter> logger)
     {
         _db = db;
+        _logger = logger;
     }
 
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
@@ -41,7 +43,8 @@ public sealed class SaveChangesFilter : IAsyncActionFilter
         {
             // Not tied to the client's RequestAborted: once the work is
             // done, a disconnect shouldn't silently discard it.
-            await _db.SaveChangesAsync(CancellationToken.None);
+            var written = await _db.SaveChangesAsync(CancellationToken.None);
+            _logger.LogDebug("Saved {EntryCount} change(s) for {Action}", written, context.ActionDescriptor.DisplayName);
         }
     }
 }

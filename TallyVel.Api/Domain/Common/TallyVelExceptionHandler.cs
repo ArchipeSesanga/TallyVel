@@ -7,10 +7,13 @@ namespace TallyVel.Api.Common;
 public sealed class TallyVelExceptionHandler : IExceptionHandler
 {
     private readonly IProblemDetailsService _problemDetailsService;
+    private readonly ILogger<TallyVelExceptionHandler> _logger;
 
-    public TallyVelExceptionHandler(IProblemDetailsService problemDetailsService)
+    public TallyVelExceptionHandler(
+        IProblemDetailsService problemDetailsService, ILogger<TallyVelExceptionHandler> logger)
     {
         _problemDetailsService = problemDetailsService;
+        _logger = logger;
     }
 
     public async ValueTask<bool> TryHandleAsync(
@@ -19,9 +22,18 @@ public sealed class TallyVelExceptionHandler : IExceptionHandler
         // Not one of ours → it's a bug. Let the default handler return a
         // plain 500 so no internal details reach the client.
         if (exception is not TallyVelException tallyVelException)
+        {
+            _logger.LogError(exception, "Unhandled exception on {Method} {Path}",
+                httpContext.Request.Method, httpContext.Request.Path);
             return false;
+        }
 
         var (statusCode, title) = MapToResponse(tallyVelException);
+
+        // Expected domain failures: a warning, not an error, and no stack trace.
+        _logger.LogWarning("{Method} {Path} rejected with {StatusCode} ({Code}): {Message}",
+            httpContext.Request.Method, httpContext.Request.Path, statusCode,
+            tallyVelException.Code, tallyVelException.Message);
         httpContext.Response.StatusCode = statusCode;
 
         var problem = new ProblemDetails
