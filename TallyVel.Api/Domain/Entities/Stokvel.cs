@@ -34,10 +34,21 @@ public enum MemberRole
 /// </summary>
 public sealed class StokvelMember
 {
+    // Composite key parts (also FKs)
     public Guid StokvelId { get; private init; }
     public Guid UserId { get; private init; }
+
+    // Data the relationship carries — the reason this entity exists
     public MemberRole Role { get; private set; }
     public DateTimeOffset JoinedAt { get; private init; }
+
+    // Navigations
+    public User User { get; set; } = null!;
+    public Stokvel Stokvel { get; set; } = null!;
+
+    // Things that reference a specific membership
+    public ICollection<Contribution> Contributions { get; set; } = new List<Contribution>();
+    public ICollection<Payout> Payouts { get; set; } = new List<Payout>();
 
     // For EF Core only.
     private StokvelMember()
@@ -174,5 +185,5 @@ public sealed class Stokvel
 
         return Math.Round(amount, 2, MidpointRounding.ToEven);
     }
-    
+
 }

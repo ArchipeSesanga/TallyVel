@@ -21,6 +21,8 @@ public sealed class User
     public string Email { get; private set; }
     public string FullName { get; private set; }
 
+    public ICollection<StokvelMember> Memberships { get; set; } = new List<StokvelMember>();
+
     // Stored as a hash, never a raw password — there is no property or
     // constructor path that lets a plaintext password become part of a
     // User.
