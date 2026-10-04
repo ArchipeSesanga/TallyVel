@@ -379,3 +379,15 @@ Adding a new failure means adding a new `TallyVelException` subclass **and** a c
 ### Known gaps not closed yet
 
 **TODO**
+
+Assignement 5.2
+================
+
+Why a composite key on StokvelMember?
+A membership is the pair (user, stokvel) — a user can't belong to the same stokvel twice, so that pair is already unique and meaningful. A surrogate Guid Id would be a second identity nobody uses, and it wouldn't stop duplicate memberships unless I also added a unique index on (UserId, StokvelId) — at which point the pair is the real key anyway. The composite PK enforces "one membership per user per stokvel" at the database level for free.
+
+How Contribution and Payout reference a membership
+I used a composite foreign key (UserId, StokvelId) → StokvelMember. This makes the database reject a contribution from someone who isn't a member of that stokvel.
+I didn't reference UserId alone, because that moves the "must be a member" rule out of the database and into code that could be bypassed.
+I didn't add a surrogate alternate key, because it brings back the synthetic identity the composite key was meant to avoid.
+Trade-off: Contribution now carries StokvelId alongside CycleId, which could in theory disagree with the cycle's stokvel. I validate that in the service for now; enforcing it in the schema is a gap I've noted.

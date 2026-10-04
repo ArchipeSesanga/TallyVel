@@ -25,48 +25,6 @@ public enum MemberRole
 }
 
 /// <summary>
-/// One member's standing inside a Stokvel: who they are, what role they
-/// hold, and when they joined. Kept as its own small type rather than a
-/// bare Guid in a list, so role is captured per-membership instead of
-/// assumed elsewhere. A class rather than a record because EF Core
-/// tracks it as an entity (keyed by StokvelId + UserId) and a role
-/// change mutates it in place instead of replacing it.
-/// </summary>
-public sealed class StokvelMember
-{
-    // Composite key parts (also FKs)
-    public Guid StokvelId { get; private init; }
-    public Guid UserId { get; private init; }
-
-    // Data the relationship carries — the reason this entity exists
-    public MemberRole Role { get; private set; }
-    public DateTimeOffset JoinedAt { get; private init; }
-
-    // Navigations
-    public User User { get; set; } = null!;
-    public Stokvel Stokvel { get; set; } = null!;
-
-    // Things that reference a specific membership
-    public ICollection<Contribution> Contributions { get; set; } = new List<Contribution>();
-    public ICollection<Payout> Payouts { get; set; } = new List<Payout>();
-
-    // For EF Core only.
-    private StokvelMember()
-    {
-    }
-
-    internal StokvelMember(Guid stokvelId, Guid userId, MemberRole role, DateTimeOffset joinedAt)
-    {
-        StokvelId = stokvelId;
-        UserId = userId;
-        Role = role;
-        JoinedAt = joinedAt;
-    }
-
-    internal void ChangeRole(MemberRole newRole) => Role = newRole;
-}
-
-/// <summary>
 /// A stokvel: a savings circle with a name, a contribution amount, a
 /// cycle, and a membership list. The only way to construct one requires
 /// a creator, who is automatically enrolled as the first Admin — a
