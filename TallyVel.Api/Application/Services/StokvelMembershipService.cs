@@ -7,11 +7,16 @@ public class StokvelMembershipService
 {
     private readonly IUserRepository _userRepository;
     private readonly IStokvelRepository _stokvelRepository;
+    private readonly ILogger<StokvelMembershipService> _logger;
 
-    public StokvelMembershipService(IUserRepository userRepository, IStokvelRepository stokvelRepository)
+    public StokvelMembershipService(
+        IUserRepository userRepository,
+        IStokvelRepository stokvelRepository,
+        ILogger<StokvelMembershipService> logger)
     {
         _userRepository = userRepository;
         _stokvelRepository = stokvelRepository;
+        _logger = logger;
     }
 
     public Stokvel AddMember(Guid stokvelId, Guid userId, MemberRole role)
@@ -32,6 +37,8 @@ public class StokvelMembershipService
             // genuine duplicate, so 409.
             throw new AlreadyExistsException("member-already-exists", ex.Message);
         }
+
+        _logger.LogInformation("Added user {UserId} to stokvel {StokvelId} as {Role}", user.Id, stokvelId, role);
 
         return stokvel;
     }
@@ -56,6 +63,8 @@ public class StokvelMembershipService
             throw new BusinessRuleViolationException("last-admin", ex.Message);
         }
 
+        _logger.LogInformation("Removed user {UserId} from stokvel {StokvelId}", userId, stokvelId);
+
         return stokvel;
     }
 
@@ -76,6 +85,8 @@ public class StokvelMembershipService
         {
             throw new BusinessRuleViolationException("invalid-role-change", ex.Message);
         }
+
+        _logger.LogInformation("Changed role of user {UserId} in stokvel {StokvelId} to {Role}", userId, stokvelId, newRole);
 
         return stokvel;
     }
