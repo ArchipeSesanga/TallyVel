@@ -13,8 +13,17 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddOpenApi();
 
-builder.Services.AddDbContext<TallyVelDbContext>(o =>
-    o.UseNpgsql(builder.Configuration.GetConnectionString("TallyVel")));
+var connectionString = builder.Configuration.GetConnectionString("TallyVel")
+    ?? throw new InvalidOperationException(
+        "Connection string 'TallyVel' is not configured. Set it with " +
+        "`dotnet user-secrets set \"ConnectionStrings:TallyVel\" \"...\"` " +
+        "from TallyVel.Api (see README, Step 6).");
+
+builder.Services.AddDbContext<TallyVelDbContext>(options =>
+    options.UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure(
+        maxRetryCount: 3,
+        maxRetryDelay: TimeSpan.FromSeconds(5),
+        errorCodesToAdd: null)));
 
 // Repositories are Scoped: they share the request's DbContext.
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();

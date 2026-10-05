@@ -36,6 +36,7 @@ public sealed class EfContributionRepository : IContributionRepository
     
     public bool ExistsForCycle(Guid stokvelId, Guid memberUserId, string cycle)
     {
+        //TODO: Capitalise
         var label = cycle.Trim();
         return _db.Contributions.Any(c =>
             c.StokvelId == stokvelId && c.MemberUserId == memberUserId && c.Cycle == label); 
