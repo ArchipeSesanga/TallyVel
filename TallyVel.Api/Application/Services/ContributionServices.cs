@@ -13,17 +13,20 @@ public class ContributionServices : IContributionService
     private readonly IUserRepository _userRepository;
     private readonly IStokvelRepository _stokvelRepository;
     private readonly IIdempotencyStore _idempotencyStore;
+    private readonly ILogger<ContributionServices> _logger;
 
     public ContributionServices(
         IContributionRepository contributionRepository,
         IUserRepository userRepository,
         IStokvelRepository stokvelRepository,
-        IIdempotencyStore idempotencyStore)
+        IIdempotencyStore idempotencyStore,
+        ILogger<ContributionServices> logger)
     {
         _contributionRepository = contributionRepository;
         _userRepository = userRepository;
         _stokvelRepository = stokvelRepository;
         _idempotencyStore = idempotencyStore;
+        _logger = logger;
     }
 
     public async Task<ContributionResponse> RecordContributionAsync(
@@ -49,6 +52,7 @@ public class ContributionServices : IContributionService
         {
             case ReserveResult.AlreadyCompleted:
                 // Genuine retry of a finished request: replay the original.
+                _logger.LogInformation("Replaying completed request for Idempotency-Key {IdempotencyKey}", idempotencyKey);
                 return JsonSerializer.Deserialize<ContributionResponse>(existing!.ResponseBodyJson!)!;
 
             case ReserveResult.InProgress:
@@ -92,6 +96,10 @@ public class ContributionServices : IContributionService
             await _contributionRepository.AddAsync(contribution);
 
             var response = ContributionResponse.FromDomain(contribution);
+
+            _logger.LogInformation(
+                "Recorded contribution {ContributionId} of {Amount} for member {MemberId} in stokvel {StokvelId}, cycle {Cycle}",
+                contribution.Id, request.Amount, member.Id, stokvelId, request.Cycle);
 
             // (e) Mark the key completed with the exact response, so
             // retries replay it verbatim (same Id, same RecordedAt).

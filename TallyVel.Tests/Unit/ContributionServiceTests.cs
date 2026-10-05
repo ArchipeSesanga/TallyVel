@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using TallyVel.Api.Application.Contracts;
 using TallyVel.Api.Application.Interfaces;
 using TallyVel.Api.Application.Services;
@@ -31,7 +32,8 @@ public class ContributionServiceTests
         var idempotency = new InMemoryIdempotencyStore();
 
         // Built by hand: no DI container, no HTTP. This is what makes it a unit test.
-        _service = new ContributionServices(_contributions, users, stokvels, idempotency);
+        _service = new ContributionServices(
+            _contributions, users, stokvels, idempotency, NullLogger<ContributionServices>.Instance);
     }
 
     [Fact]

@@ -11,7 +11,7 @@ namespace TallyVel.Api.Infrastructure.Persistence;
 /// </summary>
 public static class DatabaseSeeder
 {
-    public static async Task SeedAsync(TallyVelDbContext db)
+    public static async Task SeedAsync(TallyVelDbContext db, ILogger logger)
     {
         var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
         if (pending.Count > 0)
@@ -22,11 +22,17 @@ public static class DatabaseSeeder
         }
 
         if (await db.Users.AnyAsync() || await db.Stokvels.AnyAsync())
+        {
+            logger.LogDebug("Database already has data; skipping seed");
             return;
+        }
 
         var (users, stokvels) = SeedData.Generate();
         db.Users.AddRange(users);
         db.Stokvels.AddRange(stokvels);
         await db.SaveChangesAsync();
+
+        logger.LogInformation(
+            "Seeded database with {UserCount} users and {StokvelCount} stokvels", users.Count, stokvels.Count);
     }
 }
