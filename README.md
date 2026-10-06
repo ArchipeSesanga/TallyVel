@@ -559,3 +559,82 @@ Without a `cycle` filter (`?pageSize=20`) the new index can't help, because `Cyc
 
 - The assignment's `/cycles/{cycleId}/contributions` route does not exist; the cycle filter is the `?cycle=<label>` query parameter on the stokvel endpoint.
 - These are single-machine, local-Docker timings on a small table. Differences under about 0.05 ms are noise; the plan shapes (Sort gone, early stop, buffers) are the reliable result.
+
+
+### Database constraints
+
+Two composite uniqueness rules protect contributions. Both already existed in the C# and, as I confirmed, in the database. 5.3 adds no new constraint; it proves the existing ones and handles their failures properly.
+
+#### The constraints
+
+| Database object | Rule it enforces | The C# check it backs up |
+|---|---|---|
+| `IX_Contributions_StokvelId_MemberUserId_Cycle`: unique index on `Contributions (StokvelId, MemberUserId, Cycle)` | One contribution per member per cycle | `ContributionServices` → `IContributionRepository.ExistsForCycle(stokvelId, memberUserId, cycle)` |
+| `AK_ContributionCycles_StokvelId_Label`: unique (alternate) key on `ContributionCycles (StokvelId, Label)` | One cycle label per stokvel | `EfContributionRepository.AddAsync`, which finds the cycle or creates it |
+
+I checked that both exist in `tallyvel` and `tallyvel_perf` (`pg_indexes` and `pg_constraint`), and that the EF configuration (`HasIndex(...).IsUnique()` and `HasAlternateKey(...)`) has the same columns in the same order.
+
+#### Duplicate checks
+
+Before relying on a unique rule I check the data for existing duplicates:
+
+```sql
+-- one contribution per member per cycle
+SELECT "StokvelId", "MemberUserId", "Cycle", COUNT(*)
+FROM "Contributions"
+GROUP BY "StokvelId", "MemberUserId", "Cycle"
+HAVING COUNT(*) > 1;
+
+-- one cycle label per stokvel
+SELECT "StokvelId", "Label", COUNT(*)
+FROM "ContributionCycles"
+GROUP BY "StokvelId", "Label"
+HAVING COUNT(*) > 1;
+```
+
+Both returned **0 rows** on `tallyvel` (6 contributions, 2 cycles) and on `tallyvel_perf` (12,000 contributions, 240 cycles). That's expected, since the constraints were already in place. The C# trims the cycle text, so I also ran both queries grouped by `lower(trim("Cycle"))` and `lower(trim("Label"))` to look for near-duplicates such as `"2025-06"` vs `"2025-06 "`. Also **0 rows** on both databases, and no stored value has stray spaces or upper-case letters.
+
+#### Migration review
+
+Both constraints were created in the first migration, `20260930233012_InitialCreate`. The later `AddContributionPagingIndex` only touched a non-unique index. So 5.3 has no constraint migration. If I did add a unique constraint to an existing table, I would check first:
+
+- **Duplicates.** If any exist, the migration fails. In PostgreSQL DDL is transactional, so it rolls back cleanly; on databases where it isn't, it can fail partway and leave a half-applied change.
+- **Locking.** `CREATE UNIQUE INDEX` blocks writes to the table while it builds. That's fine on a small table, but on a large one it takes time. `CREATE INDEX CONCURRENTLY` avoids the write lock, but it can't run inside a transaction, which is why EF doesn't generate it by default.
+
+#### Partial (filtered) unique index: not needed
+
+`Contribution` has no soft-delete, status or active column (and `DeleteAsync` really deletes), so there is nothing to filter on: not applicable. `ContributionCycle` does have a `Status` (Open / PaidOut), but that is a lifecycle state, not "deleted". A paid-out cycle still owns its label, and the C# lookup matches on `(StokvelId, Label)` for every cycle regardless of status. So the full unique constraint states the rule honestly, and a filtered index would not.
+
+#### Why both the service check and the constraint stay
+
+The C# check gives a specific, friendly 409 ("User x has already contributed to stokvel y for cycle z") in the common case, one request at a time, and it rejects the duplicate before any write is attempted. But it is a read followed by a write, so it can't stop two requests that pass the check at the same moment, or data written by a script or a manual fix that bypasses the C# completely. Only the constraint holds in those cases. For the concurrent case the repository catches the database's rejection and turns it into the same 409 (for the contribution rule) or retries against the cycle the other request created (for the cycle rule). Remove the constraint and the rule is only a habit; remove the service check and every duplicate costs a failed insert.
+
+#### Central handling of unique violations
+
+`EfContributionRepository` already turns a violation of its own two constraints into a domain `AlreadyExistsException`. For any other path, an untranslated unique violation (SQLSTATE `23505`) used to reach the client as a 500. `TallyVelExceptionHandler` now maps it to **409 Conflict** (`application/problem+json`, the same fields and `type` style as the other handled failures, `code: unique-violation`) with a generic message, "The request conflicts with an existing record." No SQL, table data or raw Postgres text reaches the client. The constraint name is logged server-side at Warning. Only `23505` is handled; every other database error behaves as before, and the existing translations are untouched.
+
+#### How the tests prove it
+
+- `TallyVelExceptionHandlerTests` (unit, no database): a 23505 becomes a 409 with the generic body and nothing leaked; the constraint name is logged at Warning; a foreign-key violation (23503) and a `DbUpdateException` with no Postgres cause are *not* turned into 409; `AlreadyExistsException` still maps to its own 409.
+- `DatabaseConstraintTests` (real PostgreSQL): insert a contribution, then in a **new** `DbContext` insert a second one for the same stokvel, member and cycle, bypassing the service and `ExistsForCycle`. Assert a `DbUpdateException` wrapping a `PostgresException` with SQLSTATE `23505` and constraint `IX_Contributions_StokvelId_MemberUserId_Cycle`, and that only the first row was stored. The same for two cycles with the same stokvel and label (`AK_ContributionCycles_StokvelId_Label`).
+- The EF InMemory provider doesn't enforce unique indexes and SQLite behaves differently from Postgres, so these tests use a dedicated PostgreSQL database, `tallyvel_test`. Test data uses fresh `Guid`-based ids and labels, so leftovers from earlier runs can't affect results. The database was created by the superuser, like `tallyvel_perf`:
+
+```bash
+docker exec tallyvel-pg psql -U postgres -c 'CREATE DATABASE tallyvel_test OWNER tallyvel_app;'
+docker exec tallyvel-pg psql -U postgres -d tallyvel_test -c 'ALTER SCHEMA public OWNER TO tallyvel_app;'
+export TALLYVEL_TEST_CONNECTION="Host=localhost;Port=5433;Database=tallyvel_test;Username=tallyvel_app;Password=***;Maximum Pool Size=20"
+dotnet test
+```
+
+The fixture applies the migrations itself and **refuses to run unless the database name ends in `_test`**. Without `TALLYVEL_TEST_CONNECTION` the two database tests fail with instructions instead of being skipped, because a silent skip would hide that nothing was checked. The other 19 tests need no database. With the variable set, all 21 pass.
+
+#### Gaps
+
+- **Cycle labels aren't normalised.** The C# only trims. Case and format aren't checked, so `"2025-06"`, `"2025-6"` and `"June 2025"` would be three different cycles and pass both checks. There are no such near-duplicates in the data today.
+- **Rules enforced in only one place:**
+  - Unique user email: database only (`IX_Users_Email`, translated to a 409 by the repository). There is no C# pre-check.
+  - One payout per cycle: database only (`IX_Payouts_ContributionCycleId`). `ContributionCycle.MarkPaidOut()` rejects a second payout in the domain, but nothing calls it yet because no payout code exists.
+  - "Only members can contribute": the C# service only. `Contribution` has no foreign key to `StokvelMember` (a payout does).
+  - Idempotency keys: C# only, held in memory, so they are forgotten on restart.
+- **Rules that exist nowhere:** stokvel names aren't unique in the C# or in the database, so two stokvels can share a name. I haven't added a constraint for these, since the task is not to invent new business rules.
+- **Duplicate ids** (`Guid` primary keys) surface as an `InvalidOperationException` from the repositories (a 500). A collision is practically impossible, so I left it.
