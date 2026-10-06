@@ -391,3 +391,169 @@ I used a composite foreign key (UserId, StokvelId) → StokvelMember. This makes
 I didn't reference UserId alone, because that moves the "must be a member" rule out of the database and into code that could be bypassed.
 I didn't add a surrogate alternate key, because it brings back the synthetic identity the composite key was meant to avoid.
 Trade-off: Contribution now carries StokvelId alongside CycleId, which could in theory disagree with the cycle's stokvel. I validate that in the service for now; enforcing it in the schema is a gap I've noted.
+
+---
+
+## Assignment 5.3 — Paging and query plans
+
+### Query plan measurement
+
+**What I measured:** the keyset-paged contributions listing (`GET /api/stokvels/{stokvelId}/contributions?cycle=<label>&pageSize=20`), before and after adding one composite index.
+
+#### Seeded volume and the separate database
+
+I measured on a separate database, `tallyvel_perf`, so the dev database `tallyvel` was never loaded with test data. The seeder (`VolumeSeeder`, run only with `--seed-volume`, never on normal startup) creates **5 stokvels × 50 members × 48 cycles = 12,000 contributions** (plus 250 users, 250 memberships and 240 cycles). It uses a fixed random seed (42) so it is repeatable, spreads `RecordedAt` across each cycle's own month, respects "one contribution per member per cycle", and ends with `ANALYZE "Contributions"`. I checked with SQL that the count is exactly 12,000, that every contributor is a member of the stokvel, and that no `RecordedAt` falls outside its cycle's month.
+
+`tallyvel_app` can't create databases, so the perf database was created by the Postgres superuser and then handed over:
+
+```bash
+docker exec tallyvel-pg psql -U postgres -c 'ALTER DATABASE tallyvel_perf OWNER TO tallyvel_app;'
+docker exec tallyvel-pg psql -U postgres -d tallyvel_perf -c 'ALTER SCHEMA public OWNER TO tallyvel_app;'
+```
+
+Then, with the perf connection string (`Host=localhost;Port=5433;Database=tallyvel_perf;Username=tallyvel_app;Password=***;Maximum Pool Size=20`):
+
+```bash
+dotnet ef database update --connection "<perf connection string>"
+dotnet run -- --seed-volume --ConnectionStrings:TallyVel="<perf connection string>"
+```
+
+(I actually passed the string as the `ConnectionStrings__TallyVel` environment variable so the password never reached the shell history or the screen; it is equivalent.)
+
+**Safeguards.** `VolumeSeeder` refuses to run unless the database name ends in `_perf`; I tested that it refuses against `tallyvel`. For every `ef` and `run` command against perf I used a shell check that the connection string contains `Database=tallyvel_perf`, and aborts otherwise. I added it after a mistyped substitution once pointed an `ef database update` at the dev database (it was a no-op because dev was already up to date, but it showed the risk).
+
+#### The SQL measured (as logged by EF Core)
+
+Page 1 (`@cycle = '2025-06'`, `@p = 21`, i.e. page size 20 + 1 to detect another page):
+
+```sql
+SELECT c."Id", c."Amount", c."Cycle", c."MemberUserId", c."RecordedAt", c."StokvelId"
+FROM "Contributions" AS c
+WHERE c."StokvelId" = @q_StokvelId AND c."Cycle" = @cycle
+ORDER BY c."RecordedAt", c."Id"
+LIMIT @p
+```
+
+Page 2 adds the keyset condition from the previous page's last row:
+
+```sql
+SELECT c."Id", c."Amount", c."Cycle", c."MemberUserId", c."RecordedAt", c."StokvelId"
+FROM "Contributions" AS c
+WHERE c."StokvelId" = @q_StokvelId AND c."Cycle" = @cycle
+  AND (c."RecordedAt", c."Id") > (@t_LastRecordedAt_Value, @t_LastId)
+ORDER BY c."RecordedAt", c."Id"
+LIMIT @p
+```
+
+To run it by hand I substituted only the parameter values. Plans were captured with `EXPLAIN (ANALYZE, BUFFERS)`, three runs each; I report the third (warm) run. Full output is in `docs/explain/`.
+
+#### Before the index (`docs/explain/before.txt`)
+
+```
+ Limit  (cost=109.60..109.65 rows=21 width=69) (actual time=0.074..0.077 rows=21 loops=1)
+   Buffers: shared hit=33
+   ->  Sort  (cost=109.60..109.72 rows=50 width=69) (actual time=0.073..0.075 rows=21 loops=1)
+         Sort Key: "RecordedAt", "Id"
+         Sort Method: top-N heapsort  Memory: 29kB
+         Buffers: shared hit=33
+         ->  Bitmap Heap Scan on "Contributions" c  (cost=4.80..108.25 rows=50 width=69) (actual time=0.023..0.053 rows=50 loops=1)
+               Recheck Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text))
+               Heap Blocks: exact=25
+               Buffers: shared hit=27
+               ->  Bitmap Index Scan on "IX_Contributions_StokvelId_Cycle"  (cost=0.00..4.79 rows=50 width=0) (actual time=0.015..0.015 rows=50 loops=1)
+                     Index Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text))
+                     Buffers: shared hit=2
+ Planning:
+   Buffers: shared hit=178
+ Planning Time: 0.253 ms
+ Execution Time: 0.098 ms
+(17 rows)
+```
+
+| | |
+|---|---|
+| Node types | Limit → Sort (top-N heapsort) → Bitmap Heap Scan → Bitmap Index Scan |
+| Index used | `IX_Contributions_StokvelId_Cycle` (the helper index EF created for the cycle foreign key) |
+| Execution time | 0.098 ms (planning 0.253 ms) |
+| Estimated vs actual rows | scan: 50 est / 50 actual; Limit: 21 / 21 |
+| Rows Removed by Filter | none |
+| Buffers | 33 |
+
+**This was not a Seq Scan.** The planner used the existing `(StokvelId, Cycle)` index to find the 50 rows of the cycle and then sorted them. So the index found the rows well. What was missing was ordering.
+
+#### After the index (`docs/explain/after.txt`)
+
+```
+ Limit  (cost=0.29..58.77 rows=21 width=69) (actual time=0.036..0.072 rows=21 loops=1)
+   Buffers: shared hit=23
+   ->  Index Scan using "IX_Contributions_StokvelId_Cycle_RecordedAt_Id" on "Contributions" c  (cost=0.29..139.54 rows=50 width=69) (actual time=0.035..0.069 rows=21 loops=1)
+         Index Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text))
+         Buffers: shared hit=23
+ Planning:
+   Buffers: shared hit=190
+ Planning Time: 0.450 ms
+ Execution Time: 0.084 ms
+(9 rows)
+```
+
+| | |
+|---|---|
+| Node types | Limit → Index Scan |
+| Index used | `IX_Contributions_StokvelId_Cycle_RecordedAt_Id` |
+| Execution time | 0.084 ms (planning 0.450 ms) |
+| Estimated vs actual rows | scan: 50 est / 21 actual (it stopped early); Limit: 21 / 21 |
+| Rows Removed by Filter | none |
+| Buffers | 23 |
+
+#### Comparison
+
+The Sort node is gone and `LIMIT` now stops the scan after 21 rows, so it reads 23 buffers instead of 33. But at only 50 rows per cycle the time saved is tiny (0.098 ms → 0.084 ms, within run-to-run noise). The benefit scales with the number of rows *in one cycle*, not the total number of rows in the table.
+
+**Page 2.** Before the index, the keyset condition was applied as a filter after the bitmap scan (20 rows removed by filter) and then sorted: 0.096 ms, 33 buffers (`docs/explain/before-page2.txt`). After the index the condition becomes part of the index condition (nothing removed by filter), but the planner **still chose a Bitmap Heap Scan plus a Sort** of about 30 rows: 0.088 ms, 28 buffers (`docs/explain/after-page2.txt`). To check that this was the planner's choice and not a limit of the index, I ran a diagnostic with `SET enable_bitmapscan = off` for that session only: it then used a plain ordered Index Scan with no Sort, in 0.052 ms and 22 buffers (`docs/explain/after-page2-diagnostic.txt`). The two plans were close in estimated cost (58.6 vs 61.4), and the row estimate was 19 against an actual 30. So I can't claim that every page avoids the Sort at this size.
+
+#### Why this column order
+
+`(StokvelId, Cycle, RecordedAt, Id)`:
+
+- **`StokvelId`, `Cycle` first:** these are equality filters, so the scan jumps straight to one stokvel's one cycle.
+- **`RecordedAt`, `Id` next:** inside that one cycle the entries are already stored in `ORDER BY "RecordedAt", "Id"` order. That's why the Sort disappears and `LIMIT` can stop early.
+- **`Id` last:** it is the tiebreaker that makes the order deterministic, and it matches the keyset row comparison `("RecordedAt", "Id") > (...)`.
+
+The existing unique index `(StokvelId, MemberUserId, Cycle)` can't serve this query: `MemberUserId` sits between `StokvelId` and `Cycle`, and the query doesn't filter on the member, so Postgres can't use `Cycle` (or any later column) to narrow the scan. It also can't give ordering by `RecordedAt`.
+
+#### Migration review (`AddContributionPagingIndex`)
+
+EF generated a `DropIndex` of `IX_Contributions_StokvelId_Cycle` as well as the `CreateIndex`. EF does this because the new composite index has the same leading columns `(StokvelId, Cycle)`, so the old helper index became redundant (the foreign-key lookups it served are covered by the new index's prefix). Keeping both would only add write cost. I checked that the migration drops no columns or tables, so no data is lost, and that `Down` recreates the old index (I proved it by rolling the perf database back and forward). A `CREATE INDEX` blocks writes to the table while it builds. That's fine at this size, but on a large production table I would use `CREATE INDEX CONCURRENTLY`, which EF doesn't generate by default. It was applied to `tallyvel_perf` first and then to `tallyvel`.
+
+#### Small data (`docs/explain/small-data.txt`)
+
+On the dev database (6 contributions), with ids that exist there:
+
+```
+ Limit  (cost=1.10..1.10 rows=1 width=134) (actual time=0.027..0.028 rows=3 loops=1)
+   Buffers: shared hit=7
+   ->  Sort  (cost=1.10..1.10 rows=1 width=134) (actual time=0.026..0.027 rows=3 loops=1)
+         Sort Key: "RecordedAt", "Id"
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=7
+         ->  Seq Scan on "Contributions" c  (cost=0.00..1.09 rows=1 width=134) (actual time=0.005..0.006 rows=3 loops=1)
+               Filter: (("StokvelId" = '30d8a9e8-727e-41d2-b828-5d2daf5cb2c1'::uuid) AND (("Cycle")::text = '2026-09'::text))
+               Rows Removed by Filter: 3
+               Buffers: shared hit=1
+ Planning:
+   Buffers: shared hit=154
+ Planning Time: 0.259 ms
+ Execution Time: 0.046 ms
+(14 rows)
+```
+
+PostgreSQL chose a **Seq Scan** even though the new index exists: it read one page and discarded 3 rows (Rows Removed by Filter: 3), then sorted the 3 matches in 0.046 ms. That is the right choice. The whole table fits in a page or two, so reading it directly costs less than going through the index and then fetching the same page. (The row estimate was 1 against an actual 3, because dev statistics were never gathered; it doesn't change the decision.) Indexes pay off as tables grow, not on tiny ones.
+
+#### Measured gap: the stokvel-wide listing
+
+Without a `cycle` filter (`?pageSize=20`) the new index can't help, because `Cycle` sits between `StokvelId` and `RecordedAt`, so entries for a stokvel are not in `RecordedAt` order. I measured it before and after (`docs/explain/stokvel-wide.txt`): both plans are a Bitmap scan feeding a top-N Sort over 2,400 rows, 0.633 ms before and 0.672 ms after, 40 and 58 buffers. It is no faster, and marginally more expensive because the wider index is bigger to scan. I did not add another index for it. A `(StokvelId, RecordedAt, Id)` index would serve it.
+
+#### Gaps and caveats
+
+- The assignment's `/cycles/{cycleId}/contributions` route does not exist; the cycle filter is the `?cycle=<label>` query parameter on the stokvel endpoint.
+- These are single-machine, local-Docker timings on a small table. Differences under about 0.05 ms are noise; the plan shapes (Sort gone, early stop, buffers) are the reliable result.

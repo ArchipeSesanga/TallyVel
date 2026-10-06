@@ -1,0 +1,53 @@
+-- DIAGNOSTIC (not the application's plan): AFTER the paging index, page 2, with 'SET enable_bitmapscan = off' for this session only,
+-- to see whether PostgreSQL can serve page 2 with an ordered index scan. Database: tallyvel_perf.
+
+SELECT c."Id", c."Amount", c."Cycle", c."MemberUserId", c."RecordedAt", c."StokvelId"
+FROM "Contributions" AS c
+WHERE c."StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25' AND c."Cycle" = '2025-06' AND (c."RecordedAt", c."Id") > ('2025-06-14T13:36:03.0000000+00:00'::timestamptz, 'f9496263-6575-468c-bc0f-72f6b36d9906'::uuid)
+ORDER BY c."RecordedAt", c."Id"
+LIMIT 21
+
+===== RUN 1 =====
+                                                                                                                            QUERY PLAN                                                                                                                            
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..61.43 rows=19 width=69) (actual time=0.059..0.148 rows=21 loops=1)
+   Buffers: shared hit=20 read=2
+   ->  Index Scan using "IX_Contributions_StokvelId_Cycle_RecordedAt_Id" on "Contributions" c  (cost=0.29..61.43 rows=19 width=69) (actual time=0.058..0.145 rows=21 loops=1)
+         Index Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text) AND (ROW("RecordedAt", "Id") > ROW('2025-06-14 13:36:03+00'::timestamp with time zone, 'f9496263-6575-468c-bc0f-72f6b36d9906'::uuid)))
+         Buffers: shared hit=20 read=2
+ Planning:
+   Buffers: shared hit=189 read=1
+ Planning Time: 1.152 ms
+ Execution Time: 0.202 ms
+(9 rows)
+
+
+===== RUN 2 =====
+                                                                                                                            QUERY PLAN                                                                                                                            
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..61.43 rows=19 width=69) (actual time=0.014..0.039 rows=21 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using "IX_Contributions_StokvelId_Cycle_RecordedAt_Id" on "Contributions" c  (cost=0.29..61.43 rows=19 width=69) (actual time=0.013..0.036 rows=21 loops=1)
+         Index Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text) AND (ROW("RecordedAt", "Id") > ROW('2025-06-14 13:36:03+00'::timestamp with time zone, 'f9496263-6575-468c-bc0f-72f6b36d9906'::uuid)))
+         Buffers: shared hit=22
+ Planning:
+   Buffers: shared hit=189
+ Planning Time: 0.771 ms
+ Execution Time: 0.076 ms
+(9 rows)
+
+
+===== RUN 3 =====
+                                                                                                                            QUERY PLAN                                                                                                                            
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..61.43 rows=19 width=69) (actual time=0.013..0.034 rows=21 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using "IX_Contributions_StokvelId_Cycle_RecordedAt_Id" on "Contributions" c  (cost=0.29..61.43 rows=19 width=69) (actual time=0.012..0.032 rows=21 loops=1)
+         Index Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text) AND (ROW("RecordedAt", "Id") > ROW('2025-06-14 13:36:03+00'::timestamp with time zone, 'f9496263-6575-468c-bc0f-72f6b36d9906'::uuid)))
+         Buffers: shared hit=22
+ Planning:
+   Buffers: shared hit=189
+ Planning Time: 0.256 ms
+ Execution Time: 0.052 ms
+(9 rows)
+
