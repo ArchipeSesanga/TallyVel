@@ -1,0 +1,70 @@
+-- SMALL DATA, after the paging index. Database: tallyvel (dev, 6 contributions). PostgreSQL: 17.10 (Debian 17.10-1.pgdg13+1)
+-- Same query shape as page 1; ids exist in dev (stokvel 30d8a9e8..., cycle 2026-09, 3 matching rows).
+-- Read-only: EXPLAIN ANALYZE of a SELECT. ANALYZE was NOT run on dev, so its statistics are whatever PostgreSQL has.
+
+SELECT c."Id", c."Amount", c."Cycle", c."MemberUserId", c."RecordedAt", c."StokvelId"
+FROM "Contributions" AS c
+WHERE c."StokvelId" = '30d8a9e8-727e-41d2-b828-5d2daf5cb2c1' AND c."Cycle" = '2026-09'
+ORDER BY c."RecordedAt", c."Id"
+LIMIT 21
+
+
+===== RUN 1 =====
+                                                          QUERY PLAN                                                          
+------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1.10..1.10 rows=1 width=134) (actual time=0.036..0.037 rows=3 loops=1)
+   Buffers: shared hit=7
+   ->  Sort  (cost=1.10..1.10 rows=1 width=134) (actual time=0.035..0.035 rows=3 loops=1)
+         Sort Key: "RecordedAt", "Id"
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=7
+         ->  Seq Scan on "Contributions" c  (cost=0.00..1.09 rows=1 width=134) (actual time=0.008..0.009 rows=3 loops=1)
+               Filter: (("StokvelId" = '30d8a9e8-727e-41d2-b828-5d2daf5cb2c1'::uuid) AND (("Cycle")::text = '2026-09'::text))
+               Rows Removed by Filter: 3
+               Buffers: shared hit=1
+ Planning:
+   Buffers: shared hit=154
+ Planning Time: 0.339 ms
+ Execution Time: 0.054 ms
+(14 rows)
+
+
+===== RUN 2 =====
+                                                          QUERY PLAN                                                          
+------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1.10..1.10 rows=1 width=134) (actual time=0.022..0.023 rows=3 loops=1)
+   Buffers: shared hit=7
+   ->  Sort  (cost=1.10..1.10 rows=1 width=134) (actual time=0.022..0.022 rows=3 loops=1)
+         Sort Key: "RecordedAt", "Id"
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=7
+         ->  Seq Scan on "Contributions" c  (cost=0.00..1.09 rows=1 width=134) (actual time=0.005..0.006 rows=3 loops=1)
+               Filter: (("StokvelId" = '30d8a9e8-727e-41d2-b828-5d2daf5cb2c1'::uuid) AND (("Cycle")::text = '2026-09'::text))
+               Rows Removed by Filter: 3
+               Buffers: shared hit=1
+ Planning:
+   Buffers: shared hit=154
+ Planning Time: 0.212 ms
+ Execution Time: 0.035 ms
+(14 rows)
+
+
+===== RUN 3 =====
+                                                          QUERY PLAN                                                          
+------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1.10..1.10 rows=1 width=134) (actual time=0.027..0.028 rows=3 loops=1)
+   Buffers: shared hit=7
+   ->  Sort  (cost=1.10..1.10 rows=1 width=134) (actual time=0.026..0.027 rows=3 loops=1)
+         Sort Key: "RecordedAt", "Id"
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=7
+         ->  Seq Scan on "Contributions" c  (cost=0.00..1.09 rows=1 width=134) (actual time=0.005..0.006 rows=3 loops=1)
+               Filter: (("StokvelId" = '30d8a9e8-727e-41d2-b828-5d2daf5cb2c1'::uuid) AND (("Cycle")::text = '2026-09'::text))
+               Rows Removed by Filter: 3
+               Buffers: shared hit=1
+ Planning:
+   Buffers: shared hit=154
+ Planning Time: 0.259 ms
+ Execution Time: 0.046 ms
+(14 rows)
+

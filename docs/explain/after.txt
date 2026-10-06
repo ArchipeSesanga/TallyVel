@@ -1,0 +1,55 @@
+-- AFTER the paging index (page 1). Database: tallyvel_perf (12,000 contributions). PostgreSQL: 17.10 (Debian 17.10-1.pgdg13+1)
+-- Query: docs/explain/query-page1.sql (as logged by EF Core, parameter values substituted)
+-- Run 1 and 2 are cold/warming; Run 3 is the warm run reported in the README.
+
+SELECT c."Id", c."Amount", c."Cycle", c."MemberUserId", c."RecordedAt", c."StokvelId"
+FROM "Contributions" AS c
+WHERE c."StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25' AND c."Cycle" = '2025-06'
+ORDER BY c."RecordedAt", c."Id"
+LIMIT 21
+
+
+===== RUN 1 =====
+                                                                                  QUERY PLAN                                                                                   
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..58.77 rows=21 width=69) (actual time=0.049..0.122 rows=21 loops=1)
+   Buffers: shared hit=21 read=2
+   ->  Index Scan using "IX_Contributions_StokvelId_Cycle_RecordedAt_Id" on "Contributions" c  (cost=0.29..139.54 rows=50 width=69) (actual time=0.048..0.119 rows=21 loops=1)
+         Index Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text))
+         Buffers: shared hit=21 read=2
+ Planning:
+   Buffers: shared hit=190 read=1
+ Planning Time: 0.522 ms
+ Execution Time: 0.137 ms
+(9 rows)
+
+
+===== RUN 2 =====
+                                                                                  QUERY PLAN                                                                                   
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..58.77 rows=21 width=69) (actual time=0.016..0.040 rows=21 loops=1)
+   Buffers: shared hit=23
+   ->  Index Scan using "IX_Contributions_StokvelId_Cycle_RecordedAt_Id" on "Contributions" c  (cost=0.29..139.54 rows=50 width=69) (actual time=0.015..0.037 rows=21 loops=1)
+         Index Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text))
+         Buffers: shared hit=23
+ Planning:
+   Buffers: shared hit=190
+ Planning Time: 0.291 ms
+ Execution Time: 0.055 ms
+(9 rows)
+
+
+===== RUN 3 =====
+                                                                                  QUERY PLAN                                                                                   
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..58.77 rows=21 width=69) (actual time=0.036..0.072 rows=21 loops=1)
+   Buffers: shared hit=23
+   ->  Index Scan using "IX_Contributions_StokvelId_Cycle_RecordedAt_Id" on "Contributions" c  (cost=0.29..139.54 rows=50 width=69) (actual time=0.035..0.069 rows=21 loops=1)
+         Index Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text))
+         Buffers: shared hit=23
+ Planning:
+   Buffers: shared hit=190
+ Planning Time: 0.450 ms
+ Execution Time: 0.084 ms
+(9 rows)
+

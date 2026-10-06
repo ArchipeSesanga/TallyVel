@@ -1,0 +1,79 @@
+-- AFTER the paging index (page 2, keyset condition). Database: tallyvel_perf (12,000 contributions). PostgreSQL: 17.10 (Debian 17.10-1.pgdg13+1)
+-- Query: docs/explain/query-page2.sql (as logged by EF Core, parameter values substituted)
+-- Run 1 and 2 are cold/warming; Run 3 is the warm run reported in the README.
+
+SELECT c."Id", c."Amount", c."Cycle", c."MemberUserId", c."RecordedAt", c."StokvelId"
+FROM "Contributions" AS c
+WHERE c."StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25' AND c."Cycle" = '2025-06' AND (c."RecordedAt", c."Id") > ('2025-06-14T13:36:03.0000000+00:00'::timestamptz, 'f9496263-6575-468c-bc0f-72f6b36d9906'::uuid)
+ORDER BY c."RecordedAt", c."Id"
+LIMIT 21
+
+
+===== RUN 1 =====
+                                                                                                                                  QUERY PLAN                                                                                                                                  
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=58.54..58.59 rows=19 width=69) (actual time=0.100..0.103 rows=21 loops=1)
+   Buffers: shared hit=28
+   ->  Sort  (cost=58.54..58.59 rows=19 width=69) (actual time=0.099..0.100 rows=21 loops=1)
+         Sort Key: "RecordedAt", "Id"
+         Sort Method: quicksort  Memory: 28kB
+         Buffers: shared hit=28
+         ->  Bitmap Heap Scan on "Contributions" c  (cost=4.53..58.14 rows=19 width=69) (actual time=0.018..0.080 rows=30 loops=1)
+               Recheck Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text) AND (ROW("RecordedAt", "Id") > ROW('2025-06-14 13:36:03+00'::timestamp with time zone, 'f9496263-6575-468c-bc0f-72f6b36d9906'::uuid)))
+               Heap Blocks: exact=20
+               Buffers: shared hit=22
+               ->  Bitmap Index Scan on "IX_Contributions_StokvelId_Cycle_RecordedAt_Id"  (cost=0.00..4.52 rows=19 width=0) (actual time=0.012..0.012 rows=30 loops=1)
+                     Index Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text) AND (ROW("RecordedAt", "Id") > ROW('2025-06-14 13:36:03+00'::timestamp with time zone, 'f9496263-6575-468c-bc0f-72f6b36d9906'::uuid)))
+                     Buffers: shared hit=2
+ Planning:
+   Buffers: shared hit=189
+ Planning Time: 0.246 ms
+ Execution Time: 0.121 ms
+(17 rows)
+
+
+===== RUN 2 =====
+                                                                                                                                  QUERY PLAN                                                                                                                                  
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=58.54..58.59 rows=19 width=69) (actual time=0.062..0.066 rows=21 loops=1)
+   Buffers: shared hit=28
+   ->  Sort  (cost=58.54..58.59 rows=19 width=69) (actual time=0.062..0.063 rows=21 loops=1)
+         Sort Key: "RecordedAt", "Id"
+         Sort Method: quicksort  Memory: 28kB
+         Buffers: shared hit=28
+         ->  Bitmap Heap Scan on "Contributions" c  (cost=4.53..58.14 rows=19 width=69) (actual time=0.019..0.044 rows=30 loops=1)
+               Recheck Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text) AND (ROW("RecordedAt", "Id") > ROW('2025-06-14 13:36:03+00'::timestamp with time zone, 'f9496263-6575-468c-bc0f-72f6b36d9906'::uuid)))
+               Heap Blocks: exact=20
+               Buffers: shared hit=22
+               ->  Bitmap Index Scan on "IX_Contributions_StokvelId_Cycle_RecordedAt_Id"  (cost=0.00..4.52 rows=19 width=0) (actual time=0.012..0.013 rows=30 loops=1)
+                     Index Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text) AND (ROW("RecordedAt", "Id") > ROW('2025-06-14 13:36:03+00'::timestamp with time zone, 'f9496263-6575-468c-bc0f-72f6b36d9906'::uuid)))
+                     Buffers: shared hit=2
+ Planning:
+   Buffers: shared hit=189
+ Planning Time: 0.251 ms
+ Execution Time: 0.084 ms
+(17 rows)
+
+
+===== RUN 3 =====
+                                                                                                                                  QUERY PLAN                                                                                                                                  
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=58.54..58.59 rows=19 width=69) (actual time=0.066..0.069 rows=21 loops=1)
+   Buffers: shared hit=28
+   ->  Sort  (cost=58.54..58.59 rows=19 width=69) (actual time=0.065..0.066 rows=21 loops=1)
+         Sort Key: "RecordedAt", "Id"
+         Sort Method: quicksort  Memory: 28kB
+         Buffers: shared hit=28
+         ->  Bitmap Heap Scan on "Contributions" c  (cost=4.53..58.14 rows=19 width=69) (actual time=0.020..0.045 rows=30 loops=1)
+               Recheck Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text) AND (ROW("RecordedAt", "Id") > ROW('2025-06-14 13:36:03+00'::timestamp with time zone, 'f9496263-6575-468c-bc0f-72f6b36d9906'::uuid)))
+               Heap Blocks: exact=20
+               Buffers: shared hit=22
+               ->  Bitmap Index Scan on "IX_Contributions_StokvelId_Cycle_RecordedAt_Id"  (cost=0.00..4.52 rows=19 width=0) (actual time=0.013..0.013 rows=30 loops=1)
+                     Index Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text) AND (ROW("RecordedAt", "Id") > ROW('2025-06-14 13:36:03+00'::timestamp with time zone, 'f9496263-6575-468c-bc0f-72f6b36d9906'::uuid)))
+                     Buffers: shared hit=2
+ Planning:
+   Buffers: shared hit=189
+ Planning Time: 0.270 ms
+ Execution Time: 0.088 ms
+(17 rows)
+

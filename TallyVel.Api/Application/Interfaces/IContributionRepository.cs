@@ -31,4 +31,7 @@ public interface IContributionRepository
     /// reject a second payment for a cycle that's already covered.
     /// </summary>
     bool ExistsForCycle(Guid stokvelId, Guid memberUserId, string cycle);
+
+    Task<(IReadOnlyList<Contribution> Items, string NextPageToken)> GetPageAsync(
+    contributionQuery q, CancellationToken ct = default);
 }

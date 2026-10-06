@@ -1,0 +1,152 @@
+-- STOKVEL-WIDE query (no cycle filter, pageSize=20), BEFORE and AFTER the paging index. Database: tallyvel_perf (12,000 contributions). PostgreSQL: 17.10 (Debian 17.10-1.pgdg13+1)
+-- SQL as logged by EF Core for GET /api/stokvels/{id}/contributions?pageSize=20, parameter values substituted.
+-- BEFORE was measured by temporarily rolling perf back to InitialCreate (the old index IX_Contributions_StokvelId_Cycle present), then re-applying the migration.
+-- Run 3 of each is the warm run reported in the README.
+
+SELECT c."Id", c."Amount", c."Cycle", c."MemberUserId", c."RecordedAt", c."StokvelId"
+FROM "Contributions" AS c
+WHERE c."StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'
+ORDER BY c."RecordedAt", c."Id"
+LIMIT 21
+
+################ BEFORE (old index IX_Contributions_StokvelId_Cycle) ################
+
+===== RUN 1 =====
+                                                                          QUERY PLAN                                                                          
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=274.59..274.65 rows=21 width=69) (actual time=0.646..0.650 rows=21 loops=1)
+   Buffers: shared hit=36 read=4
+   ->  Sort  (cost=274.59..280.59 rows=2400 width=69) (actual time=0.645..0.647 rows=21 loops=1)
+         Sort Key: "RecordedAt", "Id"
+         Sort Method: top-N heapsort  Memory: 30kB
+         Buffers: shared hit=36 read=4
+         ->  Bitmap Heap Scan on "Contributions" c  (cost=30.89..209.88 rows=2400 width=69) (actual time=0.095..0.327 rows=2400 loops=1)
+               Recheck Cond: ("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid)
+               Heap Blocks: exact=30
+               Buffers: shared hit=30 read=4
+               ->  Bitmap Index Scan on "IX_Contributions_StokvelId_Cycle"  (cost=0.00..30.29 rows=2400 width=0) (actual time=0.083..0.084 rows=2400 loops=1)
+                     Index Cond: ("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid)
+                     Buffers: shared read=4
+ Planning:
+   Buffers: shared hit=179 read=1
+ Planning Time: 0.402 ms
+ Execution Time: 0.671 ms
+(17 rows)
+
+
+===== RUN 2 =====
+                                                                          QUERY PLAN                                                                          
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=274.59..274.65 rows=21 width=69) (actual time=0.601..0.604 rows=21 loops=1)
+   Buffers: shared hit=40
+   ->  Sort  (cost=274.59..280.59 rows=2400 width=69) (actual time=0.601..0.602 rows=21 loops=1)
+         Sort Key: "RecordedAt", "Id"
+         Sort Method: top-N heapsort  Memory: 30kB
+         Buffers: shared hit=40
+         ->  Bitmap Heap Scan on "Contributions" c  (cost=30.89..209.88 rows=2400 width=69) (actual time=0.041..0.281 rows=2400 loops=1)
+               Recheck Cond: ("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid)
+               Heap Blocks: exact=30
+               Buffers: shared hit=34
+               ->  Bitmap Index Scan on "IX_Contributions_StokvelId_Cycle"  (cost=0.00..30.29 rows=2400 width=0) (actual time=0.031..0.031 rows=2400 loops=1)
+                     Index Cond: ("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid)
+                     Buffers: shared hit=4
+ Planning:
+   Buffers: shared hit=179
+ Planning Time: 0.247 ms
+ Execution Time: 0.622 ms
+(17 rows)
+
+
+===== RUN 3 =====
+                                                                          QUERY PLAN                                                                          
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=274.59..274.65 rows=21 width=69) (actual time=0.602..0.605 rows=21 loops=1)
+   Buffers: shared hit=40
+   ->  Sort  (cost=274.59..280.59 rows=2400 width=69) (actual time=0.601..0.602 rows=21 loops=1)
+         Sort Key: "RecordedAt", "Id"
+         Sort Method: top-N heapsort  Memory: 30kB
+         Buffers: shared hit=40
+         ->  Bitmap Heap Scan on "Contributions" c  (cost=30.89..209.88 rows=2400 width=69) (actual time=0.049..0.278 rows=2400 loops=1)
+               Recheck Cond: ("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid)
+               Heap Blocks: exact=30
+               Buffers: shared hit=34
+               ->  Bitmap Index Scan on "IX_Contributions_StokvelId_Cycle"  (cost=0.00..30.29 rows=2400 width=0) (actual time=0.034..0.035 rows=2400 loops=1)
+                     Index Cond: ("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid)
+                     Buffers: shared hit=4
+ Planning:
+   Buffers: shared hit=179
+ Planning Time: 0.298 ms
+ Execution Time: 0.633 ms
+(17 rows)
+
+
+################ AFTER (new index IX_Contributions_StokvelId_Cycle_RecordedAt_Id) ################
+
+===== RUN 1 =====
+                                                                                 QUERY PLAN                                                                                  
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=346.59..346.65 rows=21 width=69) (actual time=1.006..1.009 rows=21 loops=1)
+   Buffers: shared hit=58
+   ->  Sort  (cost=346.59..352.59 rows=2400 width=69) (actual time=1.005..1.006 rows=21 loops=1)
+         Sort Key: "RecordedAt", "Id"
+         Sort Method: top-N heapsort  Memory: 30kB
+         Buffers: shared hit=58
+         ->  Bitmap Heap Scan on "Contributions" c  (cost=102.88..281.88 rows=2400 width=69) (actual time=0.192..0.577 rows=2400 loops=1)
+               Recheck Cond: ("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid)
+               Heap Blocks: exact=30
+               Buffers: shared hit=52
+               ->  Bitmap Index Scan on "IX_Contributions_StokvelId_Cycle_RecordedAt_Id"  (cost=0.00..102.28 rows=2400 width=0) (actual time=0.166..0.166 rows=2400 loops=1)
+                     Index Cond: ("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid)
+                     Buffers: shared hit=22
+ Planning:
+   Buffers: shared hit=190
+ Planning Time: 0.934 ms
+ Execution Time: 1.076 ms
+(17 rows)
+
+
+===== RUN 2 =====
+                                                                                 QUERY PLAN                                                                                  
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=346.59..346.65 rows=21 width=69) (actual time=0.699..0.702 rows=21 loops=1)
+   Buffers: shared hit=58
+   ->  Sort  (cost=346.59..352.59 rows=2400 width=69) (actual time=0.698..0.700 rows=21 loops=1)
+         Sort Key: "RecordedAt", "Id"
+         Sort Method: top-N heapsort  Memory: 30kB
+         Buffers: shared hit=58
+         ->  Bitmap Heap Scan on "Contributions" c  (cost=102.88..281.88 rows=2400 width=69) (actual time=0.109..0.339 rows=2400 loops=1)
+               Recheck Cond: ("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid)
+               Heap Blocks: exact=30
+               Buffers: shared hit=52
+               ->  Bitmap Index Scan on "IX_Contributions_StokvelId_Cycle_RecordedAt_Id"  (cost=0.00..102.28 rows=2400 width=0) (actual time=0.094..0.094 rows=2400 loops=1)
+                     Index Cond: ("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid)
+                     Buffers: shared hit=22
+ Planning:
+   Buffers: shared hit=190
+ Planning Time: 0.398 ms
+ Execution Time: 0.749 ms
+(17 rows)
+
+
+===== RUN 3 =====
+                                                                                 QUERY PLAN                                                                                  
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=346.59..346.65 rows=21 width=69) (actual time=0.645..0.648 rows=21 loops=1)
+   Buffers: shared hit=58
+   ->  Sort  (cost=346.59..352.59 rows=2400 width=69) (actual time=0.644..0.646 rows=21 loops=1)
+         Sort Key: "RecordedAt", "Id"
+         Sort Method: top-N heapsort  Memory: 30kB
+         Buffers: shared hit=58
+         ->  Bitmap Heap Scan on "Contributions" c  (cost=102.88..281.88 rows=2400 width=69) (actual time=0.103..0.326 rows=2400 loops=1)
+               Recheck Cond: ("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid)
+               Heap Blocks: exact=30
+               Buffers: shared hit=52
+               ->  Bitmap Index Scan on "IX_Contributions_StokvelId_Cycle_RecordedAt_Id"  (cost=0.00..102.28 rows=2400 width=0) (actual time=0.092..0.093 rows=2400 loops=1)
+                     Index Cond: ("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid)
+                     Buffers: shared hit=22
+ Planning:
+   Buffers: shared hit=190
+ Planning Time: 0.345 ms
+ Execution Time: 0.672 ms
+(17 rows)
+

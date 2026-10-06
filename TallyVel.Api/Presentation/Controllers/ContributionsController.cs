@@ -27,13 +27,36 @@ public class ContributionsController : ControllerBase
     }
 
     [HttpGet]
-    [EndpointSummary("List a stokvel's contributions")]
-    [EndpointDescription("Returns every contribution recorded against this stokvel.")]
-    [ProducesResponseType<IEnumerable<ContributionResponse>>(StatusCodes.Status200OK)]
-    public ActionResult<IEnumerable<ContributionResponse>> GetAll(Guid stokvelId) =>
-        Ok(_contributionRepository.GetAll()
-            .Where(c => c.StokvelId == stokvelId)
-            .Select(ContributionResponse.FromDomain));
+    [EndpointSummary("List a stokvel's contributions, one page at a time")]
+    [EndpointDescription(
+        "Filters, sorting and paging all run in the database. pageSize defaults to 20 and is capped at 100; " +
+        "sort is recordedAt (default) or amount, prefixed with '-' for descending. Pass nextPageToken back as " +
+        "pageToken for the next page; an empty nextPageToken means there are no more results.")]
+    [ProducesResponseType<PagedResponse<ContributionResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    public async Task<ActionResult<PagedResponse<ContributionResponse>>> GetPage(
+        Guid stokvelId,
+        [FromQuery] int? pageSize,
+        [FromQuery] string? pageToken,
+        [FromQuery] string? sort,
+        [FromQuery] string? cycle,
+        [FromQuery] Guid? memberUserId,
+        [FromQuery] decimal? minAmount,
+        [FromQuery] decimal? maxAmount,
+        CancellationToken ct)
+    {
+        // Both throw a TallyVelException on bad input → 400 via TallyVelExceptionHandler.
+        var size = Paging.ResolvePageSize(pageSize);
+        var (sortBy, descending) = contributionQuery.ParseSort(sort);
+
+        var query = new contributionQuery(
+            stokvelId, cycle?.Trim(), memberUserId, minAmount, maxAmount, sortBy, descending, size, pageToken);
+
+        var (items, nextPageToken) = await _contributionRepository.GetPageAsync(query, ct);
+
+        return Ok(new PagedResponse<ContributionResponse>(
+            items.Select(ContributionResponse.FromDomain).ToList(), nextPageToken));
+    }
 
     [HttpGet("{id:guid}")]
     [EndpointSummary("Get a contribution by id")]

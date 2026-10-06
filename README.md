@@ -387,7 +387,254 @@ Why a composite key on StokvelMember?
 A membership is the pair (user, stokvel) — a user can't belong to the same stokvel twice, so that pair is already unique and meaningful. A surrogate Guid Id would be a second identity nobody uses, and it wouldn't stop duplicate memberships unless I also added a unique index on (UserId, StokvelId) — at which point the pair is the real key anyway. The composite PK enforces "one membership per user per stokvel" at the database level for free.
 
 How Contribution and Payout reference a membership
-I used a composite foreign key (UserId, StokvelId) → StokvelMember. This makes the database reject a contribution from someone who isn't a member of that stokvel.
-I didn't reference UserId alone, because that moves the "must be a member" rule out of the database and into code that could be bypassed.
-I didn't add a surrogate alternate key, because it brings back the synthetic identity the composite key was meant to avoid.
-Trade-off: Contribution now carries StokvelId alongside CycleId, which could in theory disagree with the cycle's stokvel. I validate that in the service for now; enforcing it in the schema is a gap I've noted.
+Payout references a membership with a composite foreign key (StokvelId, RecipientUserId) → StokvelMember. This makes the database reject a payout to someone who isn't a member of that stokvel.
+Contribution deliberately does NOT reference a membership. It references the user (MemberUserId → User) and the cycle (a composite key, below). So the database will accept a contribution from a user who isn't a member; the "not a member" rule (422) lives in the service. I chose that because a contribution is history: a foreign key to the membership would stop a member with past contributions from being removed (or force me to soft-delete memberships), and removing a member is documented as not deleting their past contributions.
+I didn't reference UserId alone for payouts, because that moves the "must be a member" rule out of the database and into code that could be bypassed.
+I didn't add a surrogate alternate key on StokvelMember, because it brings back the synthetic identity the composite key was meant to avoid.
+Contribution and Payout both carry StokvelId, and the schema makes sure it can't disagree with the cycle's stokvel: Contribution has a composite foreign key (StokvelId, Cycle) → ContributionCycle (StokvelId, Label), and Payout has (StokvelId, ContributionCycleId) → ContributionCycle (StokvelId, Id). ContributionCycle has alternate keys on both pairs to make that possible.
+Remaining gap: because Contribution has no link to StokvelMember, "only members can contribute" is enforced in the service, not in the schema.
+
+---
+
+## Assignment 5.3 — Paging and query plans
+
+### Query plan measurement
+
+**What I measured:** the keyset-paged contributions listing (`GET /api/stokvels/{stokvelId}/contributions?cycle=<label>&pageSize=20`), before and after adding one composite index.
+
+#### Seeded volume and the separate database
+
+I measured on a separate database, `tallyvel_perf`, so the dev database `tallyvel` was never loaded with test data. The seeder (`VolumeSeeder`, run only with `--seed-volume`, never on normal startup) creates **5 stokvels × 50 members × 48 cycles = 12,000 contributions** (plus 250 users, 250 memberships and 240 cycles). It uses a fixed random seed (42) so it is repeatable, spreads `RecordedAt` across each cycle's own month, respects "one contribution per member per cycle", and ends with `ANALYZE "Contributions"`. I checked with SQL that the count is exactly 12,000, that every contributor is a member of the stokvel, and that no `RecordedAt` falls outside its cycle's month.
+
+`tallyvel_app` can't create databases, so the perf database was created by the Postgres superuser and then handed over:
+
+```bash
+docker exec tallyvel-pg psql -U postgres -c 'ALTER DATABASE tallyvel_perf OWNER TO tallyvel_app;'
+docker exec tallyvel-pg psql -U postgres -d tallyvel_perf -c 'ALTER SCHEMA public OWNER TO tallyvel_app;'
+```
+
+Then, with the perf connection string (`Host=localhost;Port=5433;Database=tallyvel_perf;Username=tallyvel_app;Password=***;Maximum Pool Size=20`):
+
+```bash
+dotnet ef database update --connection "<perf connection string>"
+dotnet run -- --seed-volume --ConnectionStrings:TallyVel="<perf connection string>"
+```
+
+(I actually passed the string as the `ConnectionStrings__TallyVel` environment variable so the password never reached the shell history or the screen; it is equivalent.)
+
+**Safeguards.** `VolumeSeeder` refuses to run unless the database name ends in `_perf`; I tested that it refuses against `tallyvel`. For every `ef` and `run` command against perf I used a shell check that the connection string contains `Database=tallyvel_perf`, and aborts otherwise. I added it after a mistyped substitution once pointed an `ef database update` at the dev database (it was a no-op because dev was already up to date, but it showed the risk).
+
+#### The SQL measured (as logged by EF Core)
+
+Page 1 (`@cycle = '2025-06'`, `@p = 21`, i.e. page size 20 + 1 to detect another page):
+
+```sql
+SELECT c."Id", c."Amount", c."Cycle", c."MemberUserId", c."RecordedAt", c."StokvelId"
+FROM "Contributions" AS c
+WHERE c."StokvelId" = @q_StokvelId AND c."Cycle" = @cycle
+ORDER BY c."RecordedAt", c."Id"
+LIMIT @p
+```
+
+Page 2 adds the keyset condition from the previous page's last row:
+
+```sql
+SELECT c."Id", c."Amount", c."Cycle", c."MemberUserId", c."RecordedAt", c."StokvelId"
+FROM "Contributions" AS c
+WHERE c."StokvelId" = @q_StokvelId AND c."Cycle" = @cycle
+  AND (c."RecordedAt", c."Id") > (@t_LastRecordedAt_Value, @t_LastId)
+ORDER BY c."RecordedAt", c."Id"
+LIMIT @p
+```
+
+To run it by hand I substituted only the parameter values. Plans were captured with `EXPLAIN (ANALYZE, BUFFERS)`, three runs each; I report the third (warm) run. Full output is in `docs/explain/`.
+
+#### Before the index (`docs/explain/before.txt`)
+
+```
+ Limit  (cost=109.60..109.65 rows=21 width=69) (actual time=0.074..0.077 rows=21 loops=1)
+   Buffers: shared hit=33
+   ->  Sort  (cost=109.60..109.72 rows=50 width=69) (actual time=0.073..0.075 rows=21 loops=1)
+         Sort Key: "RecordedAt", "Id"
+         Sort Method: top-N heapsort  Memory: 29kB
+         Buffers: shared hit=33
+         ->  Bitmap Heap Scan on "Contributions" c  (cost=4.80..108.25 rows=50 width=69) (actual time=0.023..0.053 rows=50 loops=1)
+               Recheck Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text))
+               Heap Blocks: exact=25
+               Buffers: shared hit=27
+               ->  Bitmap Index Scan on "IX_Contributions_StokvelId_Cycle"  (cost=0.00..4.79 rows=50 width=0) (actual time=0.015..0.015 rows=50 loops=1)
+                     Index Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text))
+                     Buffers: shared hit=2
+ Planning:
+   Buffers: shared hit=178
+ Planning Time: 0.253 ms
+ Execution Time: 0.098 ms
+(17 rows)
+```
+
+| | |
+|---|---|
+| Node types | Limit → Sort (top-N heapsort) → Bitmap Heap Scan → Bitmap Index Scan |
+| Index used | `IX_Contributions_StokvelId_Cycle` (the helper index EF created for the cycle foreign key) |
+| Execution time | 0.098 ms (planning 0.253 ms) |
+| Estimated vs actual rows | scan: 50 est / 50 actual; Limit: 21 / 21 |
+| Rows Removed by Filter | none |
+| Buffers | 33 |
+
+**This was not a Seq Scan.** The planner used the existing `(StokvelId, Cycle)` index to find the 50 rows of the cycle and then sorted them. So the index found the rows well. What was missing was ordering.
+
+#### After the index (`docs/explain/after.txt`)
+
+```
+ Limit  (cost=0.29..58.77 rows=21 width=69) (actual time=0.036..0.072 rows=21 loops=1)
+   Buffers: shared hit=23
+   ->  Index Scan using "IX_Contributions_StokvelId_Cycle_RecordedAt_Id" on "Contributions" c  (cost=0.29..139.54 rows=50 width=69) (actual time=0.035..0.069 rows=21 loops=1)
+         Index Cond: (("StokvelId" = 'a76414e6-754c-4655-b5db-93d39e0a1c25'::uuid) AND (("Cycle")::text = '2025-06'::text))
+         Buffers: shared hit=23
+ Planning:
+   Buffers: shared hit=190
+ Planning Time: 0.450 ms
+ Execution Time: 0.084 ms
+(9 rows)
+```
+
+| | |
+|---|---|
+| Node types | Limit → Index Scan |
+| Index used | `IX_Contributions_StokvelId_Cycle_RecordedAt_Id` |
+| Execution time | 0.084 ms (planning 0.450 ms) |
+| Estimated vs actual rows | scan: 50 est / 21 actual (it stopped early); Limit: 21 / 21 |
+| Rows Removed by Filter | none |
+| Buffers | 23 |
+
+#### Comparison
+
+The Sort node is gone and `LIMIT` now stops the scan after 21 rows, so it reads 23 buffers instead of 33. But at only 50 rows per cycle the time saved is tiny (0.098 ms → 0.084 ms, within run-to-run noise). The benefit scales with the number of rows *in one cycle*, not the total number of rows in the table.
+
+**Page 2.** Before the index, the keyset condition was applied as a filter after the bitmap scan (20 rows removed by filter) and then sorted: 0.096 ms, 33 buffers (`docs/explain/before-page2.txt`). After the index the condition becomes part of the index condition (nothing removed by filter), but the planner **still chose a Bitmap Heap Scan plus a Sort** of about 30 rows: 0.088 ms, 28 buffers (`docs/explain/after-page2.txt`). To check that this was the planner's choice and not a limit of the index, I ran a diagnostic with `SET enable_bitmapscan = off` for that session only: it then used a plain ordered Index Scan with no Sort, in 0.052 ms and 22 buffers (`docs/explain/after-page2-diagnostic.txt`). The two plans were close in estimated cost (58.6 vs 61.4), and the row estimate was 19 against an actual 30. So I can't claim that every page avoids the Sort at this size.
+
+#### Why this column order
+
+`(StokvelId, Cycle, RecordedAt, Id)`:
+
+- **`StokvelId`, `Cycle` first:** these are equality filters, so the scan jumps straight to one stokvel's one cycle.
+- **`RecordedAt`, `Id` next:** inside that one cycle the entries are already stored in `ORDER BY "RecordedAt", "Id"` order. That's why the Sort disappears and `LIMIT` can stop early.
+- **`Id` last:** it is the tiebreaker that makes the order deterministic, and it matches the keyset row comparison `("RecordedAt", "Id") > (...)`.
+
+The existing unique index `(StokvelId, MemberUserId, Cycle)` can't serve this query: `MemberUserId` sits between `StokvelId` and `Cycle`, and the query doesn't filter on the member, so Postgres can't use `Cycle` (or any later column) to narrow the scan. It also can't give ordering by `RecordedAt`.
+
+#### Migration review (`AddContributionPagingIndex`)
+
+EF generated a `DropIndex` of `IX_Contributions_StokvelId_Cycle` as well as the `CreateIndex`. EF does this because the new composite index has the same leading columns `(StokvelId, Cycle)`, so the old helper index became redundant (the foreign-key lookups it served are covered by the new index's prefix). Keeping both would only add write cost. I checked that the migration drops no columns or tables, so no data is lost, and that `Down` recreates the old index (I proved it by rolling the perf database back and forward). A `CREATE INDEX` blocks writes to the table while it builds. That's fine at this size, but on a large production table I would use `CREATE INDEX CONCURRENTLY`, which EF doesn't generate by default. It was applied to `tallyvel_perf` first and then to `tallyvel`.
+
+#### Small data (`docs/explain/small-data.txt`)
+
+On the dev database (6 contributions), with ids that exist there:
+
+```
+ Limit  (cost=1.10..1.10 rows=1 width=134) (actual time=0.027..0.028 rows=3 loops=1)
+   Buffers: shared hit=7
+   ->  Sort  (cost=1.10..1.10 rows=1 width=134) (actual time=0.026..0.027 rows=3 loops=1)
+         Sort Key: "RecordedAt", "Id"
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=7
+         ->  Seq Scan on "Contributions" c  (cost=0.00..1.09 rows=1 width=134) (actual time=0.005..0.006 rows=3 loops=1)
+               Filter: (("StokvelId" = '30d8a9e8-727e-41d2-b828-5d2daf5cb2c1'::uuid) AND (("Cycle")::text = '2026-09'::text))
+               Rows Removed by Filter: 3
+               Buffers: shared hit=1
+ Planning:
+   Buffers: shared hit=154
+ Planning Time: 0.259 ms
+ Execution Time: 0.046 ms
+(14 rows)
+```
+
+PostgreSQL chose a **Seq Scan** even though the new index exists: it read one page and discarded 3 rows (Rows Removed by Filter: 3), then sorted the 3 matches in 0.046 ms. That is the right choice. The whole table fits in a page or two, so reading it directly costs less than going through the index and then fetching the same page. (The row estimate was 1 against an actual 3, because dev statistics were never gathered; it doesn't change the decision.) Indexes pay off as tables grow, not on tiny ones.
+
+#### Measured gap: the stokvel-wide listing
+
+Without a `cycle` filter (`?pageSize=20`) the new index can't help, because `Cycle` sits between `StokvelId` and `RecordedAt`, so entries for a stokvel are not in `RecordedAt` order. I measured it before and after (`docs/explain/stokvel-wide.txt`): both plans are a Bitmap scan feeding a top-N Sort over 2,400 rows, 0.633 ms before and 0.672 ms after, 40 and 58 buffers. It is no faster, and marginally more expensive because the wider index is bigger to scan. I did not add another index for it. A `(StokvelId, RecordedAt, Id)` index would serve it.
+
+#### Gaps and caveats
+
+- The assignment's `/cycles/{cycleId}/contributions` route does not exist; the cycle filter is the `?cycle=<label>` query parameter on the stokvel endpoint.
+- These are single-machine, local-Docker timings on a small table. Differences under about 0.05 ms are noise; the plan shapes (Sort gone, early stop, buffers) are the reliable result.
+
+
+### Database constraints
+
+Two composite uniqueness rules protect contributions. Both already existed in the C# and, as I confirmed, in the database. 5.3 adds no new constraint; it proves the existing ones and handles their failures properly.
+
+#### The constraints
+
+| Database object | Rule it enforces | The C# check it backs up |
+|---|---|---|
+| `IX_Contributions_StokvelId_MemberUserId_Cycle`: unique index on `Contributions (StokvelId, MemberUserId, Cycle)` | One contribution per member per cycle | `ContributionServices` → `IContributionRepository.ExistsForCycle(stokvelId, memberUserId, cycle)` |
+| `AK_ContributionCycles_StokvelId_Label`: unique (alternate) key on `ContributionCycles (StokvelId, Label)` | One cycle label per stokvel | `EfContributionRepository.AddAsync`, which finds the cycle or creates it |
+
+I checked that both exist in `tallyvel` and `tallyvel_perf` (`pg_indexes` and `pg_constraint`), and that the EF configuration (`HasIndex(...).IsUnique()` and `HasAlternateKey(...)`) has the same columns in the same order.
+
+#### Duplicate checks
+
+Before relying on a unique rule I check the data for existing duplicates:
+
+```sql
+-- one contribution per member per cycle
+SELECT "StokvelId", "MemberUserId", "Cycle", COUNT(*)
+FROM "Contributions"
+GROUP BY "StokvelId", "MemberUserId", "Cycle"
+HAVING COUNT(*) > 1;
+
+-- one cycle label per stokvel
+SELECT "StokvelId", "Label", COUNT(*)
+FROM "ContributionCycles"
+GROUP BY "StokvelId", "Label"
+HAVING COUNT(*) > 1;
+```
+
+Both returned **0 rows** on `tallyvel` (6 contributions, 2 cycles) and on `tallyvel_perf` (12,000 contributions, 240 cycles). That's expected, since the constraints were already in place. The C# trims the cycle text, so I also ran both queries grouped by `lower(trim("Cycle"))` and `lower(trim("Label"))` to look for near-duplicates such as `"2025-06"` vs `"2025-06 "`. Also **0 rows** on both databases, and no stored value has stray spaces or upper-case letters.
+
+#### Migration review
+
+Both constraints were created in the first migration, `20260930233012_InitialCreate`. The later `AddContributionPagingIndex` only touched a non-unique index. So 5.3 has no constraint migration. If I did add a unique constraint to an existing table, I would check first:
+
+- **Duplicates.** If any exist, the migration fails. In PostgreSQL DDL is transactional, so it rolls back cleanly; on databases where it isn't, it can fail partway and leave a half-applied change.
+- **Locking.** `CREATE UNIQUE INDEX` blocks writes to the table while it builds. That's fine on a small table, but on a large one it takes time. `CREATE INDEX CONCURRENTLY` avoids the write lock, but it can't run inside a transaction, which is why EF doesn't generate it by default.
+
+#### Partial (filtered) unique index: not needed
+
+`Contribution` has no soft-delete, status or active column (and `DeleteAsync` really deletes), so there is nothing to filter on: not applicable. `ContributionCycle` does have a `Status` (Open / PaidOut), but that is a lifecycle state, not "deleted". A paid-out cycle still owns its label, and the C# lookup matches on `(StokvelId, Label)` for every cycle regardless of status. So the full unique constraint states the rule honestly, and a filtered index would not.
+
+#### Why both the service check and the constraint stay
+
+The C# check gives a specific, friendly 409 ("User x has already contributed to stokvel y for cycle z") in the common case, one request at a time, and it rejects the duplicate before any write is attempted. But it is a read followed by a write, so it can't stop two requests that pass the check at the same moment, or data written by a script or a manual fix that bypasses the C# completely. Only the constraint holds in those cases. For the concurrent case the repository catches the database's rejection and turns it into the same 409 (for the contribution rule) or retries against the cycle the other request created (for the cycle rule). Remove the constraint and the rule is only a habit; remove the service check and every duplicate costs a failed insert.
+
+#### Central handling of unique violations
+
+`EfContributionRepository` already turns a violation of its own two constraints into a domain `AlreadyExistsException`. For any other path, an untranslated unique violation (SQLSTATE `23505`) used to reach the client as a 500. `TallyVelExceptionHandler` now maps it to **409 Conflict** (`application/problem+json`, the same fields and `type` style as the other handled failures, `code: unique-violation`) with a generic message, "The request conflicts with an existing record." No SQL, table data or raw Postgres text reaches the client. The constraint name is logged server-side at Warning. Only `23505` is handled; every other database error behaves as before, and the existing translations are untouched.
+
+#### How the tests prove it
+
+- `TallyVelExceptionHandlerTests` (unit, no database): a 23505 becomes a 409 with the generic body and nothing leaked; the constraint name is logged at Warning; a foreign-key violation (23503) and a `DbUpdateException` with no Postgres cause are *not* turned into 409; `AlreadyExistsException` still maps to its own 409.
+- `DatabaseConstraintTests` (real PostgreSQL): insert a contribution, then in a **new** `DbContext` insert a second one for the same stokvel, member and cycle, bypassing the service and `ExistsForCycle`. Assert a `DbUpdateException` wrapping a `PostgresException` with SQLSTATE `23505` and constraint `IX_Contributions_StokvelId_MemberUserId_Cycle`, and that only the first row was stored. The same for two cycles with the same stokvel and label (`AK_ContributionCycles_StokvelId_Label`).
+- The EF InMemory provider doesn't enforce unique indexes and SQLite behaves differently from Postgres, so these tests use a dedicated PostgreSQL database, `tallyvel_test`. Test data uses fresh `Guid`-based ids and labels, so leftovers from earlier runs can't affect results. The database was created by the superuser, like `tallyvel_perf`:
+
+```bash
+docker exec tallyvel-pg psql -U postgres -c 'CREATE DATABASE tallyvel_test OWNER tallyvel_app;'
+docker exec tallyvel-pg psql -U postgres -d tallyvel_test -c 'ALTER SCHEMA public OWNER TO tallyvel_app;'
+export TALLYVEL_TEST_CONNECTION="Host=localhost;Port=5433;Database=tallyvel_test;Username=tallyvel_app;Password=***;Maximum Pool Size=20"
+dotnet test
+```
+
+The fixture applies the migrations itself and **refuses to run unless the database name ends in `_test`**. Without `TALLYVEL_TEST_CONNECTION` the two database tests fail with instructions instead of being skipped, because a silent skip would hide that nothing was checked. The other 19 tests need no database. With the variable set, all 21 pass.
+
+#### Gaps
+
+- **Cycle labels aren't normalised.** The C# only trims. Case and format aren't checked, so `"2025-06"`, `"2025-6"` and `"June 2025"` would be three different cycles and pass both checks. There are no such near-duplicates in the data today.
+- **Rules enforced in only one place:**
+  - Unique user email: database only (`IX_Users_Email`, translated to a 409 by the repository). There is no C# pre-check.
+  - One payout per cycle: database only (`IX_Payouts_ContributionCycleId`). `ContributionCycle.MarkPaidOut()` rejects a second payout in the domain, but nothing calls it yet because no payout code exists.
+  - "Only members can contribute": the C# service only. `Contribution` has no foreign key to `StokvelMember` (a payout does).
+  - Idempotency keys: C# only, held in memory, so they are forgotten on restart.
+- **Rules that exist nowhere:** stokvel names aren't unique in the C# or in the database, so two stokvels can share a name. I haven't added a constraint for these, since the task is not to invent new business rules.
+- **Duplicate ids** (`Guid` primary keys) surface as an `InvalidOperationException` from the repositories (a 500). A collision is practically impossible, so I left it.
