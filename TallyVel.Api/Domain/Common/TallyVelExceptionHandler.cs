@@ -57,6 +57,8 @@ public sealed class TallyVelExceptionHandler : IExceptionHandler
     }
 
     // The ONLY place a failure type is turned into a status code.
+    //   400 — a list query's parameters are invalid (negative pageSize,
+    //         unknown sort, bad or mismatched page token)
     //   404 — the request points at something that doesn't exist
     //   422 — the request can't be processed as sent: a domain rule forbids
     //         it, or an Idempotency-Key was reused with a different body
@@ -67,6 +69,8 @@ public sealed class TallyVelExceptionHandler : IExceptionHandler
     private static (int StatusCode, string Title) MapToResponse(TallyVelException exception) =>
         exception switch
         {
+            PageSizeException                 => (StatusCodes.Status400BadRequest,          "Invalid Page Size"),
+            InvalidQueryException             => (StatusCodes.Status400BadRequest,          "Invalid Query"),
             NotFoundException                 => (StatusCodes.Status404NotFound,            "Not Found"),
             BusinessRuleViolationException    => (StatusCodes.Status422UnprocessableEntity, "Business Rule Violation"),
             AlreadyExistsException            => (StatusCodes.Status409Conflict,            "Already Exists"),

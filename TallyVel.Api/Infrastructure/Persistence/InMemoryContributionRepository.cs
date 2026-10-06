@@ -46,4 +46,9 @@ public sealed class InMemoryContributionRepository : IContributionRepository
     {
         throw new NotImplementedException();
     }
+
+    public Task<(IReadOnlyList<Contribution> Items, string NextPageToken)> GetPageAsync(contributionQuery q, CancellationToken ct = default)
+    {
+        throw new NotImplementedException();
+    }
 }

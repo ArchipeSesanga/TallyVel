@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TallyVel.Api.Application;
 using TallyVel.Api.Application.Interfaces;
 using TallyVel.Api.Data;
 using TallyVel.Api.Domain;
@@ -113,4 +114,83 @@ public sealed class EfContributionRepository : IContributionRepository
             "contribution-already-recorded",
             $"User {contribution.MemberUserId} has already contributed to stokvel {contribution.StokvelId} for cycle '{contribution.Cycle}'.");
     }
+
+    public async Task<(IReadOnlyList<Contribution> Items, string NextPageToken)> GetPageAsync(
+    contributionQuery q, CancellationToken ct = default)
+{
+    // 1. Filters — all become WHERE in SQL
+
+    //This is the initial query that retrieve everything 
+    // then get refined along the way
+    var query = _db.Contributions
+        .AsNoTracking()
+        .Where(c => c.StokvelId == q.StokvelId);
+
+    //refinining part through the conditions 
+    if (q.Cycle is { } cycle)         query = query.Where(c => c.Cycle == cycle);
+    if (q.MemberUserId is { } member) query = query.Where(c => c.MemberUserId == member);
+    if (q.MinAmount is { } min)       query = query.Where(c => c.Amount >= min);
+    if (q.MaxAmount is { } max)       query = query.Where(c => c.Amount <= max);
+
+    // 2. Keyset: continue after the last row of the previous page
+    if (!string.IsNullOrEmpty(q.PageToken))
+    {
+        var t = ContributionPageToken.Decode(q.PageToken);
+
+        // Malformed, or reused with a different filter/sort → 400
+        if (t is null || t.QueryFingerprint != q.Fingerprint())
+            throw new InvalidQueryException("pageToken",
+                "Invalid page token, or token used with a different filter or sort.");
+
+         //At this point the query get tuned for the database 
+        query = (q.SortBy, q.Descending) switch 
+        {
+            (ContributionSortField.RecordedAt, false) => query.Where(c =>
+                EF.Functions.GreaterThan(
+                    ValueTuple.Create(c.RecordedAt, c.Id),
+                    ValueTuple.Create(t.LastRecordedAt!.Value, t.LastId))),
+
+            (ContributionSortField.RecordedAt, true) => query.Where(c =>
+                EF.Functions.LessThan(
+                    ValueTuple.Create(c.RecordedAt, c.Id),
+                    ValueTuple.Create(t.LastRecordedAt!.Value, t.LastId))),
+
+            (ContributionSortField.Amount, false) => query.Where(c =>
+                EF.Functions.GreaterThan(
+                    ValueTuple.Create(c.Amount, c.Id),
+                    ValueTuple.Create(t.LastAmount!.Value, t.LastId))),
+
+            _ => query.Where(c =>
+                EF.Functions.LessThan(
+                    ValueTuple.Create(c.Amount, c.Id),
+                    ValueTuple.Create(t.LastAmount!.Value, t.LastId))),
+        };
+    }
+
+    // 3. Deterministic order: sort field, then Id as tiebreaker → ORDER BY in SQL
+    query = (q.SortBy, q.Descending) switch
+    {
+        (ContributionSortField.RecordedAt, false) => query.OrderBy(c => c.RecordedAt).ThenBy(c => c.Id),
+        (ContributionSortField.RecordedAt, true)  => query.OrderByDescending(c => c.RecordedAt).ThenByDescending(c => c.Id),
+        (ContributionSortField.Amount, false)     => query.OrderBy(c => c.Amount).ThenBy(c => c.Id),
+        _                                         => query.OrderByDescending(c => c.Amount).ThenByDescending(c => c.Id),
+    };
+
+    // 4. One extra row tells us if there's another page → LIMIT in SQL
+    var rows = await query.Take(q.PageSize + 1).ToListAsync(ct);
+
+    var hasMore = rows.Count > q.PageSize;
+    if (hasMore) rows.RemoveAt(rows.Count - 1);
+
+    // 5. Next token: empty exactly when there are no more results
+    var next = string.Empty;
+    if (hasMore)
+    {
+        var last = rows[^1];
+        next = new ContributionPageToken(
+            last.RecordedAt, last.Amount, last.Id, q.Fingerprint()).Encode();
+    }
+
+    return (rows, next);
+}
 }
