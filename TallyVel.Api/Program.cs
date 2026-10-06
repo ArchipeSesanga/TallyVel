@@ -55,6 +55,13 @@ builder.Services.AddProblemDetails();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 var app = builder.Build();
+if (args.Contains("--seed-volume"))
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<TallyVelDbContext>();
+    await VolumeSeeder.RunAsync(db);
+    return; // seed only, never start the web host
+}
 
 // Fill an empty development database with the sample users and stokvels.
 if (app.Environment.IsDevelopment())
