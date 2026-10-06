@@ -387,10 +387,12 @@ Why a composite key on StokvelMember?
 A membership is the pair (user, stokvel) — a user can't belong to the same stokvel twice, so that pair is already unique and meaningful. A surrogate Guid Id would be a second identity nobody uses, and it wouldn't stop duplicate memberships unless I also added a unique index on (UserId, StokvelId) — at which point the pair is the real key anyway. The composite PK enforces "one membership per user per stokvel" at the database level for free.
 
 How Contribution and Payout reference a membership
-I used a composite foreign key (UserId, StokvelId) → StokvelMember. This makes the database reject a contribution from someone who isn't a member of that stokvel.
-I didn't reference UserId alone, because that moves the "must be a member" rule out of the database and into code that could be bypassed.
-I didn't add a surrogate alternate key, because it brings back the synthetic identity the composite key was meant to avoid.
-Trade-off: Contribution now carries StokvelId alongside CycleId, which could in theory disagree with the cycle's stokvel. I validate that in the service for now; enforcing it in the schema is a gap I've noted.
+Payout references a membership with a composite foreign key (StokvelId, RecipientUserId) → StokvelMember. This makes the database reject a payout to someone who isn't a member of that stokvel.
+Contribution deliberately does NOT reference a membership. It references the user (MemberUserId → User) and the cycle (a composite key, below). So the database will accept a contribution from a user who isn't a member; the "not a member" rule (422) lives in the service. I chose that because a contribution is history: a foreign key to the membership would stop a member with past contributions from being removed (or force me to soft-delete memberships), and removing a member is documented as not deleting their past contributions.
+I didn't reference UserId alone for payouts, because that moves the "must be a member" rule out of the database and into code that could be bypassed.
+I didn't add a surrogate alternate key on StokvelMember, because it brings back the synthetic identity the composite key was meant to avoid.
+Contribution and Payout both carry StokvelId, and the schema makes sure it can't disagree with the cycle's stokvel: Contribution has a composite foreign key (StokvelId, Cycle) → ContributionCycle (StokvelId, Label), and Payout has (StokvelId, ContributionCycleId) → ContributionCycle (StokvelId, Id). ContributionCycle has alternate keys on both pairs to make that possible.
+Remaining gap: because Contribution has no link to StokvelMember, "only members can contribute" is enforced in the service, not in the schema.
 
 ---
 
