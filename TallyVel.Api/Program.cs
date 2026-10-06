@@ -24,17 +24,8 @@ builder.Logging.AddDebug();
 // Add services to the container.
 builder.Services.AddOpenApi();
 
-var connectionString = builder.Configuration.GetConnectionString("TallyVel")
-    ?? throw new InvalidOperationException(
-        "Connection string 'TallyVel' is not configured. Set it with " +
-        "`dotnet user-secrets set \"ConnectionStrings:TallyVel\" \"...\"` " +
-        "from TallyVel.Api (see README, Step 6).");
-
-builder.Services.AddDbContext<TallyVelDbContext>(options =>
-    options.UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure(
-        maxRetryCount: 3,
-        maxRetryDelay: TimeSpan.FromSeconds(5),
-        errorCodesToAdd: null)));
+builder.Services.AddDbContext<TallyVelDbContext>(o =>
+    o.UseNpgsql(builder.Configuration.GetConnectionString("TallyVel")));
 
 // Repositories are Scoped: they share the request's DbContext.
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();
@@ -60,7 +51,7 @@ if (args.Contains("--seed-volume"))
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<TallyVelDbContext>();
     await VolumeSeeder.RunAsync(db);
-    return; // seed only, never start the web host
+    return; // seed 
 }
 
 // Fill an empty development database with the sample users and stokvels.
