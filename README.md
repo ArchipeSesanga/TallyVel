@@ -24,18 +24,18 @@ Whether it's a small savings circle with friends or a larger community stokvel, 
 
 ## Running the Project
 
-The API lives in `TallyVel.Api` and targets .NET 10.
+The API lives in `Api` and targets .NET 10.
 
 ### From the terminal
 
 ```bash
-cd TallyVel.Api
+cd Api
 dotnet run
 ```
 
 ### From VS Code
 
-Open the **Run and Debug** panel (⇧⌘D on Mac / Ctrl+Shift+D on Windows/Linux), select **TallyVel.Api** from the dropdown, and press F5. This builds the project and starts it with the debugger attached.
+Open the **Run and Debug** panel (⇧⌘D on Mac / Ctrl+Shift+D on Windows/Linux), select **Api** from the dropdown, and press F5. This builds the project and starts it with the debugger attached.
 
 ### Viewing the Scalar UI
 
@@ -49,7 +49,7 @@ This gives you an interactive reference for every API endpoint — no separate s
 
 ## Error Handling
 
-Domain failures (a stokvel that doesn't exist, a member who's already contributed for a cycle, and so on) are represented as typed exceptions rather than status codes scattered through the controllers. Every one of them derives from `TallyVelException` (`TallyVel.Api/Domain/Common/Exceptions.cs`):
+Domain failures (a stokvel that doesn't exist, a member who's already contributed for a cycle, and so on) are represented as typed exceptions rather than status codes scattered through the controllers. Every one of them derives from `TallyVelException` (`Domain/Exceptions/Exceptions.cs`):
 
 | Exception | Meaning |
 |---|---|
@@ -70,7 +70,7 @@ var stokvel = _stokvelRepository.GetById(id)
     ?? throw new NotFoundException("stokvel", id);
 ```
 
-`TallyVelExceptionHandler` (`TallyVel.Api/Domain/Common/TallyVelExceptionHandler.cs`), registered globally in `Program.cs` via `AddExceptionHandler` + `UseExceptionHandler`, is the **only** place that maps a failure type to a status code:
+`TallyVelExceptionHandler` (`Api/Common/TallyVelExceptionHandler.cs`), registered globally in `Program.cs` via `AddExceptionHandler` + `UseExceptionHandler`, is the **only** place that maps a failure type to a status code:
 
 | Exception | Status |
 |---|---|
@@ -214,7 +214,7 @@ Expected result: `tallyvel | tallyvel_app | PostgreSQL 17.x …`
 The connection string (including the password) is stored with **.NET User Secrets**. It lives in your user profile folder, outside the repository, so it can never be committed by accident. `appsettings.json` contains **no** credentials.
 
 ```bash
-cd TallyVel.Api
+cd Api
 dotnet user-secrets set "ConnectionStrings:TallyVel" "Host=localhost;Port=5432;Database=tallyvel;Username=tallyvel_app;Password=postgres;Maximum Pool Size=20"
 dotnet user-secrets list
 ```
@@ -277,18 +277,18 @@ See [Running the Project](#running-the-project) below.
 
 ## Running the Project
 
-The API lives in `TallyVel.Api` and targets .NET 10. **PostgreSQL must be running first** (`docker compose up -d`).
+The API lives in `Api` and targets .NET 10. **PostgreSQL must be running first** (`docker compose up -d`).
 
 ### From the terminal
 
 ```bash
-cd TallyVel.Api
+cd Api
 dotnet run
 ```
 
 ### From VS Code
 
-Open the **Run and Debug** panel (⇧⌘D on Mac / Ctrl+Shift+D on Windows/Linux), select **TallyVel.Api** from the dropdown, and press F5. This builds the project and starts it with the debugger attached.
+Open the **Run and Debug** panel (⇧⌘D on Mac / Ctrl+Shift+D on Windows/Linux), select **Api** from the dropdown, and press F5. This builds the project and starts it with the debugger attached.
 
 ### Viewing the Scalar UI
 
@@ -302,7 +302,7 @@ This gives you an interactive reference for every API endpoint — no separate s
 
 ## Error Handling
 
-Domain failures (a stokvel that doesn't exist, a member who's already contributed for a cycle, and so on) are represented as typed exceptions rather than status codes scattered through the controllers. Every one of them derives from `TallyVelException` (`TallyVel.Api/Domain/Common/Exceptions.cs`):
+Domain failures (a stokvel that doesn't exist, a member who's already contributed for a cycle, and so on) are represented as typed exceptions rather than status codes scattered through the controllers. Every one of them derives from `TallyVelException` (`Domain/Exceptions/Exceptions.cs`):
 
 | Exception | Meaning |
 |---|---|
@@ -323,7 +323,7 @@ var stokvel = _stokvelRepository.GetById(id)
     ?? throw new NotFoundException("stokvel", id);
 ```
 
-`TallyVelExceptionHandler` (`TallyVel.Api/Domain/Common/TallyVelExceptionHandler.cs`), registered globally in `Program.cs` via `AddExceptionHandler` + `UseExceptionHandler`, is the **only** place that maps a failure type to a status code:
+`TallyVelExceptionHandler` (`Api/Common/TallyVelExceptionHandler.cs`), registered globally in `Program.cs` via `AddExceptionHandler` + `UseExceptionHandler`, is the **only** place that maps a failure type to a status code:
 
 | Exception | Status |
 |---|---|
