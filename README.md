@@ -638,3 +638,51 @@ The fixture applies the migrations itself and **refuses to run unless the databa
   - Idempotency keys: C# only, held in memory, so they are forgotten on restart.
 - **Rules that exist nowhere:** stokvel names aren't unique in the C# or in the database, so two stokvels can share a name. I haven't added a constraint for these, since the task is not to invent new business rules.
 - **Duplicate ids** (`Guid` primary keys) surface as an `InvalidOperationException` from the repositories (a 500). A collision is practically impossible, so I left it.
+
+
+---
+
+## Assignment 5.4 — Splitting the solution into projects
+
+The single `TallyVel.Api` project was split into four, so the dependency direction is enforced by the compiler instead of by habit. The projects are named `Api`, `Domain`, `Infrastructure` and `Tests` (folder, `.csproj`, assembly and root namespace all match).
+
+### Layout and dependencies
+
+| Project | Contains | References |
+|---|---|---|
+| `Domain` | Entities (`User`, `Stokvel`, `StokvelMember`, `Contribution`, `ContributionCycle`, `Payout`), the domain exceptions, `ContributionQuery`, and the repository / idempotency-store interfaces | nothing (no project and no NuGet package) |
+| `Infrastructure` | `TallyVelDbContext` and the EF configurations, the EF and in-memory repositories, seeders, `ContributionPageToken`, `DbUpdateExceptionExtensions`, and the migrations | `Domain` |
+| `Api` | Controllers, services and DTOs (`Application/`), FluentValidation validators, `TallyVelExceptionHandler`, `SaveChangesFilter`, `Program.cs` | `Domain`, `Infrastructure` |
+| `Tests` | Unit and integration tests | `Api`, `Infrastructure` |
+
+The rule: `Domain` knows nothing about EF Core, ASP.NET or Npgsql. Anything that needs ASP.NET (`SaveChangesFilter`, the exception handler) or FluentValidation (the validators) stays in `Api`. Anything that needs EF Core or Npgsql lives in `Infrastructure`.
+
+### What moved, and the decisions behind it
+
+- **Repository interfaces moved to `Domain`**, not left in `Api/Application/Interfaces`. `Infrastructure` has to implement them, and it can't reference `Api` (that would be a circular dependency). `IContributionService` stays in `Api` because it is an application service, not a domain concept.
+- **`ContributionPageToken` moved to `Infrastructure`.** Only `EfContributionRepository` uses it. It used `Microsoft.AspNetCore.WebUtilities.WebEncoders`, which would have pulled ASP.NET into `Infrastructure`, so it now uses `System.Buffers.Text.Base64Url`. The token is still URL-safe Base64 of the same JSON, but I haven't checked that tokens issued before this change still decode.
+- **Migrations moved to `Infrastructure`**, next to the `DbContext`. `Program.cs` sets `MigrationsAssembly` to the `Infrastructure` assembly, and commands are run with `dotnet ef migrations ... -p Infrastructure -s Api`. Both existing migrations (`InitialCreate`, `AddContributionPagingIndex`) are found and their content is unchanged.
+- **`DbUpdateExceptionExtensions` became `public`**, because the API's `TallyVelExceptionHandler` uses `IsUniqueViolation` for the 409 mapping from 5.3.
+- **The `Domain` project uses one flat `Domain` namespace** for entities, exceptions, models and repositories, so namespaces no longer mirror the sub-folders. I chose that to keep the `using` changes small.
+- **`Api` references `Infrastructure` directly.** `Program.cs` is the composition root and registers the EF repositories, so it has to see the concrete types. Controllers and services only depend on the interfaces.
+- **Package conflict.** `Api.csproj` pinned `Microsoft.EntityFrameworkCore` and `.Relational` to 10.0.3, but `Npgsql.EntityFrameworkCore.PostgreSQL` 10.0.3 (reached through `Infrastructure`) needs 10.0.4 or newer, which NuGet reports as an NU1605 downgrade error. I removed the two explicit references; `Api` gets EF Core through `Infrastructure`.
+
+### Integration tests
+
+The database tests now start their own PostgreSQL 17 container with Testcontainers (`Tests/TestSupport/PostgresApiFactory.cs`) instead of using the `tallyvel_test` database from 5.3. The factory applies the migrations before the app boots and passes the container's connection string to `Program.cs` through `UseSetting("ConnectionStrings:TallyVel", ...)`. Docker must be running, and `TALLYVEL_TEST_CONNECTION` is no longer needed.
+
+### Verification
+
+- `dotnet build TallyVel.slnx`: succeeds with the four projects.
+- `dotnet test TallyVel.slnx`: **20 passed, 0 failed**, including the two `DatabaseConstraintTests` against a real PostgreSQL container. (The count is 20, not 21 as in 5.3, because the empty `UnitTest1` template test was deleted.)
+- `dotnet ef migrations list -p Infrastructure -s Api` lists both migrations.
+- Searching the repository finds no remaining references to the old `TallyVel.Api`, `TallyVel.Domain`, `TallyVel.Infrastructure` or `TallyVel.Tests` names.
+- Moves were done with `git mv`, so file history is kept.
+
+### Gaps
+
+- There is no separate `Application` project. The services, DTOs and `IContributionService` still live in `Api/Application`.
+- The old env-var fixture `Tests/Integration/PostgresFixture.cs` has been deleted, since nothing uses it any more.
+- The 5.3 section above still describes the `tallyvel_test` database and `TALLYVEL_TEST_CONNECTION`. That is out of date now that the tests use Testcontainers.
+- `Tests/Unit/StokvelMembershipServiceTests.cs` is an empty file.
+- `Testcontainers`' parameterless `PostgreSqlBuilder()` is obsolete and gives a build warning.

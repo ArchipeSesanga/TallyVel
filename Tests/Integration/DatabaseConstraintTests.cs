@@ -2,18 +2,20 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Infrastructure.Data;
 using Domain;
+using Tests.TestSupport;
 
 namespace Tests.Integration;
 
 /// <summary>
 /// Proves the uniqueness rules hold in PostgreSQL on their own, with no
-/// help from the C# checks. Needs the real test database (see PostgresFixture).
+/// help from the C# checks. Needs the real test database (see PostgresApiFactory).
 /// </summary>
-public class DatabaseConstraintTests : IClassFixture<PostgresFixture>
+[Collection("Postgres collection")]
+public class DatabaseConstraintTests
 {
-    private readonly PostgresFixture _fixture;
+    private readonly PostgresApiFactory _fixture;
 
-    public DatabaseConstraintTests(PostgresFixture fixture)
+    public DatabaseConstraintTests(PostgresApiFactory fixture)
     {
         _fixture = fixture;
     }
