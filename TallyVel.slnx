@@ -1,4 +1,6 @@
 <Solution>
   <Project Path="TallyVel.Api/TallyVel.Api.csproj" />
+  <Project Path="TallyVel.Domain/TallyVel.Domain.csproj" />
+  <Project Path="TallyVel.Infrastructure/TallyVel.Infrastructure.csproj" />
   <Project Path="TallyVel.Tests/TallyVel.Tests.csproj" />
 </Solution>
