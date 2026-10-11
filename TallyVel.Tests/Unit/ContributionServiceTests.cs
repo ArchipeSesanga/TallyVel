@@ -2,8 +2,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using TallyVel.Api.Application.Contracts;
 using TallyVel.Api.Application.Interfaces;
 using TallyVel.Api.Application.Services;
-using TallyVel.Api.Domain;
-using TallyVel.Api.Infrastructure.Persistence;
+using TallyVel.Domain;
+using TallyVel.Infrastructure.Persistence;
 
 namespace TallyVel.Tests.Unit;
 

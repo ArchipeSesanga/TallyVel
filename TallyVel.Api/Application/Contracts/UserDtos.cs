@@ -1,4 +1,4 @@
-using TallyVel.Api.Domain;
+using TallyVel.Domain;
 
 namespace TallyVel.Api.Application.Contracts;
 

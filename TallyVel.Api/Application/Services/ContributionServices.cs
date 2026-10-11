@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json;
 using TallyVel.Api.Application.Contracts;
 using TallyVel.Api.Application.Interfaces;
-using TallyVel.Api.Domain;
+using TallyVel.Domain;
 
 namespace TallyVel.Api.Application.Services;
 

@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using TallyVel.Api.Application.Contracts;
 using TallyVel.Api.Application.Interfaces;
 using TallyVel.Api.Application.Services;
-using TallyVel.Api.Domain;
+using TallyVel.Domain;
 
 namespace TallyVel.Api.Presentation.Controllers;
 

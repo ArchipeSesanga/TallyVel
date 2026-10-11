@@ -1,12 +1,14 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
-using TallyVel.Api.Data;
+using TallyVel.Infrastructure.Data;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using TallyVel.Api.Application.Interfaces;
 using TallyVel.Api.Application.Services;
 using TallyVel.Api.Common;
-using TallyVel.Api.Infrastructure.Persistence;
+using TallyVel.Api.Filters;
+using TallyVel.Domain;
+using TallyVel.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,7 +27,9 @@ builder.Logging.AddDebug();
 builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<TallyVelDbContext>(o =>
-    o.UseNpgsql(builder.Configuration.GetConnectionString("TallyVel")));
+    o.UseNpgsql(
+        builder.Configuration.GetConnectionString("TallyVel"),
+        npgsql => npgsql.MigrationsAssembly(typeof(TallyVelDbContext).Assembly.FullName)));
 
 // Repositories are Scoped: they share the request's DbContext.
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();

@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
-using TallyVel.Api.Data;
+using TallyVel.Infrastructure.Data;
 
 namespace TallyVel.Tests.Integration;
 

@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using TallyVel.Api.Common;
-using TallyVel.Api.Domain;
+using TallyVel.Domain;
 
 namespace TallyVel.Tests.Unit;
 

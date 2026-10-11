@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TallyVel.Domain\TallyVel.Domain.csproj" />
+    <ProjectReference Include="..\TallyVel.Infrastructure\TallyVel.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
