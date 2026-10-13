@@ -9,6 +9,7 @@ using Api.Common;
 using Api.Filters;
 using Domain;
 using Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -96,7 +97,15 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // Any endpoint without [Authorize] or [AllowAnonymous] requires a signed-in user.
+    // This is the fallback policy: it covers endpoints with no auth attribute at all,
+    // so a forgotten attribute fails closed. (The default policy only applies to a bare [Authorize].)
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});
 
 var app = builder.Build();
 if (args.Contains("--seed-volume"))
@@ -119,14 +128,16 @@ if (app.Environment.IsDevelopment())
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    // Scalar loads /openapi/v1.json in the browser, so both must be public.
+    app.MapOpenApi().AllowAnonymous();
     app.MapScalarApiReference(Options =>
     {
         Options.Theme = ScalarTheme.Moon; 
-    });
+    }).AllowAnonymous();
 }
 
 app.UseExceptionHandler();
+app.UseStatusCodePages(); // turns empty 4xx/5xx responses (401, 403, 404...) into problem details
 
 app.UseHttpsRedirection();
 app.UseAuthentication();

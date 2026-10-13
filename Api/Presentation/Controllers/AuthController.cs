@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Api.Application.Contracts;
 using Api.Application.Interfaces;
@@ -7,6 +8,7 @@ namespace Api.Presentation.Controllers;
 
 [ApiController]
 [Route("api/auth")]
+[AllowAnonymous] // register and login must be reachable without an access token
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
