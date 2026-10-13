@@ -761,3 +761,70 @@ Keeping the access token in memory does **not** make XSS harmless. A script runn
 
 - **Different-site frontend:** `SameSite=Strict` assumes the frontend and API are on the same site. A frontend on a separate domain would need `SameSite=None`, a CORS policy with `AllowCredentials` for that exact origin, and an anti-CSRF check (e.g. a custom request header) on `/refresh` and `/logout`.
 - **Native mobile clients** (e.g. a Flutter app) don't have a browser cookie store. They would need a cookie jar persisted in the platform's secure storage (Keychain or Android Keystore). That isn't built yet.
+
+## Authentication & Authorization
+
+### Setup
+
+```bash
+dotnet user-secrets set "Jwt:SigningKey" "$(openssl rand -base64 48)" --project Api
+```
+
+The signing key lives only in user-secrets. The app refuses to start without it (32 bytes minimum). `Issuer`, `Audience` and the lifetimes are in `appsettings.json`. To walk through everything, open `Api/demo.http` in VS Code (REST Client extension) and run the requests top to bottom.
+
+### Lifetimes and claims
+
+| Item | Value | Why |
+|---|---|---|
+| Access token | 15 minutes | Short, because it cannot be revoked once issued. |
+| Refresh token | 7 days, single use, rotated | A stolen token only works once; reuse revokes the whole login (family). |
+| `ClockSkew` | 30 seconds | The default is 5 minutes, which would quietly stretch a 15-minute token to 20. 30 seconds still tolerates small clock differences between servers. |
+
+The access token carries only two claims: `sub` (user id) and `jti` (token id). Nothing in it can go stale in a harmful way: a user id never changes, and the token is dead in 15 minutes anyway.
+
+**Why stokvel roles are not in the token.** A user can be Chairperson of one stokvel and Member of another, and roles change (someone is demoted or removed). A role copied into a token would keep working for up to 15 minutes after the change. Instead, `StokvelRoleHandler` reads the caller's `StokvelMember` row from the database on every request, so a role change takes effect immediately.
+
+Cookie flags and why: see *Token Storage and Delivery* above.
+
+### How a request is authorised
+
+1. Authentication: the JWT is validated (issuer, audience, signature, lifetime). Every endpoint requires it by default (`FallbackPolicy`), except those marked `[AllowAnonymous]` (the auth endpoints, OpenAPI and Scalar).
+2. Authorization: every action under `/api/stokvels/{stokvelId}/...` calls `AuthorizeStokvelAsync(stokvelId, policy)`. The handler looks up the caller's role in that stokvel.
+
+| Policy | Roles that pass |
+|---|---|
+| `StokvelPolicies.Member` | Member, Treasurer, Chairperson |
+| `StokvelPolicies.Treasurer` | Treasurer, Chairperson |
+| `StokvelPolicies.Chairperson` | Chairperson |
+
+**404 vs 403.** A caller who is *not a member* gets **404**, the same answer as for a stokvel that does not exist, so the API does not reveal which stokvels exist. A caller who *is a member but lacks the role* gets **403**: they already know the stokvel exists, and 403 tells them why they were refused.
+
+### Authorization matrix
+
+| Endpoint | No token | Not a member | Member | Treasurer / Chairperson |
+|---|---|---|---|---|
+| `GET /api/stokvels/{id}` | 401 | 404 | 200 | 200 |
+| `GET /api/stokvels/{id}/cycles` | 401 | 404 | 200 | 200 |
+| `GET /api/stokvels/{id}/contributions` (and `/{id}`) | 401 | 404 | 200 | 200 |
+| `POST /api/stokvels/{id}/contributions` | 401 | 404 | 201 | 201 |
+| `POST /api/stokvels/{id}/cycles` (open a cycle) | 401 | 404 | 403 | 201 |
+| `POST /api/stokvels/{id}/cycles/{cycleId}/payout` | 401 | 404 | 403 | 201 |
+| `POST/DELETE/PUT /api/stokvels/{id}/members...` | 401 | 404 | 403 | 403 for Treasurer, 200 for Chairperson |
+
+Other behaviour: `GET /api/stokvels` lists only the caller's own stokvels, and `POST /api/stokvels` only accepts `creatorId` equal to the caller (otherwise 403). The creator becomes Chairperson automatically.
+
+### Assumptions and changes made for this assignment
+
+- `MemberRole` was `Member, Admin`. It is now `Member, Treasurer, Chairperson`; `Admin` was renamed to `Chairperson` and a migration (`RenameAdminToChairperson`) updates stored rows.
+- Cycle and payout endpoints did not exist, so minimal ones were added (`CyclesController`, `ICycleRepository`): open/list cycles, and a payout that pays a cycle's total contributions to one member and closes the cycle.
+- Member management (add, remove, change role) requires Chairperson. This third policy is not in the brief, but without it any member could promote themselves.
+- Enums are sent as numbers in JSON (`cycle`: 0 Weekly, 1 BiWeekly, 2 Monthly; `role`: 0 Member, 1 Treasurer, 2 Chairperson).
+
+### Not yet done
+
+- A member may only record their **own** contribution (today any member can record for any member).
+- The single `[Authorize(Roles = "PlatformAdmin")]` endpoint and the role-versus-policy comparison.
+- Testcontainers integration tests for auth (existing tests call the services directly, so they do not exercise the HTTP pipeline).
+- Atomic handling of two simultaneous refreshes (today the loser is treated as reuse and the session is revoked).
+- Equal response timing for unknown email vs wrong password (a dummy hash narrows the gap but it is not measured).
+- Log excerpt / POPIA audit and rate limiting.

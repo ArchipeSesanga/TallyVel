@@ -1,0 +1,162 @@
+### TallyVel — Authentication & Authorization demo (VS Code "REST Client" extension)
+###
+### Before you start:
+###   1. dotnet user-secrets set "Jwt:SigningKey" "<a random value of 32+ characters>" --project Api
+###   2. dotnet ef database update --project Infrastructure --startup-project Api
+###   3. dotnet run --project Api --launch-profile https      (trust the dev cert once: dotnet dev-certs https --trust)
+###   4. VS Code settings: "rest-client.rememberCookiesForSubsequentRequests": false
+###      (the refresh cookie is Secure + Path=/api/auth, so this script passes it by hand — that is
+###      also how we replay an OLD cookie further down).
+###   5. Re-running? Change @runId so the emails are new.
+###
+### Run the requests top to bottom with "Send Request".
+
+@baseUrl = https://localhost:7019
+@runId = demo1
+@password = correct-horse-battery
+
+### 1. No token at all -> 401 problem+json (secure by default)
+GET {{baseUrl}}/api/stokvels
+
+### 2. Register three users -> 201 (id, email, name only — never the hash)
+# @name regLerato
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{ "email": "lerato.{{runId}}@example.com", "password": "{{password}}", "fullName": "Lerato" }
+
+###
+# @name regThabo
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{ "email": "thabo.{{runId}}@example.com", "password": "{{password}}", "fullName": "Thabo" }
+
+###
+# @name regSipho
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{ "email": "sipho.{{runId}}@example.com", "password": "{{password}}", "fullName": "Sipho" }
+
+### 3. Duplicate email in a different case, with spaces -> 409
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{ "email": "  LERATO.{{runId}}@Example.com ", "password": "{{password}}", "fullName": "Lerato Again" }
+
+### 4. Password shorter than 12 characters -> 400 validation problem
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{ "email": "short.{{runId}}@example.com", "password": "too-short", "fullName": "Short" }
+
+### 5. Log in all three: the access token is in the body, the refresh token only in the cookie
+# @name loginLerato
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "lerato.{{runId}}@example.com", "password": "{{password}}" }
+
+###
+# @name loginThabo
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "thabo.{{runId}}@example.com", "password": "{{password}}" }
+
+###
+# @name loginSipho
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "sipho.{{runId}}@example.com", "password": "{{password}}" }
+
+### 6a. Wrong password -> 401 "Invalid email or password."
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "lerato.{{runId}}@example.com", "password": "this-is-not-the-password" }
+
+### 6b. Unknown email -> the SAME 401, so the API does not reveal which emails exist
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "nobody.{{runId}}@example.com", "password": "this-is-not-the-password" }
+
+### 7. Lerato creates a stokvel and becomes its Chairperson (cycle 2 = Monthly)
+# @name createStokvel
+POST {{baseUrl}}/api/stokvels
+Authorization: Bearer {{loginLerato.response.body.accessToken}}
+Content-Type: application/json
+
+{ "name": "Demo Stokvel", "contributionAmount": 100, "cycle": 2, "creatorId": "{{regLerato.response.body.id}}" }
+
+### 8. Lerato adds Thabo as a Member (role 0 = Member, 1 = Treasurer, 2 = Chairperson)
+POST {{baseUrl}}/api/stokvels/{{createStokvel.response.body.id}}/members
+Authorization: Bearer {{loginLerato.response.body.accessToken}}
+Content-Type: application/json
+
+{ "userId": "{{regThabo.response.body.id}}", "role": 0 }
+
+### 9. Lerato (Chairperson) opens a cycle -> 201
+# @name openCycle
+POST {{baseUrl}}/api/stokvels/{{createStokvel.response.body.id}}/cycles
+Authorization: Bearer {{loginLerato.response.body.accessToken}}
+Content-Type: application/json
+
+{ "label": "2026-10" }
+
+### 10. Thabo (Member) records his contribution -> 201
+POST {{baseUrl}}/api/stokvels/{{createStokvel.response.body.id}}/contributions
+Authorization: Bearer {{loginThabo.response.body.accessToken}}
+Idempotency-Key: {{runId}}-thabo-2026-10
+Content-Type: application/json
+
+{ "memberUserId": "{{regThabo.response.body.id}}", "cycle": "2026-10", "amount": 100 }
+
+### 11a. Payout as Sipho (NOT a member) -> 404: the API does not confirm the stokvel exists
+POST {{baseUrl}}/api/stokvels/{{createStokvel.response.body.id}}/cycles/{{openCycle.response.body.id}}/payout
+Authorization: Bearer {{loginSipho.response.body.accessToken}}
+Content-Type: application/json
+
+{ "recipientUserId": "{{regLerato.response.body.id}}" }
+
+### 11b. Payout as Thabo (member, but only a Member) -> 403
+POST {{baseUrl}}/api/stokvels/{{createStokvel.response.body.id}}/cycles/{{openCycle.response.body.id}}/payout
+Authorization: Bearer {{loginThabo.response.body.accessToken}}
+Content-Type: application/json
+
+{ "recipientUserId": "{{regLerato.response.body.id}}" }
+
+### 11c. Payout as Lerato (Chairperson) -> 201
+POST {{baseUrl}}/api/stokvels/{{createStokvel.response.body.id}}/cycles/{{openCycle.response.body.id}}/payout
+Authorization: Bearer {{loginLerato.response.body.accessToken}}
+Content-Type: application/json
+
+{ "recipientUserId": "{{regLerato.response.body.id}}" }
+
+### 12. Refresh with Lerato's login cookie -> 200 and a NEW cookie (rotation)
+# @name refresh1
+POST {{baseUrl}}/api/auth/refresh
+Cookie: {{loginLerato.response.headers.Set-Cookie}}
+
+### 13. Replay the OLD cookie (already used) -> 401, and the whole login family is revoked
+POST {{baseUrl}}/api/auth/refresh
+Cookie: {{loginLerato.response.headers.Set-Cookie}}
+
+### 14. Even the NEW cookie is now dead -> 401
+POST {{baseUrl}}/api/auth/refresh
+Cookie: {{refresh1.response.headers.Set-Cookie}}
+
+### 15. Logout twice -> 204 both times (idempotent)
+POST {{baseUrl}}/api/auth/logout
+Cookie: {{loginThabo.response.headers.Set-Cookie}}
+
+###
+POST {{baseUrl}}/api/auth/logout
+Cookie: {{loginThabo.response.headers.Set-Cookie}}
+
+### 16. Refresh after logout -> 401
+POST {{baseUrl}}/api/auth/refresh
+Cookie: {{loginThabo.response.headers.Set-Cookie}}
