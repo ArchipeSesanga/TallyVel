@@ -27,7 +27,7 @@ public static class SeedData
         familySavings.AddMember(sipho.Id);
 
         var weeklyPool = new Stokvel("Weekly Grocery Pool", 150m, ContributionFrequency.Weekly, lindiwe.Id);
-        weeklyPool.AddMember(amahle.Id, MemberRole.Admin);
+        weeklyPool.AddMember(amahle.Id, MemberRole.Chairperson);
 
         var stokvels = new List<Stokvel> { familySavings, weeklyPool };
 

@@ -16,18 +16,19 @@ public enum ContributionFrequency
 /// <summary>
 /// A member's standing within one specific stokvel. Deliberately not a
 /// global property on User — the same person can be an ordinary Member
-/// of one stokvel and the Admin of another.
+/// of one stokvel and the Chairperson of another.
 /// </summary>
 public enum MemberRole
 {
     Member,
-    Admin
+    Treasurer,
+    Chairperson
 }
 
 /// <summary>
 /// A stokvel: a savings circle with a name, a contribution amount, a
 /// cycle, and a membership list. The only way to construct one requires
-/// a creator, who is automatically enrolled as the first Admin — a
+/// a creator, who is automatically enrolled as the first Chairperson — a
 /// Stokvel with zero members, or zero admins, simply cannot exist.
 /// </summary>
 public sealed class Stokvel
@@ -64,9 +65,9 @@ public sealed class Stokvel
         Id = Guid.NewGuid();
         CreatedAt = DateTimeOffset.UtcNow;
 
-        // The creator is always the first member, always as Admin — a
+        // The creator is always the first member, always as Chairperson — a
         // Stokvel can never be created without someone able to run it.
-        _members.Add(new StokvelMember(Id, creatorId, MemberRole.Admin, CreatedAt));
+        _members.Add(new StokvelMember(Id, creatorId, MemberRole.Chairperson, CreatedAt));
     }
 
     public void Rename(string newName) => Name = ValidateName(newName);
@@ -89,7 +90,7 @@ public sealed class Stokvel
     }
 
     /// <summary>
-    /// Removes a member, but refuses to remove the last remaining Admin
+    /// Removes a member, but refuses to remove the last remaining Chairperson
     /// — a stokvel that exists must always have someone able to
     /// administer it.
     /// </summary>
@@ -98,7 +99,7 @@ public sealed class Stokvel
         var member = _members.FirstOrDefault(m => m.UserId == userId)
             ?? throw new InvalidOperationException("This user is not a member of this stokvel.");
 
-        if (member.Role == MemberRole.Admin && _members.Count(m => m.Role == MemberRole.Admin) == 1)
+        if (member.Role == MemberRole.Chairperson && _members.Count(m => m.Role == MemberRole.Chairperson) == 1)
             throw new InvalidOperationException("Cannot remove the last remaining admin of a stokvel.");
 
         _members.Remove(member);
@@ -106,16 +107,16 @@ public sealed class Stokvel
 
     /// <summary>
     /// Promotes/demotes a member, but — same rule as RemoveMember —
-    /// refuses to demote the last remaining Admin.
+    /// refuses to demote the last remaining Chairperson.
     /// </summary>
     public void ChangeRole(Guid userId, MemberRole newRole)
     {
         var member = _members.FirstOrDefault(m => m.UserId == userId)
             ?? throw new InvalidOperationException("This user is not a member of this stokvel.");
 
-        if (member.Role == MemberRole.Admin
-            && newRole != MemberRole.Admin
-            && _members.Count(m => m.Role == MemberRole.Admin) == 1)
+        if (member.Role == MemberRole.Chairperson
+            && newRole != MemberRole.Chairperson
+            && _members.Count(m => m.Role == MemberRole.Chairperson) == 1)
         {
             throw new InvalidOperationException("Cannot demote the last remaining admin of a stokvel.");
         }

@@ -53,7 +53,7 @@ public class StokvelController : ControllerBase
 
     [HttpPost]
     [EndpointSummary("Create a stokvel")]
-    [EndpointDescription("Creates a new stokvel. The creator is automatically enrolled as its first member, with the Admin role.")]
+    [EndpointDescription("Creates a new stokvel. The creator is automatically enrolled as its first member, with the Chairperson role.")]
     [ProducesResponseType<StokvelResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     public async Task<ActionResult<StokvelResponse>> Create(CreateStokvelRequest request)

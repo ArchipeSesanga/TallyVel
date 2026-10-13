@@ -44,7 +44,7 @@ public static class VolumeSeeder
                 db.Add(user);
             }
 
-            // The first member creates the stokvel (and becomes its Admin);
+            // The first member creates the stokvel (and becomes its Chairperson);
             // the rest join through the aggregate, as in SeedData.
             var stokvel = new Stokvel($"Perf Stokvel {s}", 500m, ContributionFrequency.Monthly, members[0].Id);
             foreach (var user in members.Skip(1))

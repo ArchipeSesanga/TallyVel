@@ -4,6 +4,7 @@ using Infrastructure.Data;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using Api.Application.Interfaces;
+using Api.Authorization;
 using Api.Application.Services;
 using Api.Common;
 using Api.Filters;
@@ -101,7 +102,14 @@ builder.Services.AddAuthorization(options =>
 {
     // Every endpoint needs a signed-in user unless it opts out with [AllowAnonymous].
     options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+
+    // One policy per access level; the handler checks the caller's role in the stokvel from the route.
+    foreach (var (name, roles) in StokvelPolicies.AllowedRoles)
+        options.AddPolicy(name, policy => policy
+            .RequireAuthenticatedUser()
+            .AddRequirements(new StokvelRoleRequirement(roles)));
 });
+builder.Services.AddScoped<IAuthorizationHandler, StokvelRoleHandler>();
 
 
 //TimeProvider emulate time in tests later, 
