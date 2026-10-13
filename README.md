@@ -10,8 +10,6 @@ Log contributions as they come in, see who's up to date and who's behind, and ke
 
 TallyVel doesn't move or hold your money. It's purely a tracking and record-keeping tool, built to give your stokvel transparency and peace of mind, without the risk or complexity of a payments platform.
 
-> **New to the code?** Start at [Assignment 6.1](#assignment-61--authentication-and-a-map-of-the-code): a map of the solution, request walk-throughs and a "where do I look?" table.
-
 ## Key Features
 
 - 📋 Track contributions per member, per cycle
@@ -23,6 +21,70 @@ TallyVel doesn't move or hold your money. It's purely a tracking and record-keep
 ## Who It's For
 
 Whether it's a small savings circle with friends or a larger community stokvel, TallyVel keeps everyone on the same page.
+
+## Running the Project
+
+The API lives in `Api` and targets .NET 10.
+
+### From the terminal
+
+```bash
+cd Api
+dotnet run
+```
+
+### From VS Code
+
+Open the **Run and Debug** panel (⇧⌘D on Mac / Ctrl+Shift+D on Windows/Linux), select **Api** from the dropdown, and press F5. This builds the project and starts it with the debugger attached.
+
+### Viewing the Scalar UI
+
+Once the app is running in development, open:
+
+```
+http://localhost:5203/scalar/v1
+```
+
+This gives you an interactive reference for every API endpoint — no separate setup required.
+
+## Error Handling
+
+Domain failures (a stokvel that doesn't exist, a member who's already contributed for a cycle, and so on) are represented as typed exceptions rather than status codes scattered through the controllers. Every one of them derives from `TallyVelException` (`Domain/Exceptions/Exceptions.cs`):
+
+| Exception | Meaning |
+|---|---|
+| `NotFoundException` | The stokvel, user, member, or contribution referenced doesn't exist |
+| `BusinessRuleViolationException` | The request is well-formed but breaks a domain rule (e.g. removing the last admin) |
+| `AlreadyExistsException` | The thing being created already exists (e.g. already a member, already contributed for this cycle) |
+| `IdempotencyKeyReusedException` | An `Idempotency-Key` was reused with a different request payload |
+| `IdempotencyKeyInProgressException` | A request with that `Idempotency-Key` is still being processed |
+
+Each carries a stable `Code` (e.g. `stokvel-not-found`) that identifies the failure independently of its HTTP status or message text.
+
+### How a failure becomes an HTTP response
+
+Controllers and services just `throw` (or `?? throw`) the exception that matches the failure — they don't catch it or build a `ProblemDetails` response themselves:
+
+```csharp
+var stokvel = _stokvelRepository.GetById(id)
+    ?? throw new NotFoundException("stokvel", id);
+```
+
+`TallyVelExceptionHandler` (`Api/Common/TallyVelExceptionHandler.cs`), registered globally in `Program.cs` via `AddExceptionHandler` + `UseExceptionHandler`, is the **only** place that maps a failure type to a status code:
+
+| Exception | Status |
+|---|---|
+| `NotFoundException` | 404 Not Found |
+| `BusinessRuleViolationException`, `IdempotencyKeyReusedException` | 422 Unprocessable Entity |
+| `AlreadyExistsException`, `IdempotencyKeyInProgressException` | 409 Conflict |
+
+It turns the exception into a [`ProblemDetails`](https://datatracker.ietf.org/doc/html/rfc7807) response with the exception's `Code` echoed back in a `code` extension field and a `tag:` URI in `Type`, so clients can branch on the specific failure rather than parsing the message. Any exception that isn't a `TallyVelException` (e.g. `ArgumentException` for malformed input) is left to whatever local `try/catch` a controller still has, or falls through to a generic 500.
+
+Adding a new failure means adding a new `TallyVelException` subclass **and** a case in `TallyVelExceptionHandler`'s mapping — the handler throws on purpose if a case is missing, so a new exception can't silently turn into a 500.
+
+
+
+Assignment 5.1
 
 ## Getting Started (Clean Machine)
 
@@ -625,217 +687,77 @@ The database tests now start their own PostgreSQL 17 container with Testcontaine
 - `Tests/Unit/StokvelMembershipServiceTests.cs` is an empty file.
 - `Testcontainers`' parameterless `PostgreSqlBuilder()` is obsolete and gives a build warning.
 
+Assignment 6.1
+==============
 
----
+## Token Storage and Delivery
 
-## Assignment 6.1 — Authentication and a map of the code
+TallyVel issues two tokens at login:
 
-This section does two jobs: it describes how sign-up, sign-in and token handling work, and it is a guide to finding your way around the solution. If you are new to the code, read **6.1.1 to 6.1.3** first; they take about five minutes and tell you where everything lives.
+| Token | Format | Lifetime | Where it travels |
+|---|---|---|---|
+| Access token | Signed JWT (HS256) | 15 minutes | Response body → `Authorization: Bearer` header |
+| Refresh token | 32 random bytes, Base64Url | 7 days | `Set-Cookie` only, never in a response body |
 
-**In this section**
+The server stores only the SHA-256 hash of each refresh token. A database leak exposes no usable refresh tokens.
 
-- [6.1.1 The solution at a glance](#611-the-solution-at-a-glance)
-- [6.1.2 Follow a request through the code](#612-follow-a-request-through-the-code)
-- [6.1.3 "I want to change X, where do I look?"](#613-i-want-to-change-x-where-do-i-look)
-- [6.1.4 How authentication works](#614-how-authentication-works)
-- [6.1.5 Configuration and secrets](#615-configuration-and-secrets)
-- [6.1.6 Try it](#616-try-it)
-- [6.1.7 Tests](#617-tests)
-- [6.1.8 Gaps](#618-gaps)
+### Refresh cookie flags
 
-### 6.1.1 The solution at a glance
-
-Four projects. Each can only see the ones below it in this diagram, and the compiler enforces that.
+The cookie is set as:
 
 ```
-  Tests ──────────────┐
-                      ▼
-  Api  ───────►  Infrastructure  ───────►  Domain
- (HTTP, rules)    (EF Core, Postgres)    (entities, interfaces)
+Set-Cookie: tallyvel_rt=<token>; expires=<now + 7 days>; path=/api/auth; secure; samesite=strict; httponly
 ```
 
-| Project | What it is for | Start with |
+| Flag | Value | Why |
 |---|---|---|
-| [Domain](Domain/) | The business objects and the *interfaces* the rest of the code depends on. No EF Core, no ASP.NET. | [Entities/User.cs](Domain/Entities/User.cs), [Repositories/IUserRepository.cs](Domain/Repositories/IUserRepository.cs) |
-| [Infrastructure](Infrastructure/) | Everything that talks to PostgreSQL: the `DbContext`, table configuration, migrations, repository implementations, seeders. | [Data/TallyVelDbContext.cs](Infrastructure/Data/TallyVelDbContext.cs), [Persistence/EfUserRepository.cs](Infrastructure/Persistence/EfUserRepository.cs) |
-| [Api](Api/) | The web application: controllers, services, DTOs, validators, error handling, and the wiring in `Program.cs`. | [Program.cs](Api/Program.cs), then [Presentation/Controllers/](Api/Presentation/Controllers/) |
-| [Tests](Tests/) | Unit tests, plus integration tests that start a real PostgreSQL container. | [Integration/RefreshTokenTests.cs](Tests/Integration/RefreshTokenTests.cs) |
+| `HttpOnly` | on | JavaScript cannot read the cookie through `document.cookie`. If an attacker gets a script running on the frontend (XSS), they still cannot copy the refresh token and use it from their own machine. This is the most important flag. |
+| `Secure` | on | The browser only sends the cookie over HTTPS, so the refresh token never crosses the network in plain text, e.g. on public Wi-Fi. |
+| `SameSite` | `Strict` | The browser does not attach the cookie to requests started by another site. A malicious page cannot make the user's browser call `/api/auth/refresh` or `/api/auth/logout` with the user's cookie. This is our CSRF protection for the auth endpoints. It works because the frontend and API are served from the same site (same registrable domain). If the frontend is ever hosted on a different domain, this must become `SameSite=None` with an explicit CSRF defence. See *Gaps* below. |
+| `Path` | `/api/auth` | The cookie is only sent to the auth endpoints, not with every API request. This keeps the refresh token out of requests that don't need it and out of any logging or middleware on the rest of the API. |
+| `Expires` | refresh token expiry | The cookie disappears from the browser when the server-side token would be rejected anyway, so stale cookies don't build up. |
 
-**Inside `Api`** the folders follow the path a request takes:
+The cookie name does not use the `__Host-` prefix, because that prefix requires `Path=/`. Limiting the cookie to `/api/auth` is worth more to us than the prefix.
 
-| Folder | Role | Files |
-|---|---|---|
-| [Presentation/Controllers](Api/Presentation/Controllers/) | Receives the HTTP request, runs validation, returns the HTTP response. No business rules. | `AuthController`, `UserController`, `StokvelController`, `ContributionsController` |
-| [Validators](Api/Validators/) | FluentValidation rules for each request body. Registered automatically. | `RegisterRequestValidator`, `LoginRequestValidator`, … |
-| [Application/Services](Api/Application/Services/) | The actual use cases. | `AuthService`, `TokenService`, `ContributionServices`, `StokvelMembershipService` |
-| [Application/Interfaces](Api/Application/Interfaces/) | What the controllers and services depend on. | `IAuthService`, `ITokenService`, `IContributionService` |
-| [Application/Contracts](Api/Application/Contracts/) | The request and response shapes (DTOs) on the wire. | `RegisterDtos`, `AuthResult`, `StokvelDtos`, … |
-| [Common](Api/Common/) | Cross-cutting pieces. | `TallyVelExceptionHandler` (errors → HTTP), `JWTOptions` (token settings) |
-| [Filters](Api/Filters/) | Runs around every controller action. | `SaveChangesFilter` (saves tracked changes at the end of a successful request) |
+`/api/auth/refresh` returns the new access token in the body. A cross-site attacker cannot read that body, because CORS does not allow the attacker's origin to read our responses. A forged refresh request (if `SameSite` were bypassed) would only rotate the token. The attacker would never see the result.
 
-**Domain and Infrastructure at a glance**
+### Advice to the frontend team
 
-| Folder | Role |
-|---|---|
-| [Domain/Entities](Domain/Entities/) | `User`, `Stokvel`, `StokvelMember`, `ContributionCycle`, `Contribution`, `Payout`, `RefreshToken` |
-| [Domain/Repositories](Domain/Repositories/) | Interfaces for storage: `IUserRepository`, `IStokvelRepository`, `IContributionRepository`, `IRefreshTokenRepository`, `IUnitOfWork`, `IIdempotencyStore` |
-| [Domain/Exceptions](Domain/Exceptions/Exceptions.cs) | The domain failures (`NotFoundException`, `AlreadyExistsException`, …) that the exception handler turns into HTTP status codes |
-| [Domain/Helpers](Domain/Helpers/EmailNormalisation.cs) | `EmailNormalizer`: trim + lower-case, so one address is always stored one way |
-| [Infrastructure/Data](Infrastructure/Data/) | One `*Configuration` class per entity (columns, keys, indexes, relationships) |
-| [Infrastructure/Migrations](Infrastructure/Migrations/) | The database history; apply with `dotnet ef database update` (see Step 7 above) |
-| [Infrastructure/Persistence](Infrastructure/Persistence/) | `Ef*Repository` classes (real database), `InMemory*` classes (used by unit tests), seeders |
+**Keep the access token in memory only**: a JavaScript variable or your state store (e.g. a React context or Zustand store). Not `localStorage`, not `sessionStorage`, not a non-HttpOnly cookie.
 
-### 6.1.2 Follow a request through the code
+**Never touch the refresh token.** The browser handles it. Send requests to the auth endpoints with credentials included:
 
-Open the files in the order listed and you have seen the whole feature.
-
-**Register: `POST /api/auth/register`**
-
-1. [AuthController.Register](Api/Presentation/Controllers/AuthController.cs): validates the body with [RegisterRequestValidator](Api/Validators/RegisterRequestValidator.cs) (400 with a message per field if it fails).
-2. [AuthService.RegisterAsync](Api/Application/Services/AuthService.cs): normalises the email, checks it is unused, hashes the password, builds the `User`.
-3. [User](Domain/Entities/User.cs): its constructor accepts only an already-hashed password and re-validates everything.
-4. [EfUserRepository.AddAsync](Infrastructure/Persistence/EfUserRepository.cs): saves. If two sign-ups race, the unique index `IX_Users_Email` rejects the second one and it becomes `AlreadyExistsException`.
-5. Back in the controller: **201** with the new id, or **409** for a duplicate email.
-
-**Log in: `POST /api/auth/login`**
-
-1. [AuthController.Login](Api/Presentation/Controllers/AuthController.cs) validates with [LoginRequestValidator](Api/Validators/LoginRequestValidator.cs).
-2. [AuthService.LoginAsync](Api/Application/Services/AuthService.cs) finds the user, verifies the password, re-hashes it if the hasher settings have been upgraded, and calls `IssueTokensAsync`.
-3. [TokenService](Api/Application/Services/TokenService.cs) creates the signed access token (JWT) and the random refresh token.
-4. [EfRefreshTokenRepository.AddAsync](Infrastructure/Persistence/EfRefreshTokenRepository.cs) stores the **hash** of the refresh token.
-5. Response: **200** with both tokens, or **401** "Invalid email or password." (the same text whether the email or the password was wrong).
-
-**Refresh (service layer): `AuthService.RefreshAsync`**
-
-Find the stored hash, reject if unknown, expired or revoked, detect reuse, then in one transaction mark the old token used and insert the new one. Details in 6.1.4. There is no HTTP endpoint for it yet (see 6.1.8); [RefreshTokenTests](Tests/Integration/RefreshTokenTests.cs) exercise it directly.
-
-**Any other request: for example `GET /api/stokvels`**
-
-1. `Program.cs` pipeline: exception handler → status-code pages → HTTPS redirect → **authentication** (reads the `Authorization: Bearer …` header and validates the JWT) → **authorization** (the fallback policy requires a signed-in user).
-2. No token or a bad token: **401** as `application/problem+json`. The controller never runs.
-3. Valid token: [StokvelController](Api/Presentation/Controllers/StokvelController.cs) → service or repository → database.
-4. Any domain exception on the way out goes through [TallyVelExceptionHandler](Api/Common/TallyVelExceptionHandler.cs) and becomes a problem-details response (see *Error Handling* above).
-
-### 6.1.3 "I want to change X, where do I look?"
-
-| I want to… | Open |
-|---|---|
-| See every route and what it needs | [Api/Presentation/Controllers/](Api/Presentation/Controllers/) |
-| Change a request rule (password length, name length) | [Api/Validators/RegisterRequestValidator.cs](Api/Validators/RegisterRequestValidator.cs) |
-| Change what a `User` is allowed to be | [Domain/Entities/User.cs](Domain/Entities/User.cs) |
-| Add a column or change a table | The entity in [Domain/Entities](Domain/Entities/) and its `*Configuration` in [Infrastructure/Data](Infrastructure/Data/), then `dotnet ef migrations add <Name> -p Infrastructure -s Api` |
-| Change a database query | The `Ef*Repository` in [Infrastructure/Persistence](Infrastructure/Persistence/) |
-| Change how long tokens last | `Jwt` section in [Api/appsettings.json](Api/appsettings.json) |
-| Change what goes inside the access token | [TokenService.CreateAccessToken](Api/Application/Services/TokenService.cs) |
-| Change how refresh rotation works | [AuthService.RefreshAsync](Api/Application/Services/AuthService.cs) |
-| Make an endpoint public | `[AllowAnonymous]` on the controller or action (everything is protected by default) |
-| Change the JSON of an error | [Api/Common/TallyVelExceptionHandler.cs](Api/Common/TallyVelExceptionHandler.cs) |
-| Add a new kind of domain error | [Domain/Exceptions/Exceptions.cs](Domain/Exceptions/Exceptions.cs), then map it in the handler |
-| Register a new service or repository | [Api/Program.cs](Api/Program.cs) (the only place where interfaces are tied to implementations) |
-| Find the sample data | [Infrastructure/Persistence/SeedData.cs](Infrastructure/Persistence/SeedData.cs) and `DatabaseSeeder.cs` |
-| Run or add a test | [Tests/](Tests/); integration tests use [PostgresApiFactory](Tests/TestSupport/PostgresApiFactory.cs) |
-
-### 6.1.4 How authentication works
-
-**Two tokens, two jobs**
-
-| | Access token | Refresh token |
-|---|---|---|
-| What it is | A signed JWT (HS256) | 32 random bytes, Base64Url-encoded |
-| Lifetime | 15 minutes (`Jwt:AccessTokenMinutes`) | 7 days (`Jwt:RefreshTokenDays`) |
-| Sent with | Every API call, in `Authorization: Bearer …` | Only to get a new pair |
-| Stored on the server | No (it is verified by its signature) | **Yes, but only its SHA-256 hash** |
-| Claims | `sub` (user id), `jti`, `iss`, `aud`, `iat`, `nbf`, `exp` | none |
-
-**Passwords.** Hashed with ASP.NET Core's `PasswordHasher<User>` (a slow, salted hash). `User` never accepts a plain password; the constructor only takes a hash. If a login succeeds with an old hash format, the hash is upgraded on the spot.
-
-**Why the refresh token uses SHA-256 and not the password hasher.** Passwords are guessable, so they need a slow hash. A 32-byte random token has 256 bits of entropy, so nobody can brute-force it and a fast hash is enough. A plain hash also lets the database look the token up by an index, which a salted password hash would not allow. If the table leaked, the hashes alone could not be used to sign in.
-
-**Rotation and reuse detection.** Every login starts a *family* of refresh tokens (`FamilyId`). Each refresh marks the presented token as used and issues a new one in the same family. If a token that was **already used** is presented again, someone has a copy of it, so the whole family is revoked.
-
-```
-login ──► token A  (family F)
-refresh A ──► A used, token B issued   (family F)
-refresh B ──► B used, token C issued   (family F)
-refresh A again ──► REUSE ──► A, B and C are all revoked ──► 401
+```js
+fetch("/api/auth/refresh", { method: "POST", credentials: "include" });
 ```
 
-The "mark as used" step is one conditional SQL update (`UPDATE … WHERE UsedAt IS NULL AND RevokedAt IS NULL`), not read-then-write. If two requests present the same token at the same instant, only one update changes a row; the other is treated as reuse. Marking the old token and inserting the new one happen in one transaction ([IUnitOfWork](Domain/Repositories/IUnitOfWork.cs)), so a crash in between cannot leave a user with a used token and no replacement.
+**On page load or reload**, the in-memory access token is gone. Call `/api/auth/refresh` once. If it returns 200, the user is still signed in. If it returns 401, show the login screen.
 
-*What a real user experiences.* If a thief used a stolen refresh token first, the real user's next refresh fails with a 401 and they sign in again. If the real user refreshed first, the thief gets the 401. Either way the family is dead; the cost is one forced re-login.
+**Before the access token expires** (the response includes `expiresAt`), or when an API call returns 401, call refresh and retry the request once.
 
-**Same message for every failure.** A wrong password and an unknown email return the identical 401 text. For an unknown email the code still verifies the password against a throwaway hash, so both cases take about the same time and the response time does not reveal which emails exist. Refresh failures all share one message too.
+**Allow only one refresh at a time.** Each refresh token works exactly once. If two requests fail with 401 at the same moment and both call `/refresh` with the same cookie, the server treats the second call as token reuse, revokes the whole session, and signs the user out. Share a single in-flight refresh promise between all callers:
 
-**Secure by default.** In [Program.cs](Api/Program.cs) the *fallback policy* requires a signed-in user for any endpoint that has no auth attribute. (The *default* policy only applies to a bare `[Authorize]`; the fallback is what makes a forgotten attribute fail closed.) Only [AuthController](Api/Presentation/Controllers/AuthController.cs) (`[AllowAnonymous]`) and the OpenAPI/Scalar endpoints are public.
-
-**401 and 403 as problem details.** JwtBearer answers with an empty body. `UseStatusCodePages()` together with `AddProblemDetails()` fills any empty error response with an `application/problem+json` body, so authentication errors look like every other error. The `WWW-Authenticate: Bearer` header stays on 401 responses.
-
-### 6.1.5 Configuration and secrets
-
-| Setting | Where | Notes |
-|---|---|---|
-| `Jwt:Issuer`, `Jwt:Audience`, `Jwt:AccessTokenMinutes`, `Jwt:RefreshTokenDays` | [Api/appsettings.json](Api/appsettings.json) | Not secret |
-| `Jwt:SigningKey` | **User Secrets** (never in git) | At least 32 bytes. The app refuses to start without it |
-| `ConnectionStrings:TallyVel` | User Secrets | See Step 6 above |
-
-Create the signing key once (macOS/Linux):
-
-```bash
-dotnet user-secrets set "Jwt:SigningKey" "$(openssl rand -base64 48)" --project Api
+```js
+let refreshing = null;
+function refreshOnce() {
+  refreshing ??= fetch("/api/auth/refresh", { method: "POST", credentials: "include" })
+    .finally(() => { refreshing = null; });
+  return refreshing;
+}
 ```
 
-Generating a new key signs out every user, so do not script it into start-up. User Secrets are only read when `ASPNETCORE_ENVIRONMENT=Development`; in production set `Jwt__SigningKey` as an environment variable or use a secret manager. The options are validated at start-up, so a missing or short key fails immediately with a message that says how to fix it.
+**On logout**, call `POST /api/auth/logout` with credentials and clear the in-memory access token.
 
-### 6.1.6 Try it
+### What we'd lose with `localStorage`
 
-Start the API (`cd Api && dotnet run`), then:
+Anything in `localStorage` can be read by every script running on the page. One XSS bug, or one compromised npm dependency, is enough to read it and send it to an attacker.
 
-```bash
-# 1. Register (password must be 8-128 characters)
-curl -s -X POST http://localhost:5203/api/auth/register \
-  -H 'content-type: application/json' \
-  -d '{"email":"you@example.com","password":"Pass123!","fullName":"Your Name"}'
+- **Refresh token in `localStorage`:** the attacker gets a 7-day credential they can use from their own machine, long after the user closes the tab. They can keep refreshing to get fresh access tokens. Reuse detection only catches them if the real user refreshes with the same token afterwards. If the real user doesn't come back for a while, the attacker has the account to themselves. This is the worst case, and the reason the refresh token lives only in an `HttpOnly` cookie.
+- **Access token in `localStorage`:** the attacker gets up to 15 minutes of access from anywhere. It also survives reloads and is shared across tabs, so it sits on disk for longer than it needs to.
 
-# 2. Log in: the response holds accessToken and refreshToken
-curl -s -X POST http://localhost:5203/api/auth/login \
-  -H 'content-type: application/json' \
-  -d '{"email":"you@example.com","password":"Pass123!"}'
+Keeping the access token in memory does **not** make XSS harmless. A script running in the page can still make API calls while the tab is open. What it prevents is the attacker **taking the tokens away** and using them later from their own device. The damage is limited to while the page is open and to at most 15 minutes of a copied access token, instead of a 7-day stolen session.
 
-# 3. Call a protected endpoint
-curl -s http://localhost:5203/api/stokvels -H "Authorization: Bearer <accessToken>"
-```
+### Gaps
 
-| Request | Expected |
-|---|---|
-| Register with a short password or bad email | 400, one message per field |
-| Register an email that already exists (any capitalisation) | 409 |
-| Login with a wrong password or unknown email | 401 "Invalid email or password." |
-| `GET /api/stokvels` with no token | 401, `application/problem+json` |
-| Same, with `Authorization: Bearer abc` | 401, `WWW-Authenticate: Bearer error="invalid_token"` |
-| Same, with a valid token | 200 |
-| `/openapi/v1.json` and `/scalar/v1` with no token | 200 (public on purpose) |
-
-The Scalar UI (`/scalar/v1`) loads without a token, but the OpenAPI document does not declare a bearer security scheme yet, so it cannot attach a token for you; use `curl` or a REST client for the protected endpoints.
-
-### 6.1.7 Tests
-
-`dotnet test` runs everything (Docker must be running): **29 passed, 0 failed**.
-
-| File | What it proves |
-|---|---|
-| [RefreshTokenTests](Tests/Integration/RefreshTokenTests.cs) | Only the hash is stored; rotation keeps the family; reusing a token revokes the family; two simultaneous refreshes produce exactly one winner; expired, empty and unknown tokens are rejected; wrong password and unknown email give the same message |
-| [DatabaseConstraintTests](Tests/Integration/DatabaseConstraintTests.cs) | The unique constraints hold in PostgreSQL on their own |
-| [ContributionServiceTests](Tests/Unit/ContributionServiceTests.cs) | Contribution rules, with in-memory repositories |
-| [TallyVelExceptionHandlerTests](Tests/Unit/TallyVelExceptionHandlerTests.cs) | Domain exceptions map to the right HTTP responses |
-
-The integration tests need a real database because the atomic "mark as used" step only means something against PostgreSQL. [PostgresApiFactory](Tests/TestSupport/PostgresApiFactory.cs) starts a container, applies the migrations and supplies its own `Jwt:SigningKey`, so the tests do not depend on your User Secrets.
-
-### 6.1.8 Gaps
-
-- **No refresh or logout endpoint yet.** `RefreshAsync` is implemented and tested, but nothing exposes it over HTTP, and there is no way to revoke a session on sign-out. Where the refresh token travels (JSON body or HttpOnly cookie) is still to be decided.
-- **No role or membership checks yet.** Any signed-in user can call any protected endpoint. The access token has no role claim, because `User` has no admin flag. 403 responses are configured but nothing produces one yet.
-- **`POST /api/users` still accepts a `PasswordHash` field directly.** It is now behind the fallback policy (a token is required), but it can still store an arbitrary hash string. Registration through `/api/auth/register` is the intended way to create users.
-- **No HTTP-level tests for protected endpoints.** The tests call services and the database directly. Once HTTP tests are added, the test factory will need to mint a token.
-- **Expired refresh-token rows are never deleted.** Used, revoked and expired rows accumulate; a clean-up job is needed eventually.
-- **Empty migration.** `20261012234637_AddPasswordHAsh` has empty `Up`/`Down` methods and does nothing; it can be removed with `dotnet ef migrations remove` if it has not been applied anywhere shared.
-- **Older sections are out of date.** The 5.3 and 5.4 sections still quote the earlier test counts and the old `tallyvel_test` set-up.
+- **Different-site frontend:** `SameSite=Strict` assumes the frontend and API are on the same site. A frontend on a separate domain would need `SameSite=None`, a CORS policy with `AllowCredentials` for that exact origin, and an anti-CSRF check (e.g. a custom request header) on `/refresh` and `/logout`.
+- **Native mobile clients** (e.g. a Flutter app) don't have a browser cookie store. They would need a cookie jar persisted in the platform's secure storage (Keychain or Android Keystore). That isn't built yet.

@@ -1,28 +1,23 @@
 using FluentValidation;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Api.Application.Contracts;
 using Api.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Api.Presentation.Controllers;
 
+[AllowAnonymous]
 [ApiController]
 [Route("api/auth")]
-[AllowAnonymous] // register and login must be reachable without an access token
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
     private readonly IValidator<RegisterRequest> _validator;
-    private readonly IValidator<LoginRequest> _loginValidator;
 
-    public AuthController(
-        IAuthService authService,
-        IValidator<RegisterRequest> validator,
-        IValidator<LoginRequest> loginValidator)
+    public AuthController(IAuthService authService, IValidator<RegisterRequest> validator)
     {
         _authService = authService;
         _validator = validator;
-        _loginValidator = loginValidator;
     }
 
     [HttpPost("register")]
@@ -52,28 +47,5 @@ public class AuthController : ControllerBase
             controllerName: "User",
             routeValues: new { id = result.Response!.Id },
             value: result.Response);
-    }
-
-    [HttpPost("login")]
-    [EndpointSummary("Log in")]
-    [EndpointDescription("Exchanges an email and password for a short-lived access token.")]
-    [ProducesResponseType<LoginResponse>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
-    public async Task<ActionResult<LoginResponse>> Login(LoginRequest request, CancellationToken ct)
-    {
-        var validation = await _loginValidator.ValidateAsync(request, ct);
-        if (!validation.IsValid)
-            return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
-
-        var result = await _authService.LoginAsync(request, ct);
-
-        if (!result.IsSuccess)
-            return Problem(
-                title: "Unauthorized",
-                detail: result.Error,
-                statusCode: StatusCodes.Status401Unauthorized);
-
-        return Ok(result.Tokens);
     }
 }
