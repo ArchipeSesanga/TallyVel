@@ -11,11 +11,16 @@ public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
     private readonly IValidator<RegisterRequest> _validator;
+    private readonly IValidator<LoginRequest> _loginValidator;
 
-    public AuthController(IAuthService authService, IValidator<RegisterRequest> validator)
+    public AuthController(
+        IAuthService authService,
+        IValidator<RegisterRequest> validator,
+        IValidator<LoginRequest> loginValidator)
     {
         _authService = authService;
         _validator = validator;
+        _loginValidator = loginValidator;
     }
 
     [HttpPost("register")]
@@ -45,5 +50,28 @@ public class AuthController : ControllerBase
             controllerName: "User",
             routeValues: new { id = result.Response!.Id },
             value: result.Response);
+    }
+
+    [HttpPost("login")]
+    [EndpointSummary("Log in")]
+    [EndpointDescription("Exchanges an email and password for a short-lived access token.")]
+    [ProducesResponseType<LoginResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
+    public async Task<ActionResult<LoginResponse>> Login(LoginRequest request, CancellationToken ct)
+    {
+        var validation = await _loginValidator.ValidateAsync(request, ct);
+        if (!validation.IsValid)
+            return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+
+        var result = await _authService.LoginAsync(request, ct);
+
+        if (!result.IsSuccess)
+            return Problem(
+                title: "Unauthorized",
+                detail: "Invalid email or password.",
+                statusCode: StatusCodes.Status401Unauthorized);
+
+        return Ok(result.Response);
     }
 }

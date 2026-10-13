@@ -1,0 +1,42 @@
+using System.Security.Claims;
+using System.Text;
+using Api.Application.Interfaces;
+using Api.Common;
+using Domain;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
+
+namespace Api.Application.Services;
+
+public class TokenService(IOptions<JwtOptions> options, TimeProvider clock) : ITokenService
+{
+    private readonly JwtOptions _o = options.Value;
+
+    public (string Token, DateTimeOffset ExpiresAt) CreateAccessToken(User user)
+    {
+        var now = clock.GetUtcNow();
+        var expires = now.AddMinutes(_o.AccessTokenMinutes);
+
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        };
+        // No role claim yet: User has no IsPlatformAdmin. Add it here once it does.
+
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(claims),
+            Issuer = _o.Issuer,
+            Audience = _o.Audience,
+            NotBefore = now.UtcDateTime,
+            Expires = expires.UtcDateTime,
+            SigningCredentials = new SigningCredentials(
+                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_o.SigningKey)),
+                SecurityAlgorithms.HmacSha256)
+        };
+
+        return (new JsonWebTokenHandler().CreateToken(descriptor), expires);
+    }
+}

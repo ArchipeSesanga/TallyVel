@@ -1,5 +1,4 @@
 using FluentValidation;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Infrastructure.Data;
 using Microsoft.Extensions.Options;
@@ -10,6 +9,10 @@ using Api.Common;
 using Api.Filters;
 using Domain;
 using Infrastructure.Persistence;
+using Microsoft.AspNetCore.Identity;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -39,8 +42,6 @@ builder.Services.AddScoped<IContributionRepository, EfContributionRepository>();
 // Still in memory — idempotency keys aren't part of the database model yet.
 builder.Services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
 builder.Services.AddScoped<StokvelMembershipService>();
-builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
-builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IContributionService, ContributionServices>();
 // Saves changes made to tracked entities (e.g. stokvel memberships) at the
 // end of each successful request.
@@ -51,6 +52,49 @@ builder.Services.AddProblemDetails();
 
 // This automatically scans and registers all validators found in the same assembly as Program
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+
+//This register the password hasher
+builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<ITokenService, TokenService>();
+
+//JWT decode
+builder.Services.AddOptions<JwtOptions>()
+    .Bind(builder.Configuration.GetSection("Jwt"))
+    .Validate(o => !string.IsNullOrWhiteSpace(o.SigningKey)
+                   && Encoding.UTF8.GetByteCount(o.SigningKey) >= 32,
+        "Jwt:SigningKey is missing or shorter than 32 bytes. " +
+        "Set it with: dotnet user-secrets set \"Jwt:SigningKey\" \"<random 32+ byte value>\"")
+    .Validate(o => o.AccessTokenMinutes is > 0 and <= 15, "Jwt:AccessTokenMinutes must be 1–15.")
+    .ValidateOnStart();
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer();
+
+
+//this Configure JWT bearer validation
+builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<IOptions<JwtOptions>>((bearer, jwt) =>
+    {
+        var o = jwt.Value;
+        bearer.MapInboundClaims = false; // keep "sub" as "sub", not a long XML URI
+        bearer.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = o.Issuer,
+            ValidateAudience = true,
+            ValidAudience = o.Audience,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(o.SigningKey)),
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromSeconds(30),
+            NameClaimType = "sub",
+            RoleClaimType = "role"
+        };
+    });
+
+builder.Services.AddAuthorization();
 
 var app = builder.Build();
 if (args.Contains("--seed-volume"))
@@ -83,6 +127,7 @@ if (app.Environment.IsDevelopment())
 app.UseExceptionHandler();
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
 
 app.UseAuthorization();
 
