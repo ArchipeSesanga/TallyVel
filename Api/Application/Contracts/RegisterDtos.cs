@@ -11,3 +11,7 @@ public sealed record LoginResponse(
     DateTimeOffset AccessTokenExpiresAt,
     string RefreshToken,
     DateTimeOffset RefreshTokenExpiresAt);
+
+
+/// <summary>What the client sees after login or refresh. The refresh token travels only in the cookie.</summary>
+public sealed record AccessTokenResponse(string AccessToken, DateTimeOffset ExpiresAt);

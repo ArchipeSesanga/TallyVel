@@ -122,6 +122,18 @@ public class AuthService(
         return result;
     }
 
+    public async Task LogoutAsync(string? rawToken, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(rawToken))
+            return;
+
+        var existing = await refreshTokens.GetByHashAsync(TokenService.Hash(rawToken), ct);
+        if (existing is null)
+            return; // logging out twice is fine
+
+        await refreshTokens.RevokeFamilyAsync(existing.FamilyId, clock.GetUtcNow(), ct);
+    }
+
     private async Task<AuthResult> IssueTokensAsync(User user, Guid familyId, CancellationToken ct, Guid? newId = null)
     {
         var now = clock.GetUtcNow();

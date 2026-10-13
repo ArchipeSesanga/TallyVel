@@ -6,7 +6,7 @@ using Domain;
 
 public class RegisterRequestValidator : AbstractValidator<RegisterRequest>
 {
-    public const int MinPasswordLength = 8;
+    public const int MinPasswordLength = 12;
     public const int MaxPasswordLength = 128;
     public const int MaxEmailLength = 256;
 
