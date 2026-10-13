@@ -29,4 +29,26 @@ public sealed class InMemoryUserRepository : IUserRepository
         if (!_users.TryAdd(user.Id, user))
             throw new InvalidOperationException($"A user with id {user.Id} already exists.");
     }
+
+    public Task<bool> EmailExistsAsync(string normalisedEmail, CancellationToken ct) =>
+        Task.FromResult(_users.Values.Any(u => u.Email == normalisedEmail));
+
+    public Task<User?> GetByEmailAsync(string normalisedEmail, CancellationToken ct) =>
+        Task.FromResult(_users.Values.FirstOrDefault(u => u.Email == normalisedEmail));
+
+    public Task AddAsync(User user, CancellationToken ct)
+    {
+        if (_users.Values.Any(u => u.Email == user.Email))
+            throw new AlreadyExistsException(
+                "user-email-already-exists", $"A user with email '{user.Email}' already exists.");
+
+        Add(user);
+        return Task.CompletedTask;
+    }
+
+    public Task<User?> GetByIdAsync(Guid id, CancellationToken ct) =>
+        Task.FromResult(GetById(id));
+
+    // Users are shared objects here, so changes are already stored.
+    public Task UpdateAsync(User user, CancellationToken ct) => Task.CompletedTask;
 }
