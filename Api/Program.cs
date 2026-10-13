@@ -4,15 +4,16 @@ using Infrastructure.Data;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using Api.Application.Interfaces;
+using Api.Authorization;
 using Api.Application.Services;
 using Api.Common;
 using Api.Filters;
 using Domain;
 using Infrastructure.Persistence;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -40,6 +41,10 @@ builder.Services.AddDbContext<TallyVelDbContext>(o =>
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();
 builder.Services.AddScoped<IStokvelRepository, EfStokvelRepository>();
 builder.Services.AddScoped<IContributionRepository, EfContributionRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
+builder.Services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+builder.Services.AddScoped<ICycleRepository, EfCycleRepository>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 // Still in memory — idempotency keys aren't part of the database model yet.
 builder.Services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
 builder.Services.AddScoped<StokvelMembershipService>();
@@ -56,11 +61,8 @@ builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 //This register the password hasher
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
-builder.Services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
-builder.Services.AddScoped<IUnitOfWork, EfUnitOfWork>();
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<ITokenService, TokenService>();
+
+
 
 //JWT decode
 builder.Services.AddOptions<JwtOptions>()
@@ -99,13 +101,24 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
 
 builder.Services.AddAuthorization(options =>
 {
-    // Any endpoint without [Authorize] or [AllowAnonymous] requires a signed-in user.
-    // This is the fallback policy: it covers endpoints with no auth attribute at all,
-    // so a forgotten attribute fails closed. (The default policy only applies to a bare [Authorize].)
-    options.FallbackPolicy = new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .Build();
+    // Every endpoint needs a signed-in user unless it opts out with [AllowAnonymous].
+    options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+
+    // One policy per access level; the handler checks the caller's role in the stokvel from the route.
+    foreach (var (name, roles) in StokvelPolicies.AllowedRoles)
+        options.AddPolicy(name, policy => policy
+            .RequireAuthenticatedUser()
+            .AddRequirements(new StokvelRoleRequirement(roles)));
 });
+builder.Services.AddScoped<IAuthorizationHandler, StokvelRoleHandler>();
+
+
+//TimeProvider emulate time in tests later, 
+// for example to test an expired refresh token without waiting. 
+// JsonWebTokenHandler comes with the JwtBearer package.
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<ITokenService, TokenService>();
+
 
 var app = builder.Build();
 if (args.Contains("--seed-volume"))
@@ -128,7 +141,6 @@ if (app.Environment.IsDevelopment())
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    // Scalar loads /openapi/v1.json in the browser, so both must be public.
     app.MapOpenApi().AllowAnonymous();
     app.MapScalarApiReference(Options =>
     {
@@ -137,7 +149,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseExceptionHandler();
-app.UseStatusCodePages(); // turns empty 4xx/5xx responses (401, 403, 404...) into problem details
+// Turns empty 401/403/404 responses into application/problem+json.
+app.UseStatusCodePages();
 
 app.UseHttpsRedirection();
 app.UseAuthentication();

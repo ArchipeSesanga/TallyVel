@@ -25,7 +25,7 @@ public class TokenService(IOptions<JwtOptions> options, TimeProvider clock) : IT
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
-        // No role claim yet: User has no IsPlatformAdmin. Add it here once it does.
+        //TODO: No role claim yet: User has no IsPlatformAdmin. Add it here once it does.
 
         var descriptor = new SecurityTokenDescriptor
         {
