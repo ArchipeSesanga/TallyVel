@@ -39,6 +39,9 @@ builder.Services.AddDbContext<TallyVelDbContext>(o =>
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();
 builder.Services.AddScoped<IStokvelRepository, EfStokvelRepository>();
 builder.Services.AddScoped<IContributionRepository, EfContributionRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
+builder.Services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 // Still in memory — idempotency keys aren't part of the database model yet.
 builder.Services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
 builder.Services.AddScoped<StokvelMembershipService>();
@@ -55,6 +58,8 @@ builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 //This register the password hasher
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
+
+
 
 //JWT decode
 builder.Services.AddOptions<JwtOptions>()
