@@ -3,13 +3,14 @@ using Microsoft.AspNetCore.Mvc;
 using Api.Application.Contracts;
 using Api.Application.Interfaces;
 using Api.Application.Services;
+using Api.Authorization;
 using Domain;
 
 namespace Api.Presentation.Controllers;
 
 [ApiController]
 [Route("api/stokvels")]
-public class StokvelController : ControllerBase
+public class StokvelController : StokvelControllerBase
 {
     private readonly IStokvelRepository _stokvelRepository;
     private readonly StokvelMembershipService _membershipService;
@@ -32,19 +33,23 @@ public class StokvelController : ControllerBase
     }
 
     [HttpGet]
-    [EndpointSummary("List all stokvels")]
-    [EndpointDescription("Returns every stokvel currently tracked, regardless of membership.")]
+    [EndpointSummary("List my stokvels")]
+    [EndpointDescription("Returns the stokvels the signed-in user belongs to.")]
     [ProducesResponseType<IEnumerable<StokvelResponse>>(StatusCodes.Status200OK)]
     public ActionResult<IEnumerable<StokvelResponse>> GetAll() =>
-        Ok(_stokvelRepository.GetAll().Select(StokvelResponse.FromDomain));
+        Ok(_stokvelRepository.GetAll()
+            .Where(s => s.Members.Any(m => m.UserId == CallerId))
+            .Select(StokvelResponse.FromDomain));
 
     [HttpGet("{id:guid}")]
     [EndpointSummary("Get a stokvel by id")]
     [EndpointDescription("Returns a single stokvel, including its current members and their roles.")]
     [ProducesResponseType<StokvelResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
-    public ActionResult<StokvelResponse> GetById(Guid id)
+    public async Task<IActionResult> GetById(Guid id)
     {
+        if (await AuthorizeStokvelAsync(id, StokvelPolicies.Member) is { } denied) return denied;
+
         var stokvel = _stokvelRepository.GetById(id)
             ?? throw new NotFoundException("stokvel", id);
 
@@ -56,8 +61,12 @@ public class StokvelController : ControllerBase
     [EndpointDescription("Creates a new stokvel. The creator is automatically enrolled as its first member, with the Chairperson role.")]
     [ProducesResponseType<StokvelResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
-    public async Task<ActionResult<StokvelResponse>> Create(CreateStokvelRequest request)
+    public async Task<IActionResult> Create(CreateStokvelRequest request)
     {
+        // You can only create a stokvel for yourself; the creator becomes its Chairperson.
+        if (request.CreatorId != CallerId)
+            return Forbid();
+
         var validationResult = await _validator.ValidateAsync(request);
         Stokvel stokvel;
 
@@ -83,12 +92,14 @@ public class StokvelController : ControllerBase
 
     [HttpPost("{id:guid}/members")]
     [EndpointSummary("Add a member to a stokvel")]
-    [EndpointDescription("Enrolls a user into the stokvel with the given role. Fails if the user is already a member.")]
+    [EndpointDescription("Enrolls a user into the stokvel with the given role. Chairperson only. Fails if the user is already a member.")]
     [ProducesResponseType<StokvelResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
-    public async Task<ActionResult<StokvelResponse>> AddMember(Guid id, AddStokvelMemberRequest request)
+    public async Task<IActionResult> AddMember(Guid id, AddStokvelMemberRequest request)
     {
+        if (await AuthorizeStokvelAsync(id, StokvelPolicies.Chairperson) is { } denied) return denied;
+
         var validationResult = await _addMemberValidator.ValidateAsync(request);
         if (!validationResult.IsValid)
             return ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));
@@ -106,8 +117,10 @@ public class StokvelController : ControllerBase
     [ProducesResponseType<StokvelResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
-    public ActionResult<StokvelResponse> RemoveMember(Guid id, Guid userId)
+    public async Task<IActionResult> RemoveMember(Guid id, Guid userId)
     {
+        if (await AuthorizeStokvelAsync(id, StokvelPolicies.Chairperson) is { } denied) return denied;
+
         // NotFoundException and BusinessRuleViolationException propagate to
         // TallyVelExceptionHandler, the only place that turns a domain
         // failure into a status code.
@@ -121,8 +134,10 @@ public class StokvelController : ControllerBase
     [ProducesResponseType<StokvelResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
-    public async Task<ActionResult<StokvelResponse>> ChangeMemberRole(Guid id, Guid userId, ChangeStokvelMemberRoleRequest request)
+    public async Task<IActionResult> ChangeMemberRole(Guid id, Guid userId, ChangeStokvelMemberRoleRequest request)
     {
+        if (await AuthorizeStokvelAsync(id, StokvelPolicies.Chairperson) is { } denied) return denied;
+
         var validationResult = await _changeRoleValidator.ValidateAsync(request);
         if (!validationResult.IsValid)
             return ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));

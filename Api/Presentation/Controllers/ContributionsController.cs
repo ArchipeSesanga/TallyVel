@@ -2,13 +2,14 @@ using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using Api.Application.Contracts;
 using Api.Application.Interfaces;
+using Api.Authorization;
 using Domain;
 
 namespace Api.Presentation.Controllers;
 
 [ApiController]
 [Route("api/stokvels/{stokvelId:guid}/contributions")]
-public class ContributionsController : ControllerBase
+public class ContributionsController : StokvelControllerBase
 {
     private const string IdempotencyKeyHeader = "Idempotency-Key";
 
@@ -34,7 +35,7 @@ public class ContributionsController : ControllerBase
         "pageToken for the next page; an empty nextPageToken means there are no more results.")]
     [ProducesResponseType<PagedResponse<ContributionResponse>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
-    public async Task<ActionResult<PagedResponse<ContributionResponse>>> GetPage(
+    public async Task<IActionResult> GetPage(
         Guid stokvelId,
         [FromQuery] int? pageSize,
         [FromQuery] string? pageToken,
@@ -45,6 +46,8 @@ public class ContributionsController : ControllerBase
         [FromQuery] decimal? maxAmount,
         CancellationToken ct)
     {
+        if (await AuthorizeStokvelAsync(stokvelId, StokvelPolicies.Member) is { } denied) return denied;
+
         // Both throw a TallyVelException on bad input → 400 via TallyVelExceptionHandler.
         var size = Paging.ResolvePageSize(pageSize);
         var (sortBy, descending) = contributionQuery.ParseSort(sort);
@@ -63,8 +66,10 @@ public class ContributionsController : ControllerBase
     [EndpointDescription("Returns a single contribution, scoped to this stokvel.")]
     [ProducesResponseType<ContributionResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
-    public ActionResult<ContributionResponse> GetById(Guid stokvelId, Guid id)
+    public async Task<IActionResult> GetById(Guid stokvelId, Guid id)
     {
+        if (await AuthorizeStokvelAsync(stokvelId, StokvelPolicies.Member) is { } denied) return denied;
+
         var contribution = _contributionRepository.GetById(id);
         if (contribution is null || contribution.StokvelId != stokvelId)
             throw new NotFoundException("contribution", id);
@@ -80,8 +85,10 @@ public class ContributionsController : ControllerBase
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
-    public async Task<ActionResult<ContributionResponse>> RecordContribution(Guid stokvelId, RecordContributionRequest request, CancellationToken ct)
+    public async Task<IActionResult> RecordContribution(Guid stokvelId, RecordContributionRequest request, CancellationToken ct)
     {
+        if (await AuthorizeStokvelAsync(stokvelId, StokvelPolicies.Member) is { } denied) return denied;
+
         var validationResult = await _validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
             return ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));

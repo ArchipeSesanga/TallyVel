@@ -43,6 +43,7 @@ builder.Services.AddScoped<IStokvelRepository, EfStokvelRepository>();
 builder.Services.AddScoped<IContributionRepository, EfContributionRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
 builder.Services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+builder.Services.AddScoped<ICycleRepository, EfCycleRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 // Still in memory — idempotency keys aren't part of the database model yet.
 builder.Services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
