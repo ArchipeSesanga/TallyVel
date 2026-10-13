@@ -13,4 +13,8 @@ public interface IUserRepository
     IReadOnlyCollection<User> GetAll();
     User? GetById(Guid id);
     void Add(User user);
+
+    Task<bool> EmailExistsAsync(string normalisedEmail, CancellationToken ct);
+    Task<User?> GetByEmailAsync(string normalisedEmail, CancellationToken ct); // needed for login
+    Task AddAsync(User user, CancellationToken ct);
 }

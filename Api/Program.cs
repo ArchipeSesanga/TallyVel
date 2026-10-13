@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Infrastructure.Data;
 using Microsoft.Extensions.Options;
@@ -38,6 +39,8 @@ builder.Services.AddScoped<IContributionRepository, EfContributionRepository>();
 // Still in memory — idempotency keys aren't part of the database model yet.
 builder.Services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
 builder.Services.AddScoped<StokvelMembershipService>();
+builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IContributionService, ContributionServices>();
 // Saves changes made to tracked entities (e.g. stokvel memberships) at the
 // end of each successful request.

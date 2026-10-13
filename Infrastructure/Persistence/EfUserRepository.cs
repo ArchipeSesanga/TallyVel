@@ -48,4 +48,31 @@ public sealed class EfUserRepository : IUserRepository
             throw new InvalidOperationException($"A user with id {user.Id} already exists.");
         }
     }
+
+    public Task<bool> EmailExistsAsync(string normalisedEmail, CancellationToken ct) =>
+        _db.Users.AnyAsync(u => u.Email == normalisedEmail, ct);
+
+    public Task<User?> GetByEmailAsync(string normalisedEmail, CancellationToken ct) =>
+        _db.Users.FirstOrDefaultAsync(u => u.Email == normalisedEmail, ct);
+
+    /// <summary>
+    /// Saves immediately, like <see cref="Add"/>, and turns a duplicate
+    /// email (including a race between two registrations) into
+    /// <see cref="AlreadyExistsException"/>.
+    /// </summary>
+    public async Task AddAsync(User user, CancellationToken ct)
+    {
+        _db.Users.Add(user);
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.IsUniqueViolation("IX_Users_Email"))
+        {
+            _db.Entry(user).State = EntityState.Detached;
+            throw new AlreadyExistsException(
+                "user-email-already-exists", $"A user with email '{user.Email}' already exists.");
+        }
+    }
 }
