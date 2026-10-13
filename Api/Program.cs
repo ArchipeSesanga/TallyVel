@@ -12,6 +12,7 @@ using Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -96,7 +97,11 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // Every endpoint needs a signed-in user unless it opts out with [AllowAnonymous].
+    options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+});
 
 
 //TimeProvider emulate time in tests later, 
@@ -127,14 +132,16 @@ if (app.Environment.IsDevelopment())
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.MapOpenApi().AllowAnonymous();
     app.MapScalarApiReference(Options =>
     {
         Options.Theme = ScalarTheme.Moon; 
-    });
+    }).AllowAnonymous();
 }
 
 app.UseExceptionHandler();
+// Turns empty 401/403/404 responses into application/problem+json.
+app.UseStatusCodePages();
 
 app.UseHttpsRedirection();
 app.UseAuthentication();

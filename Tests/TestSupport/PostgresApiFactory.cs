@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -34,8 +35,9 @@ public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // arrive too late. Exact key Program.cs reads: "TallyVel".
         builder.UseSetting("ConnectionStrings:TallyVel", _container.GetConnectionString());
 
-        // Self-contained: don't depend on the developer's user-secrets.
-        builder.UseSetting("Jwt:SigningKey", "test-signing-key-test-signing-key-0123456789");
+        // Self-contained: don't depend on the developer's user-secrets. TEST-ONLY
+        // key, generated fresh on every run so no key value is ever committed.
+        builder.UseSetting("Jwt:SigningKey", Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)));
     }
 
     /// <summary>
