@@ -75,4 +75,11 @@ public sealed class EfUserRepository : IUserRepository
                 "user-email-already-exists", $"A user with email '{user.Email}' already exists.");
         }
     }
+
+    public Task<User?> GetByIdAsync(Guid id, CancellationToken ct) =>
+        _db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
+
+    /// <summary>Saves changes made to a User that came from this repository.</summary>
+    public async Task UpdateAsync(User user, CancellationToken ct) =>
+        await _db.SaveChangesAsync(ct);
 }

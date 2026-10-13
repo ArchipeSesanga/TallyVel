@@ -6,4 +6,8 @@ public sealed record RegisterResponse(Guid Id, string Email, string FullName);
 
 public sealed record LoginRequest(string Email, string Password);
 
-public sealed record LoginResponse(string AccessToken, DateTimeOffset ExpiresAt);
+public sealed record LoginResponse(
+    string AccessToken,
+    DateTimeOffset AccessTokenExpiresAt,
+    string RefreshToken,
+    DateTimeOffset RefreshTokenExpiresAt);

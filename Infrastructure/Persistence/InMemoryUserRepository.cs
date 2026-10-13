@@ -45,4 +45,10 @@ public sealed class InMemoryUserRepository : IUserRepository
         Add(user);
         return Task.CompletedTask;
     }
+
+    public Task<User?> GetByIdAsync(Guid id, CancellationToken ct) =>
+        Task.FromResult(GetById(id));
+
+    // Users are shared objects here, so changes are already stored.
+    public Task UpdateAsync(User user, CancellationToken ct) => Task.CompletedTask;
 }

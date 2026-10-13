@@ -69,9 +69,9 @@ public class AuthController : ControllerBase
         if (!result.IsSuccess)
             return Problem(
                 title: "Unauthorized",
-                detail: "Invalid email or password.",
+                detail: result.Error,
                 statusCode: StatusCodes.Status401Unauthorized);
 
-        return Ok(result.Response);
+        return Ok(result.Tokens);
     }
 }

@@ -1,4 +1,6 @@
+using System.Buffers.Text;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using Api.Application.Interfaces;
 using Api.Common;
@@ -39,4 +41,16 @@ public class TokenService(IOptions<JwtOptions> options, TimeProvider clock) : IT
 
         return (new JsonWebTokenHandler().CreateToken(descriptor), expires);
     }
+
+    public (string RawToken, string Hash) CreateRefreshToken()
+    {
+        var raw = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
+        return (raw, Hash(raw));
+    }
+
+    // SHA-256, not PasswordHasher: a 32-byte random token has 256 bits of
+    // entropy so it can't be brute-forced, and an unsalted hash lets us
+    // look the token up by its hash with an index.
+    public static string Hash(string raw) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)));
 }

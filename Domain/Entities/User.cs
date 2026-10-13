@@ -56,6 +56,13 @@ public sealed class User
 
     public void ChangeFullName(string newFullName) => FullName = ValidateFullName(newFullName);
 
+    /// <summary>
+    /// Replaces the stored hash, e.g. when the hashing algorithm's settings
+    /// have been upgraded. Still never accepts a raw password.
+    /// </summary>
+    public void ChangePasswordHash(string newPasswordHash) =>
+        PasswordHash = ValidatePasswordHash(newPasswordHash);
+
     private static string ValidateEmail(string? email)
     {
         if (string.IsNullOrWhiteSpace(email))

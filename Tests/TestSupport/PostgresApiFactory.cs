@@ -33,6 +33,9 @@ public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // connection string immediately, and ConfigureAppConfiguration values
         // arrive too late. Exact key Program.cs reads: "TallyVel".
         builder.UseSetting("ConnectionStrings:TallyVel", _container.GetConnectionString());
+
+        // Self-contained: don't depend on the developer's user-secrets.
+        builder.UseSetting("Jwt:SigningKey", "test-signing-key-test-signing-key-0123456789");
     }
 
     /// <summary>
