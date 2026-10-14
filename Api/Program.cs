@@ -61,7 +61,9 @@ builder.Services.AddScoped<IContributionService, ContributionServices>();
 builder.Services.AddControllers(o => o.Filters.Add<SaveChangesFilter>());
 
 builder.Services.AddExceptionHandler<TallyVelExceptionHandler>();
-builder.Services.AddProblemDetails();
+builder.Services.AddProblemDetails(options =>
+    options.CustomizeProblemDetails = context =>
+        context.ProblemDetails.Extensions["correlationId"] = Correlation.GetId(context.HttpContext));
 
 // This automatically scans and registers all validators found in the same assembly as Program
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
