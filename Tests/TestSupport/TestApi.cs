@@ -9,7 +9,7 @@ public sealed record TestUser(Guid Id, string Email, string Password, string Acc
 
 public static class TestApi
 {
-    public static HttpClient Client(PostgresApiFactory f, string? accessToken = null)
+    public static HttpClient Client(WebApplicationFactory<Program> f, string? accessToken = null)
     {
         var client = f.CreateClient(new WebApplicationFactoryClientOptions
             { BaseAddress = new Uri("https://localhost"), HandleCookies = false });
@@ -18,7 +18,7 @@ public static class TestApi
         return client;
     }
 
-    public static async Task<TestUser> RegisterAndLoginAsync(PostgresApiFactory f)
+    public static async Task<TestUser> RegisterAndLoginAsync(WebApplicationFactory<Program> f)
     {
         var email = $"{Guid.NewGuid():N}@leak-test.local";
         const string password = "Leak-Test-Password-9071";
@@ -38,7 +38,7 @@ public static class TestApi
         r.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("tallyvel_rt="))
             .Split(';')[0]["tallyvel_rt=".Length..];
 
-    public static async Task<Guid> CreateStokvelAsync(PostgresApiFactory f, TestUser u)
+    public static async Task<Guid> CreateStokvelAsync(WebApplicationFactory<Program> f, TestUser u)
     {
         // The API reads enums as numbers (no JsonStringEnumConverter), so send the value, not "Monthly".
         var r = await Client(f, u.AccessToken).PostAsJsonAsync("/api/v1/stokvels",
