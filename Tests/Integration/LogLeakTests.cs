@@ -19,7 +19,7 @@ public class LogLeakTests(PostgresApiFactory factory)
 
         // refresh
         var anon = TestApi.Client(factory);
-        var refreshRequest = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh");
+        var refreshRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/refresh");
         refreshRequest.Headers.Add("Cookie", $"tallyvel_rt={user.RefreshToken}");
         var refresh = await anon.SendAsync(refreshRequest);
         refresh.EnsureSuccessStatusCode();
@@ -30,7 +30,7 @@ public class LogLeakTests(PostgresApiFactory factory)
         // record a contribution with a distinctive amount
         var stokvelId = await TestApi.CreateStokvelAsync(factory, user);
         var client = TestApi.Client(factory, newAccessToken);
-        var contribution = new HttpRequestMessage(HttpMethod.Post, $"/api/stokvels/{stokvelId}/contributions")
+        var contribution = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/stokvels/{stokvelId}/contributions")
         {
             Content = JsonContent.Create(new { memberUserId = user.Id, cycle = "2026-10", amount = 1234.56m })
         };
@@ -39,7 +39,7 @@ public class LogLeakTests(PostgresApiFactory factory)
 
         // a duplicate registration -> 409, and no Error entry for it
         var errorsBefore = factory.Logs.Entries.Count(e => e.Level >= LogLevel.Error);
-        var duplicate = await anon.PostAsJsonAsync("/api/auth/register",
+        var duplicate = await anon.PostAsJsonAsync("/api/v1/auth/register",
             new { email = user.Email.ToUpperInvariant(), password = user.Password, fullName = "Again" });
         Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
         Assert.Equal(errorsBefore, factory.Logs.Entries.Count(e => e.Level >= LogLevel.Error));

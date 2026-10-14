@@ -1,5 +1,7 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using Api.Common;
+using Microsoft.AspNetCore.RateLimiting;
 using Api.Application.Contracts;
 using Api.Application.Interfaces;
 using Api.Authorization;
@@ -8,7 +10,7 @@ using Domain;
 namespace Api.Presentation.Controllers;
 
 [ApiController]
-[Route("api/stokvels/{stokvelId:guid}/contributions")]
+[Route(ApiRoutes.V1 + "/stokvels/{stokvelId:guid}/contributions")]
 public class ContributionsController : StokvelControllerBase
 {
     private const string IdempotencyKeyHeader = "Idempotency-Key";
@@ -78,6 +80,7 @@ public class ContributionsController : StokvelControllerBase
     }
 
     [HttpPost]
+    [EnableRateLimiting(RateLimitPolicies.Money)]
     [EndpointSummary("Record a contribution")]
     [EndpointDescription("Records a member's payment for a stokvel cycle. Requires an Idempotency-Key header, and rejects a second contribution from the same member for the same cycle.")]
     [ProducesResponseType<ContributionResponse>(StatusCodes.Status201Created)]
@@ -85,13 +88,14 @@ public class ContributionsController : StokvelControllerBase
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status429TooManyRequests, "application/problem+json")]
     public async Task<IActionResult> RecordContribution(Guid stokvelId, RecordContributionRequest request, CancellationToken ct)
     {
         if (await AuthorizeStokvelAsync(stokvelId, StokvelPolicies.Member) is { } denied) return denied;
 
         var validationResult = await _validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
-            return ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));
+            return ValidationProblem(validationResult.ToModelState());
 
         // The key travels as a header, not a body field, because it
         // identifies this *HTTP request attempt*, not the payment

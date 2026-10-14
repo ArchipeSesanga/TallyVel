@@ -24,7 +24,7 @@ public class ObservabilityTests(PostgresApiFactory factory)
     [Fact]
     public async Task Anonymous_401_carries_the_callers_trace_id()
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/stokvels/{Guid.NewGuid()}/cycles");
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/stokvels/{Guid.NewGuid()}/cycles");
         request.Headers.Add("traceparent", TraceParent);
 
         var response = await TestApi.Client(factory).SendAsync(request);
@@ -41,7 +41,7 @@ public class ObservabilityTests(PostgresApiFactory factory)
         var stranger = await TestApi.RegisterAndLoginAsync(factory);
         var stokvelId = await TestApi.CreateStokvelAsync(factory, owner);
 
-        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/stokvels/{stokvelId}/cycles");
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/stokvels/{stokvelId}/cycles");
         request.Headers.Add("traceparent", TraceParent);
         var response = await TestApi.Client(factory, stranger.AccessToken).SendAsync(request);
 

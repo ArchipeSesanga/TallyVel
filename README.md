@@ -1064,3 +1064,237 @@ The observability tests:
 - **Membership logs still carry user and stokvel ids.** The three `StokvelMembershipService` lines show who joined or left which group.
 - **The duplicate-email race can log at `Error`.** Two registrations with the same email can both pass the pre-check. The unique index stops one, and EF logs the failed save at `Error` before `AuthService` turns it into a 409. Npgsql redacts the row detail by default (`Include Error Detail` is not set), so the email does not appear.
 - **The dashboard has no login.** See the warning in part 1.
+
+## Ready for the Frontend (Assignment 6.3)
+
+This section covers what a browser frontend needs from the API: one version prefix, CORS, rate limits, a screen-shaped response, one error shape, and TypeScript types generated from the OpenAPI document.
+
+> Paths in the earlier sections of this README predate this change. Every API route now starts with `/api/v1`, and enums are now sent as names, not numbers.
+
+### 1. Versioning
+
+- `Api/Common/ApiRoutes.cs` holds the only copy of the version: `public const string V1 = "api/v1";`.
+- Every controller route is built from it, e.g. `[Route(ApiRoutes.V1 + "/stokvels")]`. No version library is used.
+- What moved: `api/auth`, `api/users`, `api/stokvels` (with `/contributions`, `/cycles`, `/members`), plus the new `api/v1/me/home`.
+- What did not move: `/health/live`, `/health/ready`, `/openapi/v1.json` and `/scalar`. They are not part of the client contract.
+- The refresh cookie path moved from `/api/auth` to `/api/v1/auth`. `AuthController` builds it from the same constant (`"/" + ApiRoutes.V1 + "/auth"`), and both setting and deleting the cookie use it. A browser holding an old `/api/auth` cookie never sends it to the new path, so that user signs in once more.
+
+### 2. CORS
+
+One named policy, `CorsPolicies.Frontend` in `Api/Common/CorsPolicies.cs`, registered in `Program.cs`. Controllers have no CORS rules.
+
+| Setting | Value | Why |
+|---|---|---|
+| Origins | `Cors:AllowedOrigins`. Development: `["http://localhost:3000"]`. `appsettings.json`: `[]` | Only the frontend we run. Production starts closed and must be configured on purpose. Never `*`, and the request's `Origin` is never reflected back. |
+| Credentials | `AllowCredentials()` | The refresh cookie must travel with `credentials: "include"`. The browser forbids credentials with `*`, which is another reason the list is explicit. |
+| Methods | `GET, POST, PUT, DELETE` | Exactly the verbs the API uses (`PUT` changes a member's role, `DELETE` removes a member). |
+| Request headers | `Authorization` | The bearer access token. |
+| | `Content-Type` | `application/json` bodies trigger a preflight, so the header must be allowed. |
+| | `Idempotency-Key` | Required by `POST …/contributions`. |
+| | `traceparent` | The frontend can continue its own trace. The API then returns that trace id as `correlationId`. |
+| Exposed headers | `Retry-After` | So the frontend can read how long to wait after a 429. TallyVel sends no header that marks an idempotent replay (a replay is an ordinary 201 with the original body), so there is nothing else to expose. |
+| Preflight cache | `SetPreflightMaxAge(10 min)` | Fewer `OPTIONS` round trips. |
+
+**Pipeline position.** `UseCors` sits after `UseExceptionHandler` and `UseStatusCodePages`, and before `UseAuthentication`.
+
+- **Preflight vs fallback policy.** A preflight `OPTIONS` carries no token. If authorization saw it first, the fallback policy (`RequireAuthenticatedUser`) would answer 401 and the browser would block the real request. CORS answers the preflight (204) before authentication runs.
+- **Errors carry CORS headers.** The CORS middleware sits inside the error middleware. Its headers are therefore on every 401, 403, 404, 422, 429 and 500. Without them the browser hides the response from JavaScript, and the frontend sees a generic "network error" instead of the problem JSON. `CorsTests.An_error_response_still_carries_cors_headers` checks a non-member 404.
+
+### 3. The refresh cookie across origins and sites
+
+The cookie is `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`.
+
+- **Origin** = scheme + host + port. **Site** = scheme + registrable domain (the domain one level below a public suffix).
+- CORS decides whether JavaScript may *read* a response, which depends on the origin.
+- `SameSite` decides whether the browser *sends* the cookie, which depends on the site.
+- Browsers now use **schemeful same-site**, so `http` and `https` versions of the same domain are different sites.
+
+| Frontend → API | Same origin? | Same site? | Refresh cookie sent? |
+|---|---|---|---|
+| `http://localhost:3000` → `https://localhost:7019` (dev) | No | **No.** `http` vs `https` makes them different sites under schemeful same-site. | **No.** |
+| `app.ronditrack.co.za` → `api.ronditrack.co.za` | No (different host) | Yes. Both are under `ronditrack.co.za` (`co.za` is the public suffix). | **Yes.** CORS with credentials is still needed. |
+| `ronditrack.vercel.app` → `ronditrack-api.azurewebsites.net` | No | **No.** `vercel.app` and `azurewebsites.net` are both public suffixes, so each app is its own site. | **No** with `Strict` or `Lax`. It would need `SameSite=None; Secure` plus a CSRF defence. Even then, browsers that block third-party cookies may drop it. |
+
+What we actually use in development: CORS allows `http://localhost:3000`, and the API's `https` profile is `https://localhost:7019`. Reading responses therefore works, but the refresh cookie is **not** sent. The frontend dev server must either run on `https://localhost:3000` (then both sides are `https` + `localhost`, so the same site; the port does not matter for site) or proxy `/api` to the API so the browser sees one origin. Production should use the `app.` / `api.` same-site layout.
+
+### 4. Rate limiting
+
+Only the built-in `AddRateLimiter` is used. The policy names live in `Api/Common/RateLimitPolicies.cs`. Controllers only say `[EnableRateLimiting(RateLimitPolicies.X)]`.
+
+| Endpoint | Algorithm | Partition key | Limits (config key, default) | Why |
+|---|---|---|---|---|
+| `POST /api/v1/auth/login` | Fixed window | Remote IP | `RateLimiting:Login:PermitLimit` = 5 per `RateLimiting:Login:WindowSeconds` = 60, queue 0 | No user is known before login, so the IP is the only key. It slows password guessing. A fixed window is simple to reason about for an attacker-facing limit. |
+| `POST /api/v1/stokvels/{id}/contributions`, `POST /api/v1/stokvels/{id}/cycles/{cycleId}/payout` | Token bucket | Signed-in user (`sub` claim) | `RateLimiting:Money:TokenLimit` = 30, `TokensPerPeriod` = 10 every `ReplenishmentPeriodSeconds` = 60, queue 0, auto-replenish | A treasurer records ~20 contributions in a burst after a meeting, then nothing for weeks. The bucket allows that burst (30 tokens) and refills slowly. A fixed window would either block the meeting (small window) or allow a sustained flood (large window). It is per user, not per IP, so a shared network does not matter. Requests with no `sub` get `GetNoLimiter`, so they reach authorization and get the normal 401. |
+
+**Every rejection** is a 429 with:
+
+- a `Retry-After` header in whole seconds, taken from the lease metadata;
+- problem JSON written through `IProblemDetailsService`, with type `https://tools.ietf.org/html/rfc6585#section-4`, title `Too Many Requests` and a detail sentence. `correlationId` is added like on every other problem;
+- a log line at `Information`: `Rate limit {Policy} rejected a request from {UserId}`. The user id is `anonymous` when there is none. No email and no body (POPIA).
+
+**Pipeline order** (`Program.cs`):
+
+`UseExceptionHandler → UseStatusCodePages → UseCors → UseHttpsRedirection → UseAuthentication → UseRateLimiter → UseAuthorization → MapControllers`
+
+- `UseRateLimiter` comes after `UseAuthentication`, so the money policy can read `sub`.
+- It comes before `UseAuthorization` and the controllers, so a rejected request never runs any application code.
+
+**Three instances behind a load balancer.** The limiters live in each process's memory, so every instance counts separately. Without sticky sessions, a user can make about three times the configured limit. To fix that, use sticky sessions or a distributed limiter (e.g. Redis), or divide the limits by the instance count.
+
+**A whole stokvel on one venue Wi-Fi.** Everyone shares one public IP. With 5 logins per minute per IP, the sixth member to sign in within a minute gets a 429, so members lock each other out. Money limits are per user, so they are not affected. Mitigations:
+
+- raise the login limit;
+- count only *failed* logins;
+- partition by IP plus a hash of the submitted email (never the plain email);
+- add a CAPTCHA after repeated failures.
+
+Behind a reverse proxy, `ForwardedHeaders` must be configured, or every user appears to come from the proxy's IP.
+
+### 5. Idempotency survives a 429
+
+The `Idempotency-Key` is reserved inside `ContributionServices.RecordContributionAsync`, which runs from the controller action. The rate limiter rejects the request in middleware, before any controller runs. So a 429'd request never reserves or stores its key. A retry with the same key, after `Retry-After`, is processed as new. A further retry replays the stored 201.
+
+The test that proves it is `RateLimitTests.A_rate_limited_contribution_does_not_use_up_its_idempotency_key`:
+
+1. It uses up a one-token bucket.
+2. It sends key K and gets a 429.
+3. It waits for the refill and sends K: 201 (not 409 "in progress").
+4. It sends K again: the identical 201 body.
+5. It asserts exactly one contribution row exists for that member and cycle.
+
+### 6. The home screen: `GET /api/v1/me/home`
+
+`MeController` calls `MemberHomeService`, which builds the response in **one SQL query**. Memberships are joined to their stokvel, with the current cycle and the caller's own total as correlated subqueries, so there is no N+1. A user in no stokvels gets 200 with `"stokvels": []`.
+
+```json
+{ "stokvels": [ { "stokvelId": "…", "name": "Leak Test Club", "role": "Chairperson",
+  "currentCycle": "2026-10", "paidThisCycleCents": 10050, "owedThisCycleCents": 39950,
+  "nextPayoutDate": "2026-10-31" } ] }
+```
+
+| Field | Meaning | Why it is there |
+|---|---|---|
+| `stokvelId` | The stokvel's id | To navigate to the stokvel. |
+| `name` | Stokvel name | The card title. |
+| `role` | The caller's role **in that stokvel**: `Member`, `Treasurer` or `Chairperson` | Decides which buttons the screen shows. One person can hold different roles in different stokvels. |
+| `currentCycle` | Label of the latest cycle not yet paid out, or `null` | "Which month am I paying for?" |
+| `paidThisCycleCents` | Sum of the **caller's own** contributions for that cycle | "What have I paid?" |
+| `owedThisCycleCents` | `max(0, contribution amount − paid)` | "What do I still owe?" |
+| `nextPayoutDate` | UTC calendar date (`"YYYY-MM-DD"`), or `null` when there is no current cycle | "When is the payout?" |
+
+**Not included:** other members' amounts and the member list. The screen does not need them, and showing what each member paid would expose their financial information to everyone in the group.
+
+**Money as integer cents (`long`).** JavaScript numbers are binary floats, so `0.1 + 0.2 !== 0.3`. Integer cents are exact up to 2^53 (about R90 trillion), and TypeScript can sum them with plain `+` and no decimal library. The conversion happens once, on the server: `(long)Math.Round(amount * 100m, MidpointRounding.ToEven)` in `MemberHomeService.ToCents`. Older endpoints still return `decimal` amounts as JSON numbers.
+
+**Enums as names.** `JsonStringEnumConverter` is registered for controllers (`AddJsonOptions`) and for `ConfigureHttpJsonOptions`, so the OpenAPI document lists `"Member" | "Treasurer" | "Chairperson"`. Numbers are still accepted on input, so older clients keep working.
+
+**Dates.** `nextPayoutDate` is a `DateOnly` (a calendar date has no time zone to confuse). It is computed on the server in UTC with `TimeProvider`. Other timestamps are `DateTimeOffset` values created with `UtcNow` (offset `+00:00`).
+
+**Assumptions (the data model has no dates on cycles):**
+
+- **Current cycle** = the `Open` cycle with the greatest `Label`. Labels are `YYYY-MM` style (`"2026-10"`), so string order is time order. A label like `"December"` would break this. A real fix is an `OpenedAt` column on `ContributionCycle`.
+- **Paid** matches contributions by cycle **label**, because that is how `Contribution` links to a cycle.
+- **Next payout date.** Payouts repeat every period (Weekly 7 days, BiWeekly 14 days, Monthly 1 calendar month), counted from the stokvel's `CreatedAt` date in UTC. The field is the first such date **on or after today** (UTC). Monthly dates keep the creation day, clamped to the month's end (created on the 31st → 30 November). A stokvel's actual payout day is not stored anywhere, so this is a convention, tested in `NextPayoutDateTests`.
+
+### 7. One error contract
+
+- **FluentValidation.** Every controller calls `ValidationProblem(result.ToModelState())` (`Api/Common/ValidationProblems.cs`). The keys are the camelCase field names the client sent (`email`, not `Email`). Going through `ModelStateDictionary` means `ProblemDetailsFactory` builds the body, so it has `type`, `traceId` and `correlationId`. Before this change, the controller 400s had no `correlationId`.
+- **Automatic model-binding 400s** (malformed JSON, a string where a number belongs). These use the same shape through `InvalidModelStateResponseFactory`. `$.amount` becomes `amount`, and the redundant "The request field is required." entry for the body parameter is dropped.
+- **Strict numbers.** `NumberHandling = Strict` (the web default had been `AllowReadingFromString`), so `"amount": "100"` is a 400. `AllowInputFormatterExceptionMessages = false`, so the message is "The input was not valid." and never "could not be converted to System.Decimal".
+- **5xx.** The generic detail plus `correlationId`; the exception message never reaches the client (6.2).
+
+| Status | Where it comes from | Body (`application/problem+json` unless noted) |
+|---|---|---|
+| 200 | Successful read, login, refresh, member changes | The DTO as `application/json` |
+| 201 | Register, create stokvel, open cycle, record contribution (also its replay), payout | The DTO, plus a `Location` header where there is a GET |
+| 204 | Logout | Empty |
+| 400 validation | FluentValidation in a controller | `type` (rfc9110 §15.5.1), `title`, `status`, `errors{camelCaseField: [messages]}`, `traceId`, `correlationId` |
+| 400 malformed JSON / wrong type | `[ApiController]` model binding | Same shape as above; `errors{field: ["The input was not valid."]}` |
+| 400 invalid query | `PageSizeException` / `InvalidQueryException` via `TallyVelExceptionHandler` | `type` (`tag:tallyvel,2026:problem/<code>`), `title`, `status`, `detail`, `instance`, `code`, `traceId`, `correlationId` |
+| 400 invalid argument | Missing `Idempotency-Key`, or a domain `ArgumentException`. Caught in the controller (`Problem(...)`) or by the handler (`code: invalid-argument`) | `type`, `title: "Bad Request"`, `status`, `detail`, `traceId`, `correlationId` (+ `instance`, `code` from the handler) |
+| 401 | No or invalid token (`UseStatusCodePages`); failed login or refresh (`AuthController`) | `type` (§15.5.2), `title`, `status`, `traceId`, `correlationId` (+ `detail` from `AuthController`) |
+| 403 | Member without the required role; `creatorId` ≠ caller | `type` (§15.5.4), `title`, `status`, `traceId`, `correlationId` |
+| 404 | Not a member of the stokvel (`StokvelControllerBase`); `NotFoundException` | Framework: `type` (§15.5.5), `title`, `status`, `traceId`, `correlationId`. Handler: also `detail`, `instance`, `code` |
+| 409 | `AlreadyExistsException`, idempotency key in progress, unique-violation safety net, duplicate registration | Handler shape with `code`; registration uses `Problem(...)` (`type` §15.5.10, `detail`) |
+| 422 | `BusinessRuleViolationException`, idempotency key reused with a different body | Handler shape with `code` |
+| 429 | Rate limiter | `type` (rfc6585 §4), `title: "Too Many Requests"`, `status`, `detail`, `traceId`, `correlationId`, plus a `Retry-After` header |
+| 500 | Any unexpected exception | `type` (`…/internal-error`), `title`, `status`, generic `detail`, `instance`, `code`, `traceId`, `correlationId`. No message or type name. |
+| 503 | `/health/ready` when the database check fails or times out | `text/plain`: `Unhealthy` |
+
+**OpenAPI number types.** `OpenApiDocumentTests` walks `/openapi/v1.json` and fails on any numeric schema that also allows strings.
+
+Before strict number handling, it reported 24 problems. Every `decimal` and `long` was `"type": ["number", "string"]` or `["integer", "string"]` with a numeric `pattern`, e.g.:
+
+```
+$.components.schemas.RecordContributionRequest.properties.amount: type number|string
+$.components.schemas.HomeStokvelCard.properties.paidThisCycleCents: type integer|string
+$.components.schemas.ProblemDetails.properties.status: type null|integer|string
+$.paths./api/v1/stokvels/{stokvelId}/contributions.get.parameters[1].schema: type integer|string   (pageSize)
+```
+
+After: none. For example, `amount` is `{"type":"number","format":"double"}` and `paidThisCycleCents` is `{"type":"integer","format":"int64"}`.
+
+### 8. TypeScript client types (`clients/typescript/`)
+
+The folder sits outside every .NET project:
+
+- `package.json` pins exact versions: `openapi-typescript` 7.13.0 and `typescript` 5.9.3. openapi-typescript 7 declares TypeScript `^5.x` as a peer, so TypeScript 7 is not used.
+- `tsconfig.json` has `"strict": true`.
+- The committed files are `openapi.json` (a snapshot of `/openapi/v1.json`), the generated `src/api.d.ts`, and `src/home.ts` (`totalOwedCents(home: HomeResponse): number`).
+
+To regenerate:
+
+```bash
+# 1. Snapshot the document. Either from a running API (http profile)…
+cd clients/typescript && OPENAPI_URL=http://localhost:5203/openapi/v1.json npm run fetch
+# …or with no dev database at all (Testcontainers), from the repo root:
+OPENAPI_OUTPUT=$PWD/clients/typescript/openapi.json dotnet test --filter "FullyQualifiedName~OpenApiDocument"
+
+# 2. Generate the types and compile.
+cd clients/typescript && npm install && npm run contract   # generate + tsc --noEmit --strict
+```
+
+The `OpenApiDocumentTests` test only writes the file when `OPENAPI_OUTPUT` is set. A normal `dotnet test` writes nothing.
+
+**Rename experiment.** I renamed `OwedThisCycleCents` → `AmountOwedCents` in `HomeStokvelCard`, regenerated, and ran `npm run contract`:
+
+```
+> check
+> tsc --noEmit --strict
+
+src/home.ts(8,57): error TS2551: Property 'owedThisCycleCents' does not exist on type '{ stokvelId: string; name: string; role: "Member" | "Treasurer" | "Chairperson"; currentCycle: string | null; paidThisCycleCents: number; amountOwedCents: number; nextPayoutDate: string | null; }'. Did you mean 'paidThisCycleCents'?
+```
+
+Exit code 2: the frontend build breaks at compile time, not in production. After reverting the rename and regenerating, `npm run contract` compiles with no output and exit code 0. The renamed state was never committed.
+
+### 9. Test result
+
+```text
+Passed!  - Failed:     0, Passed:    58, Skipped:     0, Total:    58, Duration: 12 s - Tests.dll (net10.0)
+```
+
+This was run with the dev database stopped (`docker stop tallyvel-pg`). TODO: confirm on your machine with the dev database stopped.
+
+New tests:
+
+| File | What it covers |
+|---|---|
+| `Tests/Frontend/CorsTests.cs` | Preflight from `localhost:3000` (204, allow-origin, credentials, `idempotency-key`); preflight from `evil.example` (no allow-origin); a non-member 404 that keeps CORS headers |
+| `Tests/Frontend/RateLimitTests.cs` | Third bad login is a 429 with `Retry-After`, title, detail and `correlationId`; idempotency survives a 429; user A's limit does not block user B |
+| `Tests/Frontend/HomeScreenTests.cs` | Chairperson of one stokvel and Member of another, with the cents values; an empty list for a user with no stokvels |
+| `Tests/Frontend/ErrorContractTests.cs` | `errors.email` keyed in camelCase; `"amount": "100"` is a 400 with no `Api.`, `Domain.` or `System.` in the body |
+| `Tests/Frontend/RefreshCookiePathTests.cs` | Refresh at `/api/v1/auth/refresh` → 200, and the cookie path is `/api/v1/auth` |
+| `Tests/Contract/OpenApiDocumentTests.cs` | No number-or-string schemas; optional export for the TypeScript client |
+| `Tests/Unit/NextPayoutDateTests.cs` | The next-payout-date rule and the cents conversion |
+
+The rate-limit tests build their own host with small limits (`WithWebHostBuilder` + `UseSetting`). The shared fixture raises the login limit, because every test client shares one "IP".
+
+### 10. Gaps
+
+- **The payout endpoint has no `Idempotency-Key`.** A retried payout is stopped by the "already paid out" rule (422), but the client cannot tell a retry from a real duplicate.
+- **In-memory state.** The idempotency store and the rate limiters live in process memory. They reset on restart, and with several instances each one has its own (limits become ×N).
+- **Login limit per IP.** Members on a shared venue Wi-Fi can lock each other out (see part 4). Without `ForwardedHeaders`, a reverse proxy makes every user one IP.
+- **Development cookie.** `http://localhost:3000` → `https://localhost:7019` is cross-site, so the refresh cookie is not sent until the dev server uses `https` or a proxy (see part 3).
+- **Current cycle and payout date are conventions.** They come from label order and the stokvel's creation date, because cycles carry no dates.
+- **Older endpoints return `decimal` amounts.** Only the home screen uses integer cents so far.
+- **No frontend is built yet.** The TypeScript types are generated and compile-checked, but nothing consumes them beyond `src/home.ts`.

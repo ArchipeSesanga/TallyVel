@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using Api.Common;
 using Api.Application.Contracts;
 using Api.Application.Interfaces;
 using Api.Application.Services;
@@ -9,7 +10,7 @@ using Domain;
 namespace Api.Presentation.Controllers;
 
 [ApiController]
-[Route("api/stokvels")]
+[Route(ApiRoutes.V1 + "/stokvels")]
 public class StokvelController : StokvelControllerBase
 {
     private readonly IStokvelRepository _stokvelRepository;
@@ -74,7 +75,7 @@ public class StokvelController : StokvelControllerBase
         {
 
             // Return the model issues
-            return ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));
+            return ValidationProblem(validationResult.ToModelState());
         }
         try
         {
@@ -102,7 +103,7 @@ public class StokvelController : StokvelControllerBase
 
         var validationResult = await _addMemberValidator.ValidateAsync(request);
         if (!validationResult.IsValid)
-            return ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));
+            return ValidationProblem(validationResult.ToModelState());
 
         // NotFoundException and AlreadyExistsException propagate to
         // TallyVelExceptionHandler, the only place that turns a domain
@@ -140,7 +141,7 @@ public class StokvelController : StokvelControllerBase
 
         var validationResult = await _changeRoleValidator.ValidateAsync(request);
         if (!validationResult.IsValid)
-            return ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));
+            return ValidationProblem(validationResult.ToModelState());
 
         // NotFoundException and BusinessRuleViolationException propagate to
         // TallyVelExceptionHandler, the only place that turns a domain

@@ -1,5 +1,7 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using Api.Common;
+using Microsoft.AspNetCore.RateLimiting;
 using Api.Application.Contracts;
 using Api.Application.Services;
 using Api.Authorization;
@@ -8,7 +10,7 @@ using Domain;
 namespace Api.Presentation.Controllers;
 
 [ApiController]
-[Route("api/stokvels/{stokvelId:guid}/cycles")]
+[Route(ApiRoutes.V1 + "/stokvels/{stokvelId:guid}/cycles")]
 public class CyclesController : StokvelControllerBase
 {
     private readonly ICycleRepository _cycles;
@@ -52,26 +54,28 @@ public class CyclesController : StokvelControllerBase
 
         var validation = await _openValidator.ValidateAsync(request, ct);
         if (!validation.IsValid)
-            return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+            return ValidationProblem(validation.ToModelState());
 
         var cycle = await _cycles.OpenAsync(stokvelId, request.Label, ct);
         return CreatedAtAction(nameof(List), new { stokvelId }, CycleResponse.FromDomain(cycle));
     }
 
     [HttpPost("{cycleId:guid}/payout")]
+    [EnableRateLimiting(RateLimitPolicies.Money)]
     [EndpointSummary("Pay out a cycle")]
     [EndpointDescription("Pays the cycle's total contributions to one member and closes the cycle. Treasurer or Chairperson only.")]
     [ProducesResponseType<PayoutResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status429TooManyRequests, "application/problem+json")]
     public async Task<IActionResult> Payout(Guid stokvelId, Guid cycleId, PayoutRequest request, CancellationToken ct)
     {
         if (await AuthorizeStokvelAsync(stokvelId, StokvelPolicies.Treasurer) is { } denied) return denied;
 
         var validation = await _payoutValidator.ValidateAsync(request, ct);
         if (!validation.IsValid)
-            return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+            return ValidationProblem(validation.ToModelState());
 
         var payout = await _payouts.ProcessAsync(stokvelId, cycleId, request.RecipientUserId, ct);
         return StatusCode(StatusCodes.Status201Created, PayoutResponse.FromDomain(payout));

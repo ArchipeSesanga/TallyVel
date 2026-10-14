@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using Api.Common;
 using Api.Application.Contracts;
 using Api.Application.Interfaces;
 using Domain;
@@ -7,7 +8,7 @@ using Domain;
 namespace Api.Presentation.Controllers;
 
 [ApiController]
-[Route("api/users")]
+[Route(ApiRoutes.V1 + "/users")]
 public class UserController : ControllerBase
 {
     private readonly IUserRepository _userRepository;
@@ -50,7 +51,7 @@ public async Task<ActionResult<UserResponse>> Create(CreateUserRequest request, 
     //validation line
     var result = await _validator.ValidateAsync(request, ct);
     if (!result.IsValid)
-        return ValidationProblem(new ValidationProblemDetails(result.ToDictionary()));
+        return ValidationProblem(result.ToModelState());
 
 
     // logic for the request 

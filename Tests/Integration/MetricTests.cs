@@ -20,10 +20,10 @@ public class MetricTests(PostgresApiFactory factory)
         var stokvelId = await TestApi.CreateStokvelAsync(factory, user);
         var client = TestApi.Client(factory, user.AccessToken);
 
-        var cycle = await client.PostAsJsonAsync($"/api/stokvels/{stokvelId}/cycles", new { label = "2026-10" });
+        var cycle = await client.PostAsJsonAsync($"/api/v1/stokvels/{stokvelId}/cycles", new { label = "2026-10" });
         var cycleId = (await cycle.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
-        var contribution = new HttpRequestMessage(HttpMethod.Post, $"/api/stokvels/{stokvelId}/contributions")
+        var contribution = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/stokvels/{stokvelId}/contributions")
         {
             Content = JsonContent.Create(new { memberUserId = user.Id, cycle = "2026-10", amount = 500m })
         };
@@ -31,7 +31,7 @@ public class MetricTests(PostgresApiFactory factory)
         (await client.SendAsync(contribution)).EnsureSuccessStatusCode();
 
         var payout = await client.PostAsJsonAsync(
-            $"/api/stokvels/{stokvelId}/cycles/{cycleId}/payout", new { recipientUserId = user.Id });
+            $"/api/v1/stokvels/{stokvelId}/cycles/{cycleId}/payout", new { recipientUserId = user.Id });
         Assert.Equal(HttpStatusCode.Created, payout.StatusCode);
 
         Assert.Contains(payouts.GetMeasurementSnapshot(),
