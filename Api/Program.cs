@@ -23,7 +23,22 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+
 var builder = WebApplication.CreateBuilder(args);
+
+// Tagged "ready": only readiness runs it. Liveness must never depend on the
+// database, or one database blip restarts every container at once.
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<TallyVelDbContext>("database", tags: ["ready"]);
+
+// Add this AFTER timing the "before" number in 7.3.
+builder.Services.Configure<HealthCheckServiceOptions>(options =>
+{
+    foreach (var registration in options.Registrations)
+        registration.Timeout = TimeSpan.FromSeconds(3);
+});
 
 // Logging: ILogger<T> is resolvable from DI for every class. Levels come
 // from the "Logging" section of appsettings.*.json.
@@ -178,6 +193,12 @@ if (app.Environment.IsDevelopment())
         Options.Theme = ScalarTheme.Moon; 
     }).AllowAnonymous();
 }
+
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false })
+    .AllowAnonymous();
+app.MapHealthChecks("/health/ready",
+        new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") })
+    .AllowAnonymous();
 
 app.UseExceptionHandler();
 // Turns empty 401/403/404 responses into application/problem+json.

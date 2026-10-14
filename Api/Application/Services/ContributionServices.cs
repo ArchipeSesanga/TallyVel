@@ -97,9 +97,10 @@ public class ContributionServices : IContributionService
 
             var response = ContributionResponse.FromDomain(contribution);
 
+            // No amount: money values stay out of logs; the id finds the row.
             _logger.LogInformation(
-                "Recorded contribution {ContributionId} of {Amount} for member {MemberId} in stokvel {StokvelId}, cycle {Cycle}",
-                contribution.Id, request.Amount, member.Id, stokvelId, request.Cycle);
+                "Recorded contribution {ContributionId} for member {MemberId} in stokvel {StokvelId}, cycle {Cycle}",
+                contribution.Id, member.Id, stokvelId, request.Cycle);
 
             // (e) Mark the key completed with the exact response, so
             // retries replay it verbatim (same Id, same RecordedAt).

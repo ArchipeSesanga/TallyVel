@@ -6,10 +6,15 @@ using Testcontainers.PostgreSql;
 
 using Infrastructure.Data;
 
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Tests.TestSupport;
 
 public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    public CapturedLogs Logs { get; } = new();
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder()
         .WithImage("postgres:17")
         .WithDatabase("tallyvel_test")
@@ -34,6 +39,8 @@ public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // connection string immediately, and ConfigureAppConfiguration values
         // arrive too late. Exact key Program.cs reads: "TallyVel".
         builder.UseSetting("ConnectionStrings:TallyVel", _container.GetConnectionString());
+
+        builder.ConfigureTestServices(services => services.AddSingleton<ILoggerProvider>(Logs));
 
         // Self-contained: don't depend on the developer's user-secrets. TEST-ONLY
         // key, generated fresh on every run so no key value is ever committed.
