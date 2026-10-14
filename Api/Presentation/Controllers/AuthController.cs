@@ -4,6 +4,7 @@ using Api.Common;
 using Api.Application.Contracts;
 using Api.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Api.Presentation.Controllers;
 
@@ -60,11 +61,13 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
     [EndpointSummary("Log in")]
     [EndpointDescription("Returns a short-lived access token in the body. The refresh token is set as an HttpOnly cookie and never appears in the body.")]
     [ProducesResponseType<AccessTokenResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status429TooManyRequests, "application/problem+json")]
     public async Task<ActionResult<AccessTokenResponse>> Login(LoginRequest request, CancellationToken ct)
     {
         var validation = await _loginValidator.ValidateAsync(request, ct);

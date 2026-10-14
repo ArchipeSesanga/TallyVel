@@ -93,6 +93,8 @@ builder.Services.AddCors(options => options.AddPolicy(CorsPolicies.Frontend, pol
     .WithExposedHeaders("Retry-After")
     .SetPreflightMaxAge(TimeSpan.FromMinutes(10))));
 
+builder.Services.AddTallyVelRateLimiting(builder.Configuration);
+
 // This automatically scans and registers all validators found in the same assembly as Program
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
@@ -223,7 +225,10 @@ app.UseCors(CorsPolicies.Frontend);
 
 app.UseHttpsRedirection();
 app.UseAuthentication();
-
+// After authentication, so a policy can partition by the signed-in user;
+// before authorization and the controllers, so a rejected request never
+// reaches ContributionServices and never stores an Idempotency-Key.
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();

@@ -41,6 +41,10 @@ public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
         builder.ConfigureTestServices(services => services.AddSingleton<ILoggerProvider>(Logs));
 
+        // Every test client shares one "IP", and many tests log in. Lift the
+        // login limit here; the rate-limit tests set their own small limits.
+        builder.UseSetting("RateLimiting:Login:PermitLimit", "10000");
+
         // Self-contained: don't depend on the developer's user-secrets. TEST-ONLY
         // key, generated fresh on every run so no key value is ever committed.
         builder.UseSetting("Jwt:SigningKey", Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)));
