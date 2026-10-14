@@ -162,6 +162,36 @@ public class TallyVelExceptionHandlerTests
         Assert.Equal("tag:tallyvel,2026:problem/contribution-already-recorded", json.GetProperty("type").GetString());
     }
 
+    [Fact]
+    public async Task ArgumentException_IsMappedTo400_WithItsFixedMessage()
+    {
+        var (handler, context, body) = Arrange();
+
+        var handled = await handler.TryHandleAsync(
+            context, new ArgumentException("An Idempotency-Key header is required.", "idempotencyKey"),
+            CancellationToken.None);
+
+        Assert.True(handled);
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        var json = ReadJson(body);
+        Assert.Equal("invalid-argument", json.GetProperty("code").GetString());
+        Assert.StartsWith("An Idempotency-Key header is required.", json.GetProperty("detail").GetString());
+        Assert.Equal(LogLevel.Information, Assert.Single(_logger.Entries).Level);
+    }
+
+    [Fact]
+    public async Task ArgumentOutOfRangeException_IsA500_SoItsValueNeverReachesTheClient()
+    {
+        var (handler, context, body) = Arrange();
+
+        var handled = await handler.TryHandleAsync(
+            context, new ArgumentOutOfRangeException("amount", 1234.56m, "Bad amount."), CancellationToken.None);
+
+        Assert.True(handled);
+        Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
+        Assert.DoesNotContain("1234", ReadText(body));
+    }
+
     // A tiny logger that remembers what it was asked to write.
     private sealed class RecordingLogger : ILogger<TallyVelExceptionHandler>
     {

@@ -44,7 +44,11 @@ public sealed class TallyVelExceptionHandler : IExceptionHandler
         }
 
         // A guard clause rejected the input (e.g. a missing Idempotency-Key).
-        if (exception is ArgumentException argumentException)
+        // Exactly ArgumentException: every one TallyVel throws has fixed text.
+        // Subclasses come from the runtime, can carry the value ("Actual value
+        // was ...") and usually mean a bug, so they stay 500s.
+        if (exception is ArgumentException argumentException
+            && exception.GetType() == typeof(ArgumentException))
         {
             _logger.LogInformation(
                 "Request {CorrelationId} rejected with 400 ({ExceptionType})",
