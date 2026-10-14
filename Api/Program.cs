@@ -78,10 +78,24 @@ builder.Services.AddScoped<MemberHomeService>();
 // end of each successful request.
 // Enums travel as names ("Chairperson", "Monthly"). Numbers are still
 // accepted on input, so older clients keep working.
+// Numbers are strict: "amount": "100" is a 400, not silently accepted (the
+// web default reads numbers from strings). Formatter messages are off, so
+// that 400 never names an internal type such as System.Decimal.
 builder.Services.AddControllers(o => o.Filters.Add<SaveChangesFilter>())
-    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
-// The same settings for the OpenAPI document, so it describes what is sent.
-builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+    .AddJsonOptions(o =>
+    {
+        o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        o.JsonSerializerOptions.NumberHandling = JsonNumberHandling.Strict;
+        o.AllowInputFormatterExceptionMessages = false;
+    })
+    .ConfigureApiBehaviorOptions(o => o.InvalidModelStateResponseFactory = ValidationProblems.FromModelState);
+// The same settings for the OpenAPI document, so it describes numbers as
+// numbers only and enums as their names.
+builder.Services.ConfigureHttpJsonOptions(o =>
+{
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    o.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;
+});
 
 builder.Services.AddExceptionHandler<TallyVelExceptionHandler>();
 builder.Services.AddProblemDetails(options =>

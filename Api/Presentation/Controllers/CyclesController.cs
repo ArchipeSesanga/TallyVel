@@ -54,7 +54,7 @@ public class CyclesController : StokvelControllerBase
 
         var validation = await _openValidator.ValidateAsync(request, ct);
         if (!validation.IsValid)
-            return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+            return ValidationProblem(validation.ToModelState());
 
         var cycle = await _cycles.OpenAsync(stokvelId, request.Label, ct);
         return CreatedAtAction(nameof(List), new { stokvelId }, CycleResponse.FromDomain(cycle));
@@ -75,7 +75,7 @@ public class CyclesController : StokvelControllerBase
 
         var validation = await _payoutValidator.ValidateAsync(request, ct);
         if (!validation.IsValid)
-            return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+            return ValidationProblem(validation.ToModelState());
 
         var payout = await _payouts.ProcessAsync(stokvelId, cycleId, request.RecipientUserId, ct);
         return StatusCode(StatusCodes.Status201Created, PayoutResponse.FromDomain(payout));

@@ -51,7 +51,7 @@ public async Task<ActionResult<UserResponse>> Create(CreateUserRequest request, 
     //validation line
     var result = await _validator.ValidateAsync(request, ct);
     if (!result.IsValid)
-        return ValidationProblem(new ValidationProblemDetails(result.ToDictionary()));
+        return ValidationProblem(result.ToModelState());
 
 
     // logic for the request 

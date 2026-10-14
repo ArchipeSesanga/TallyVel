@@ -41,7 +41,7 @@ public class AuthController : ControllerBase
     {
         var validation = await _registerValidator.ValidateAsync(request, ct);
         if (!validation.IsValid)
-            return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+            return ValidationProblem(validation.ToModelState());
 
         var result = await _authService.RegisterAsync(request, ct);
 
@@ -72,7 +72,7 @@ public class AuthController : ControllerBase
     {
         var validation = await _loginValidator.ValidateAsync(request, ct);
         if (!validation.IsValid)
-            return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+            return ValidationProblem(validation.ToModelState());
 
         return ToResponse(await _authService.LoginAsync(request, ct));
     }

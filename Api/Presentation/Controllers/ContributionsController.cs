@@ -95,7 +95,7 @@ public class ContributionsController : StokvelControllerBase
 
         var validationResult = await _validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
-            return ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));
+            return ValidationProblem(validationResult.ToModelState());
 
         // The key travels as a header, not a body field, because it
         // identifies this *HTTP request attempt*, not the payment
