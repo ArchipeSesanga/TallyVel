@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Api.Application.Contracts;
 using Api.Application.Interfaces;
+using Api.Observability;
 using Domain;
 
 namespace Api.Application.Services;
@@ -13,6 +14,7 @@ public class ContributionServices : IContributionService
     private readonly IUserRepository _userRepository;
     private readonly IStokvelRepository _stokvelRepository;
     private readonly IIdempotencyStore _idempotencyStore;
+    private readonly TallyVelMetrics _metrics;
     private readonly ILogger<ContributionServices> _logger;
 
     public ContributionServices(
@@ -20,12 +22,14 @@ public class ContributionServices : IContributionService
         IUserRepository userRepository,
         IStokvelRepository stokvelRepository,
         IIdempotencyStore idempotencyStore,
+        TallyVelMetrics metrics,
         ILogger<ContributionServices> logger)
     {
         _contributionRepository = contributionRepository;
         _userRepository = userRepository;
         _stokvelRepository = stokvelRepository;
         _idempotencyStore = idempotencyStore;
+        _metrics = metrics;
         _logger = logger;
     }
 
@@ -97,10 +101,10 @@ public class ContributionServices : IContributionService
 
             var response = ContributionResponse.FromDomain(contribution);
 
-            // No amount: money values stay out of logs; the id finds the row.
-            _logger.LogInformation(
-                "Recorded contribution {ContributionId} for member {MemberId} in stokvel {StokvelId}, cycle {Cycle}",
-                contribution.Id, member.Id, stokvelId, request.Cycle);
+            // Only the id: amount, member, stokvel and cycle are all in the row it points to.
+            _logger.LogInformation("Recorded contribution {ContributionId}", contribution.Id);
+            // Counted here, after the save; a replay returns earlier and is not counted again.
+            _metrics.ContributionRecorded();
 
             // (e) Mark the key completed with the exact response, so
             // retries replay it verbatim (same Id, same RecordedAt).

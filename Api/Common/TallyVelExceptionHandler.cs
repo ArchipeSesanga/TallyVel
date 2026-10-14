@@ -32,10 +32,11 @@ public sealed class TallyVelExceptionHandler : IExceptionHandler
         {
             var constraint = (dbUpdateException.InnerException as PostgresException)?.ConstraintName;
 
-            // The constraint name is for us, not the client.
+            // The constraint name is for us, not the client. Warning, not
+            // Information: it means a repository missed a translation.
             _logger.LogWarning(
-                "{Method} {Path} violated unique constraint {Constraint} and was mapped to 409",
-                httpContext.Request.Method, httpContext.Request.Path, constraint);
+                "Request {CorrelationId} violated unique constraint {Constraint} and was mapped to 409",
+                Correlation.GetId(httpContext), constraint);
 
             return await WriteProblemAsync(
                 httpContext, exception, StatusCodes.Status409Conflict, "Conflict",
@@ -67,11 +68,11 @@ public sealed class TallyVelExceptionHandler : IExceptionHandler
 
         var (statusCode, title) = MapToResponse(tallyVelException);
 
-        // Expected domain failures: a warning, not an error, and no stack trace.
-        _logger.LogWarning(
-            "Request {CorrelationId} {Method} {Path} rejected with {StatusCode} ({ExceptionType}, {Code}): {Message}",
-            Correlation.GetId(httpContext), httpContext.Request.Method, httpContext.Request.Path,
-            statusCode, exception.GetType().Name, tallyVelException.Code, tallyVelException.Message);
+        // Expected domain failures: Information, no stack trace, and never the
+        // message — several messages name users, stokvels or cycle labels.
+        _logger.LogInformation(
+            "Request {CorrelationId} rejected with {StatusCode} ({ExceptionType}, {Code})",
+            Correlation.GetId(httpContext), statusCode, exception.GetType().Name, tallyVelException.Code);
 
         return await WriteProblemAsync(
             httpContext, tallyVelException, statusCode, title, tallyVelException.Code, tallyVelException.Message);

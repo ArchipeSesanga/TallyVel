@@ -1,4 +1,7 @@
+using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging.Abstractions;
+using Api.Observability;
 using Api.Application.Contracts;
 using Api.Application.Interfaces;
 using Api.Application.Services;
@@ -33,8 +36,11 @@ public class ContributionServiceTests
 
         // Built by hand: no DI container, no HTTP. This is what makes it a unit test.
         _service = new ContributionServices(
-            _contributions, users, stokvels, idempotency, NullLogger<ContributionServices>.Instance);
+            _contributions, users, stokvels, idempotency, Metrics(), NullLogger<ContributionServices>.Instance);
     }
+
+    private static TallyVelMetrics Metrics() =>
+        new(new ServiceCollection().AddMetrics().BuildServiceProvider().GetRequiredService<IMeterFactory>());
 
     [Fact]
     public async Task Recording_for_a_user_who_is_not_a_member_is_rejected()
