@@ -4,6 +4,8 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Tests.TestSupport;
 
+namespace Tests.Integration;
+
 [Collection("Postgres collection")]
 public class LogLeakTests(PostgresApiFactory factory)
 {

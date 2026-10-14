@@ -15,8 +15,7 @@ namespace Tests.TestSupport;
 public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     public CapturedLogs Logs { get; } = new();
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder()
-        .WithImage("postgres:17")
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17")
         .WithDatabase("tallyvel_test")
         .WithUsername("postgres")
         .WithPassword("postgres")
