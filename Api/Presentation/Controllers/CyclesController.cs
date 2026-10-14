@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using Api.Common;
 using Api.Application.Contracts;
 using Api.Application.Services;
 using Api.Authorization;
@@ -8,7 +9,7 @@ using Domain;
 namespace Api.Presentation.Controllers;
 
 [ApiController]
-[Route("api/stokvels/{stokvelId:guid}/cycles")]
+[Route(ApiRoutes.V1 + "/stokvels/{stokvelId:guid}/cycles")]
 public class CyclesController : StokvelControllerBase
 {
     private readonly ICycleRepository _cycles;

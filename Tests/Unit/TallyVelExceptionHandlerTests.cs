@@ -27,7 +27,7 @@ public class TallyVelExceptionHandlerTests
         var body = new MemoryStream();
         var context = new DefaultHttpContext { RequestServices = services };
         context.Request.Method = "POST";
-        context.Request.Path = "/api/stokvels/abc/contributions";
+        context.Request.Path = "/api/v1/stokvels/abc/contributions";
         context.Response.Body = body;
 
         var handler = new TallyVelExceptionHandler(
@@ -77,7 +77,7 @@ public class TallyVelExceptionHandlerTests
         Assert.Equal("Conflict", json.GetProperty("title").GetString());
         Assert.Equal("The request conflicts with an existing record.", json.GetProperty("detail").GetString());
         Assert.Equal("tag:tallyvel,2026:problem/unique-violation", json.GetProperty("type").GetString());
-        Assert.Equal("/api/stokvels/abc/contributions", json.GetProperty("instance").GetString());
+        Assert.Equal("/api/v1/stokvels/abc/contributions", json.GetProperty("instance").GetString());
         Assert.Equal("unique-violation", json.GetProperty("code").GetString());
     }
 

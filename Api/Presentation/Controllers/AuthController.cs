@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using Api.Common;
 using Api.Application.Contracts;
 using Api.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -8,11 +9,12 @@ namespace Api.Presentation.Controllers;
 
 [AllowAnonymous]
 [ApiController]
-[Route("api/auth")]
+[Route(ApiRoutes.V1 + "/auth")]
 public class AuthController : ControllerBase
 {
     private const string RefreshCookieName = "tallyvel_rt";
-    private const string CookiePath = "/api/auth";
+    // Built from the same constant as the route, so they cannot drift apart.
+    private const string CookiePath = "/" + ApiRoutes.V1 + "/auth";
 
     private readonly IAuthService _authService;
     private readonly IValidator<RegisterRequest> _registerValidator;
@@ -108,7 +110,7 @@ public class AuthController : ControllerBase
             HttpOnly = true,                      // JavaScript cannot read it, so XSS cannot steal it
             Secure = true,                        // HTTPS only
             SameSite = SameSiteMode.Strict,       // never sent on cross-site requests
-            Path = CookiePath,                    // only sent to /api/auth/*, not to every API call
+            Path = CookiePath,                    // only sent to /api/v1/auth/*, not to every API call
             Expires = tokens.RefreshTokenExpiresAt
         });
 
