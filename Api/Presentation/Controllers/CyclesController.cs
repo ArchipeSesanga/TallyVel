@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using Api.Common;
+using Microsoft.AspNetCore.RateLimiting;
 using Api.Application.Contracts;
 using Api.Application.Services;
 using Api.Authorization;
@@ -60,12 +61,14 @@ public class CyclesController : StokvelControllerBase
     }
 
     [HttpPost("{cycleId:guid}/payout")]
+    [EnableRateLimiting(RateLimitPolicies.Money)]
     [EndpointSummary("Pay out a cycle")]
     [EndpointDescription("Pays the cycle's total contributions to one member and closes the cycle. Treasurer or Chairperson only.")]
     [ProducesResponseType<PayoutResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status429TooManyRequests, "application/problem+json")]
     public async Task<IActionResult> Payout(Guid stokvelId, Guid cycleId, PayoutRequest request, CancellationToken ct)
     {
         if (await AuthorizeStokvelAsync(stokvelId, StokvelPolicies.Treasurer) is { } denied) return denied;

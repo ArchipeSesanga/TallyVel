@@ -12,6 +12,7 @@ namespace Api.Common;
 public static class RateLimitPolicies
 {
     public const string Login = "login";
+    public const string Money = "money";
 
     public static IServiceCollection AddTallyVelRateLimiting(this IServiceCollection services, IConfiguration config)
     {
@@ -19,6 +20,13 @@ public static class RateLimitPolicies
         // IP is the only key; it slows password guessing from one machine.
         var loginPermitLimit = config.GetValue("RateLimiting:Login:PermitLimit", 5);
         var loginWindow = TimeSpan.FromSeconds(config.GetValue("RateLimiting:Login:WindowSeconds", 60));
+
+        // Money (record contribution, process payout): a token bucket per
+        // signed-in user. A treasurer records a burst after a meeting, then
+        // nothing for weeks; the bucket allows the burst and refills slowly.
+        var moneyTokenLimit = config.GetValue("RateLimiting:Money:TokenLimit", 30);
+        var moneyTokensPerPeriod = config.GetValue("RateLimiting:Money:TokensPerPeriod", 10);
+        var moneyPeriod = TimeSpan.FromSeconds(config.GetValue("RateLimiting:Money:ReplenishmentPeriodSeconds", 60));
 
         return services.AddRateLimiter(options =>
         {
@@ -33,6 +41,24 @@ public static class RateLimitPolicies
                     Window = loginWindow,
                     QueueLimit = 0,
                 }));
+
+            options.AddPolicy(Money, http =>
+            {
+                // No "sub" means not signed in: let it through to authorization,
+                // which answers with the normal 401.
+                var userId = http.User.FindFirst("sub")?.Value;
+                if (userId is null)
+                    return RateLimitPartition.GetNoLimiter("anonymous");
+
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ => new TokenBucketRateLimiterOptions
+                {
+                    TokenLimit = moneyTokenLimit,
+                    TokensPerPeriod = moneyTokensPerPeriod,
+                    ReplenishmentPeriod = moneyPeriod,
+                    QueueLimit = 0,
+                    AutoReplenishment = true,
+                });
+            });
         });
     }
 
