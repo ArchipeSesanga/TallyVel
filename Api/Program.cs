@@ -56,6 +56,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
 builder.Services.AddScoped<StokvelMembershipService>();
 builder.Services.AddScoped<IContributionService, ContributionServices>();
+builder.Services.AddScoped<PayoutService>();
 // Saves changes made to tracked entities (e.g. stokvel memberships) at the
 // end of each successful request.
 builder.Services.AddControllers(o => o.Filters.Add<SaveChangesFilter>());

@@ -32,9 +32,15 @@ public sealed class StokvelRoleHandler(TallyVelDbContext db)
             .FirstOrDefaultAsync();
 
         if (role is null)
-            context.Fail(new AuthorizationFailureReason(this, NotMember));
-        else if (!requirement.AllowedRoles.Contains(role.Value))
-            context.Fail(new AuthorizationFailureReason(this, MissingRole));
+{
+    metrics.AuthorizationRefused("not_found");
+    context.Fail(new AuthorizationFailureReason(this, NotMember));
+}
+else if (!requirement.AllowedRoles.Contains(role.Value))
+{
+    metrics.AuthorizationRefused("forbidden");
+    context.Fail(new AuthorizationFailureReason(this, MissingRole));
+}
         else
             context.Succeed(requirement);
     }
