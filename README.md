@@ -828,3 +828,239 @@ Other behaviour: `GET /api/stokvels` lists only the caller's own stokvels, and `
 - Atomic handling of two simultaneous refreshes (today the loser is treated as reuse and the session is revoked).
 - Equal response timing for unknown email vs wrong password (a dummy hash narrows the gap but it is not measured).
 - Log excerpt / POPIA audit and rate limiting.
+
+## Observability & POPIA (Assignment 6.2)
+
+TallyVel sends traces, metrics and logs through OpenTelemetry. Personal and financial data stays out of all three. This section shows what is recorded, what is left out on purpose, and the audit behind it.
+
+### 1. Running the Aspire dashboard
+
+Start the dashboard in Docker:
+
+```bash
+docker run --rm -d --name aspire-dashboard \
+  -p 18888:18888 -p 4317:18889 \
+  -e DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true \
+  mcr.microsoft.com/dotnet/aspire-dashboard:latest
+```
+
+Then run the API with the `https` profile:
+
+```bash
+dotnet run --project Api --launch-profile https
+```
+
+Open http://localhost:18888. Both launch profiles set `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`. Program.cs only turns on the OTLP exporter when that variable is set, so tests and CI never try to reach a dashboard.
+
+> **Warning:** this dashboard has no login. `DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true` lets anyone who can reach port 18888 read every trace and log. It is for a developer laptop only. Never deploy it, and never expose the port.
+
+### 2. A payout trace
+
+![Payout trace](docs/payout-trace.png)
+
+The request span (`POST …/cycles/{cycleId}/payout`) has a child `payout.process` span, and the payout's SQL commands sit under `payout.process`. The authorization query (the caller's role lookup) runs before the service, so it sits beside `payout.process` as a sibling under the request span.
+
+### 3. Span tags
+
+`PayoutService` owns the `payout.process` span. These are its tags:
+
+| Tag | Example | Why it is safe | What a support engineer gains |
+|---|---|---|---|
+| `tallyvel.cycle.id` | `3f2c…e91a` | A random GUID. It names a cycle, not a person, and says nothing without database access. | Finds the exact cycle row to inspect. |
+| `tallyvel.payout.outcome` | `already_paid_out` | One of six fixed strings from `PayoutOutcome`. Never user input. | Sees at a glance why a payout was refused. |
+| `error.type` (failures only) | `cycle-already-paid-out` or `NpgsqlException` | The domain code or the exception type name. Never `ex.Message`. | Separates an expected refusal from a real fault. |
+
+A failed payout also sets the span status to `Error`, with the outcome string as its description. `AddException` is not used, because it would copy the exception message and stack trace into the span.
+
+The Npgsql spans carry SQL text with placeholders (`$1`, `$2`), never parameter values.
+
+What is deliberately **not** tagged:
+
+| Not tagged | Why |
+|---|---|
+| Amount | Financial data. A trace store is not where money values belong, and anyone with dashboard access would see them. |
+| Recipient user id | It ties a person to a payout. That is personal information under POPIA. |
+| Stokvel id | Together with the recipient it shows who is in which group and who got paid. |
+| Cycle label | Free text the treasurer types (e.g. "2026-10" or "Thandi's December"). It can contain a name. |
+
+### 4. Metric tags
+
+All metrics come from the `TallyVel` meter in `TallyVelMetrics`, registered as a singleton.
+
+| Metric | Tag | Possible values | Max distinct values |
+|---|---|---|---|
+| `tallyvel.contributions.recorded` | none | — | 1 |
+| `tallyvel.payouts.processed` | `outcome` | `succeeded`, `cycle_not_found`, `recipient_not_member`, `nothing_to_pay_out`, `already_paid_out`, `error` | 6 |
+| `tallyvel.authorization.refusals` | `result` | `not_found`, `forbidden` | 2 |
+
+Total: **9 series**. The set is fixed in code. `PayoutOutcome.From` maps any unknown code to `error`, so the count cannot grow by accident.
+
+A chairperson asks: "How many payouts did my stokvel process this year?" That is a database query, not a metric:
+
+- **Per stokvel is an unbounded tag.** One series per stokvel grows with every new group, and it links a named group to money flow in a store meant for operations.
+- **It needs an exact, permanent answer.** Metrics are aggregated, can be sampled, and expire under retention. The `Payouts` table is the record.
+- **It must go through the API's authorization.** Only members of that stokvel may see it. A metrics backend has no idea who is in which stokvel.
+
+```sql
+SELECT COUNT(*)      AS payouts,
+       SUM("Amount") AS total_paid
+FROM "Payouts"
+WHERE "StokvelId" = @stokvelId
+  AND "PaidAt" >= '2026-01-01'
+  AND "PaidAt" <  '2027-01-01';
+```
+
+It would be served by an endpoint guarded by the stokvel `Member` policy.
+
+### 5. Correlation
+
+`Correlation.GetId` returns `Activity.Current.TraceId`, which is the W3C trace id of the request span. If there is no current activity, it falls back to `HttpContext.TraceIdentifier`.
+
+`AddProblemDetails` sets `correlationId` on **every** problem response through `CustomizeProblemDetails`. That covers:
+
+- everything `TallyVelExceptionHandler` writes (400, 404, 409, 422, 500);
+- the framework's empty 401 and 403, which `UseStatusCodePages` turns into problem JSON;
+- the non-member 404 that `StokvelControllerBase` returns.
+
+If a caller sends a `traceparent` header, ASP.NET Core continues that trace. The `correlationId` is then the caller's own trace id. The tests send `traceparent` and check this for an anonymous 401 and a non-member 404.
+
+A user who quotes a `correlationId` can be found in the dashboard by trace id. The error log line carries the same id.
+
+### 6. EF command log level per environment
+
+| Environment | `Microsoft.EntityFrameworkCore.Database.Command` |
+|---|---|
+| Development (`appsettings.Development.json`) | `Information` |
+| Production (`appsettings.json`) | `Warning` |
+
+Why `Warning` in production:
+
+- **Volume.** A payout runs about five SQL commands. At `Information`, every request writes several lines of SQL that nobody reads.
+- **Failures still appear.** EF logs a failed command at `Error`, which `Warning` lets through.
+- **The trace already has it.** Npgsql instrumentation records every command as a span with its SQL text and duration. Logs answer "what happened to this request"; the trace answers "which SQL ran and how long it took".
+- **Parameter values are never logged in either environment.** They show as `?` unless `EnableSensitiveDataLogging()` is on. That call, and `LogTo`, appear nowhere in TallyVel.
+
+### 7. POPIA log audit
+
+Every `Log*` call and every `throw new` was listed with:
+
+```bash
+grep -rnE "Log[A-Z][a-z]*\(|throw new" --include="*.cs" Api Infrastructure Domain | grep -v Migrations
+```
+
+#### Log calls
+
+| File | Before | Can contain | Personal / financial? | After |
+|---|---|---|---|---|
+| `Api/Application/Services/ContributionServices.cs:105` | `Information`: "Recorded contribution {ContributionId} of {Amount} for member {MemberId} in stokvel {StokvelId}, cycle {Cycle}" | Amount, member id, stokvel id, cycle label | **Yes. Finding 1:** money tied to a person and a group | `Information`: "Recorded contribution {ContributionId}" |
+| `Api/Common/TallyVelExceptionHandler.cs:77` | `Warning`: "{Method} {Path} rejected with {StatusCode} ({Code}): {Message}" | Exception message (user ids, stokvel ids, cycle labels, before the fix the email) | Yes, through the message | `Information`: "Request {CorrelationId} rejected with {StatusCode} ({ExceptionType}, {Code})" |
+| `Api/Common/TallyVelExceptionHandler.cs:37` | `Warning`: "{Method} {Path} violated unique constraint {Constraint} and was mapped to 409" | Path (stokvel id), constraint name | Stokvel id only | `Warning`: "Request {CorrelationId} violated unique constraint {Constraint} and was mapped to 409" |
+| `Api/Common/TallyVelExceptionHandler.cs:65` | `Error`: "Unhandled exception on {Method} {Path}" + exception | Path, exception message and stack | Possibly, through the message | `Error`: "Request {CorrelationId} failed with 500" + exception. The client gets only the generic detail. |
+| `Api/Common/TallyVelExceptionHandler.cs:53` | (none: the exception became a 500) | Exception type | No | `Information`: "Request {CorrelationId} rejected with 400 ({ExceptionType})" |
+| `Api/Application/Services/AuthService.cs:65` | (none) | Nothing | No | `Information`: "Sign-in failed: no account matches the submitted email" |
+| `Api/Application/Services/AuthService.cs:72` | (none) | User id | Pseudonymous id | `Information`: "Sign-in failed: wrong password for user {UserId}" |
+| `Api/Application/Services/AuthService.cs:101` | `Warning`: "Refresh token reuse detected for user {UserId}, family {FamilyId} revoked" | User id, token family id | Pseudonymous id | Unchanged |
+| `Api/Application/Services/AuthService.cs:116` | `Warning`: "Concurrent refresh token reuse for user {UserId}, family {FamilyId} revoked" | User id, token family id | Pseudonymous id | Unchanged |
+| `Api/Authorization/StokvelRoleHandler.cs:55` | (none) | User id, result | Pseudonymous id. The stokvel id is left out on purpose. | `Information`: "Stokvel access refused for user {UserId}: {Result}" |
+| `Api/Application/Services/ContributionServices.cs:59` | `Information`: "Replaying completed request for Idempotency-Key {IdempotencyKey}" | Client-generated random key | No | Unchanged |
+| `Api/Application/Services/PayoutService.cs:22` | (none) | Payout id, cycle id | No amount, no recipient | `Information`: "Payout {PayoutId} processed for cycle {CycleId}" |
+| `Api/Application/Services/StokvelMembershipService.cs:41` | `Information`: "Added user {UserId} to stokvel {StokvelId} as {Role}" | User id, stokvel id, role | Group membership (pseudonymous) | Unchanged (see Gaps) |
+| `Api/Application/Services/StokvelMembershipService.cs:66` | `Information`: "Removed user {UserId} from stokvel {StokvelId}" | User id, stokvel id | Group membership (pseudonymous) | Unchanged (see Gaps) |
+| `Api/Application/Services/StokvelMembershipService.cs:89` | `Information`: "Changed role of user {UserId} in stokvel {StokvelId} to {Role}" | User id, stokvel id, role | Group membership (pseudonymous) | Unchanged (see Gaps) |
+| `Api/Filters/SaveChangesFilter.cs:47` | `Debug`: "Saved {EntryCount} change(s) for {Action}" | Count, action name | No | Unchanged |
+| `Infrastructure/Persistence/DatabaseSeeder.cs:27` | `Debug`: "Database already has data; skipping seed" | Nothing | No | Unchanged |
+| `Infrastructure/Persistence/DatabaseSeeder.cs:36` | `Information`: "Seeded database with {UserCount} users and {StokvelCount} stokvels" | Counts | No | Unchanged |
+
+#### Exception messages
+
+Where a message goes:
+
+- **`TallyVelException`:** to the caller as the problem `detail`. It is no longer logged.
+- **Plain `ArgumentException`:** to the caller as the 400 `detail`. Only its type is logged.
+- **Anything else:** into the `Error` log with its stack. The caller only gets the generic 500 text.
+
+| File | Message | Reaches | Personal? | Change |
+|---|---|---|---|---|
+| `Infrastructure/Persistence/EfUserRepository.cs:42` | "A user with email '{email}' already exists." | `POST /api/users` (`UserController`): the caller as the 409 `detail`, and before the handler fix also the `Warning` log | **Yes. Finding 2:** the email | "A user with this email already exists." |
+| `Infrastructure/Persistence/EfUserRepository.cs:74` | "A user with email '{email}' already exists." | Caught by `AuthService.RegisterAsync`, which returns its own 409 without the message | **Yes. Finding 2:** the email | "A user with this email already exists." |
+| `Infrastructure/Persistence/InMemoryUserRepository.cs:42` | "A user with email '{email}' already exists." | Unit tests only | **Yes. Finding 2:** the email | "A user with this email already exists." |
+| `Api/Application/Services/ContributionServices.cs:86` | "User {id} is not a member of stokvel {id}." | Caller (422) | Ids the caller sent | None. No longer logged. |
+| `Api/Application/Services/ContributionServices.cs:93` | "User {id} has already contributed to stokvel {id} for cycle '{label}'." | Caller (409) | Ids and label the caller sent | None. No longer logged. |
+| `Infrastructure/Persistence/EfCycleRepository.cs:32` | "User {id} is not a member of this stokvel." | Caller (422) | Id the caller sent | None. No longer logged. |
+| `Infrastructure/Persistence/EfCycleRepository.cs:40` | "No contributions have been recorded for cycle '{label}'." | Caller (422) | Cycle label | None. No longer logged. |
+| `Domain/Exceptions/Exceptions.cs` (`NotFoundException`) | "No {resource} found with id {id}" | Caller (404) | Id the caller sent | None |
+| `Domain/Exceptions/Exceptions.cs` (`IdempotencyKey*Exception`) | Echo the Idempotency-Key | Caller (409/422) | No (random key) | None |
+| `Api/Application/Contracts/Paging.cs:13`, `Domain/Models/ContributionQuery.cs:27`, `Infrastructure/Persistence/EfContributionRepository.cs:141` | pageSize, sort and page-token errors | Caller (400) | No | None |
+| `Api/Application/Services/StokvelMembershipService.cs` (9 throws) | Fixed text from `Stokvel`, or `NotFoundException` | Caller (404/409/422) | Ids the caller sent | None |
+| `Api/Application/Services/ContributionServices.cs:45` | "An Idempotency-Key header is required." | Caller (400) | No | Was a 500, now a 400 |
+| `Domain/Entities/*.cs` (`ArgumentException`, 19 throws) | Fixed text, at most a constant max length | Caller (400) | No: none include the submitted value | None |
+| `Infrastructure/Persistence/EfUserRepository.cs:48`, `InMemoryUserRepository.cs:30`, `EfStokvelRepository.cs:51`, `InMemoryStokvelRepository.cs:27`, `InMemoryContributionRepository.cs:21` | "A {thing} with id {id} already exists." | `Error` log (500) | Pseudonymous id | None. These are bugs (duplicate GUID), not user errors. |
+| `Domain/Entities/ContributionCycle.cs:64`, `Domain/Entities/Stokvel.cs` (5 throws) | Fixed text | Wrapped into domain exceptions | No | None |
+| `Infrastructure/Persistence/DatabaseSeeder.cs:20`, `VolumeSeeder.cs:25` | Pending migrations; database name | Startup console | No | None |
+| `Api/Common/TallyVelExceptionHandler.cs:136` | "{Type} has no mapping in TallyVelExceptionHandler." | `Error` log | No | None |
+| `Infrastructure/Persistence/InMemoryContributionRepository.cs:46,51` | `NotImplementedException` | Unit tests only | No | None |
+
+Only plain `ArgumentException` becomes a 400. Runtime subclasses such as `ArgumentOutOfRangeException` add "Actual value was …" to their message, so they stay 500s and their message never reaches the caller. A unit test checks this.
+
+#### Security events
+
+| Event | Level | Why |
+|---|---|---|
+| Failed sign-in (unknown email or wrong password) | `Information` | Failures happen all the time (typos, forgotten passwords). One is not an incident. A spike shows up in counts, and rate limiting is the control. The typed email is never logged: it may be someone else's address. |
+| Refresh-token reuse | `Warning` | A used token coming back means it was probably stolen. The whole token family is revoked. Someone should look. |
+| Stokvel authorization refusal | `Information` | Usually a stale link or a member who lost a role. It is also counted in `tallyvel.authorization.refusals`, so a spike is visible without reading logs. |
+
+### 8. Readiness timings
+
+`/health/ready` runs the `database` check (`AddDbContextCheck`, tagged `ready`). `/health/live` runs no checks. Every check has a 3-second timeout. Both endpoints allow anonymous access.
+
+| Database state | Before timeout | After 3 s timeout |
+|---|---|---|
+| Stopped (`docker stop tallyvel-pg`) | TODO | TODO |
+| Paused (`docker pause tallyvel-pg`) | TODO | TODO |
+
+Measured with:
+
+```bash
+curl -s -o /dev/null -w "%{http_code} %{time_total}s\n" https://localhost:7019/health/ready -k
+```
+
+`EnableRetryOnFailure` is **not** enabled in TallyVel.
+
+- A **stopped** database fails fast. Nothing is listening, so the connection is refused at once and the check returns `Unhealthy`.
+- A **paused** database (or a network partition) is the dangerous case. The TCP connection opens, but Postgres never answers. Without the timeout, Npgsql waits for its default connection timeout of about 15 seconds.
+- Probes must answer fast. An orchestrator that waits 15 s per probe is slow to take a broken instance out of traffic. The 3 s timeout turns "no answer" into a quick `503`.
+
+### 9. Log excerpt
+
+TODO: paste the console output for a login, a payout and a non-member 404.
+
+```text
+TODO
+```
+
+No email, password, token, amount or name appears in these lines.
+
+### 10. Test result
+
+```text
+Passed!  - Failed:     0, Passed:    37, Skipped:     0, Total:    37, Duration: 6 s - Tests.dll (net10.0)
+```
+
+Run with the dev database stopped (`docker stop tallyvel-pg`), to prove the tests use their own Testcontainers Postgres. TODO: confirm on your machine.
+
+The observability tests:
+
+- **Probes:** `/health/live` and `/health/ready` return 200 `Healthy` without a token.
+- **Correlation:** a `traceparent` header comes back as `correlationId` on an anonymous 401 and on a non-member 404.
+- **Log leak:** the test registers, logs in, refreshes, records a contribution of 1234.56 and repeats a registration (409). No captured log contains the email, the password, either token or the amount, and the 409 writes no `Error` entry.
+- **Metric:** a payout produces a `tallyvel.payouts.processed` measurement with `outcome = succeeded`.
+
+### 11. Gaps
+
+- **No sampling.** Every request is traced. Fine on a laptop, too much in production.
+- **No retention policy.** Nothing says how long traces and logs are kept. POPIA expects personal information not to be kept longer than needed.
+- **No alerting.** Refusal spikes and token reuse are recorded, but nobody is notified.
+- **Membership logs still carry user and stokvel ids.** The three `StokvelMembershipService` lines show who joined or left which group.
+- **The duplicate-email race can log at `Error`.** Two registrations with the same email can both pass the pre-check. The unique index stops one, and EF logs the failed save at `Error` before `AuthService` turns it into a 409. Npgsql redacts the row detail by default (`Include Error Detail` is not set), so the email does not appear.
+- **The dashboard has no login.** See the warning in part 1.

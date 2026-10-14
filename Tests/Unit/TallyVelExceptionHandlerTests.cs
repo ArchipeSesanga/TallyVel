@@ -111,21 +111,24 @@ public class TallyVelExceptionHandlerTests
     }
 
     [Fact]
-    public async Task ForeignKeyViolation_23503_IsNotTurnedInto409()
+    public async Task ForeignKeyViolation_23503_IsA500NotA409()
     {
         var (handler, context, body) = Arrange();
 
         var handled = await handler.TryHandleAsync(
             context, DbUpdate("23503", "FK_Contributions_Users_MemberUserId"), CancellationToken.None);
 
-        // Not handled: the default handler turns it into a plain 500, as before.
-        Assert.False(handled);
-        Assert.NotEqual(StatusCodes.Status409Conflict, context.Response.StatusCode);
-        Assert.Equal(0, body.Length);
+        // Not a conflict: it becomes the generic 500, with nothing from Postgres in it.
+        Assert.True(handled);
+        Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
+        var text = ReadText(body);
+        Assert.Equal("internal-error", ReadJson(body).GetProperty("code").GetString());
+        Assert.DoesNotContain("FK_Contributions_Users_MemberUserId", text);
+        Assert.DoesNotContain("secret-row-data", text);
     }
 
     [Fact]
-    public async Task DbUpdateException_WithoutAPostgresInnerException_IsNotTurnedInto409()
+    public async Task DbUpdateException_WithoutAPostgresInnerException_IsA500NotA409()
     {
         var (handler, context, body) = Arrange();
 
@@ -133,9 +136,10 @@ public class TallyVelExceptionHandlerTests
             context, new DbUpdateException("save failed", new InvalidOperationException("boom")),
             CancellationToken.None);
 
-        Assert.False(handled);
-        Assert.NotEqual(StatusCodes.Status409Conflict, context.Response.StatusCode);
-        Assert.Equal(0, body.Length);
+        Assert.True(handled);
+        Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
+        Assert.Equal("internal-error", ReadJson(body).GetProperty("code").GetString());
+        Assert.DoesNotContain("boom", ReadText(body));
     }
 
     [Fact]
@@ -156,6 +160,36 @@ public class TallyVelExceptionHandlerTests
         Assert.Equal("Already Exists", json.GetProperty("title").GetString());
         Assert.Equal("contribution-already-recorded", json.GetProperty("code").GetString());
         Assert.Equal("tag:tallyvel,2026:problem/contribution-already-recorded", json.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task ArgumentException_IsMappedTo400_WithItsFixedMessage()
+    {
+        var (handler, context, body) = Arrange();
+
+        var handled = await handler.TryHandleAsync(
+            context, new ArgumentException("An Idempotency-Key header is required.", "idempotencyKey"),
+            CancellationToken.None);
+
+        Assert.True(handled);
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        var json = ReadJson(body);
+        Assert.Equal("invalid-argument", json.GetProperty("code").GetString());
+        Assert.StartsWith("An Idempotency-Key header is required.", json.GetProperty("detail").GetString());
+        Assert.Equal(LogLevel.Information, Assert.Single(_logger.Entries).Level);
+    }
+
+    [Fact]
+    public async Task ArgumentOutOfRangeException_IsA500_SoItsValueNeverReachesTheClient()
+    {
+        var (handler, context, body) = Arrange();
+
+        var handled = await handler.TryHandleAsync(
+            context, new ArgumentOutOfRangeException("amount", 1234.56m, "Bad amount."), CancellationToken.None);
+
+        Assert.True(handled);
+        Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
+        Assert.DoesNotContain("1234", ReadText(body));
     }
 
     // A tiny logger that remembers what it was asked to write.

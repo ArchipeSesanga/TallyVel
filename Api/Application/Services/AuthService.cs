@@ -61,12 +61,17 @@ public class AuthService(
         if (user is null)
         {
             hasher.VerifyHashedPassword(null!, DummyHash.Value, req.Password); // burn the same CPU time
+            // Never the typed email: it may be someone else's address or a typo of one.
+            logger.LogInformation("Sign-in failed: no account matches the submitted email");
             return AuthResult.Unauthorized(InvalidCredentials);
         }
 
         var check = hasher.VerifyHashedPassword(user, user.PasswordHash, req.Password);
         if (check == PasswordVerificationResult.Failed)
+        {
+            logger.LogInformation("Sign-in failed: wrong password for user {UserId}", user.Id);
             return AuthResult.Unauthorized(InvalidCredentials);
+        }
 
         if (check == PasswordVerificationResult.SuccessRehashNeeded)
         {

@@ -40,7 +40,7 @@ public sealed class InMemoryUserRepository : IUserRepository
     {
         if (_users.Values.Any(u => u.Email == user.Email))
             throw new AlreadyExistsException(
-                "user-email-already-exists", $"A user with email '{user.Email}' already exists.");
+                "user-email-already-exists", "A user with this email already exists.");
 
         Add(user);
         return Task.CompletedTask;

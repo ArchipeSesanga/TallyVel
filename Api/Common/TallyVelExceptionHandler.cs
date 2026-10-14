@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Domain;
 using Infrastructure.Persistence;
+using Api.Observability;
 
 namespace Api.Common;
 
@@ -31,31 +32,51 @@ public sealed class TallyVelExceptionHandler : IExceptionHandler
         {
             var constraint = (dbUpdateException.InnerException as PostgresException)?.ConstraintName;
 
-            // The constraint name is for us, not the client.
+            // The constraint name is for us, not the client. Warning, not
+            // Information: it means a repository missed a translation.
             _logger.LogWarning(
-                "{Method} {Path} violated unique constraint {Constraint} and was mapped to 409",
-                httpContext.Request.Method, httpContext.Request.Path, constraint);
+                "Request {CorrelationId} violated unique constraint {Constraint} and was mapped to 409",
+                Correlation.GetId(httpContext), constraint);
 
             return await WriteProblemAsync(
                 httpContext, exception, StatusCodes.Status409Conflict, "Conflict",
                 "unique-violation", "The request conflicts with an existing record.");
         }
 
-        // Not one of ours → it's a bug. Let the default handler return a
-        // plain 500 so no internal details reach the client.
+        // A guard clause rejected the input (e.g. a missing Idempotency-Key).
+        // Exactly ArgumentException: every one TallyVel throws has fixed text.
+        // Subclasses come from the runtime, can carry the value ("Actual value
+        // was ...") and usually mean a bug, so they stay 500s.
+        if (exception is ArgumentException argumentException
+            && exception.GetType() == typeof(ArgumentException))
+        {
+            _logger.LogInformation(
+                "Request {CorrelationId} rejected with 400 ({ExceptionType})",
+                Correlation.GetId(httpContext), exception.GetType().Name);
+
+            return await WriteProblemAsync(httpContext, exception,
+                StatusCodes.Status400BadRequest, "Bad Request", "invalid-argument", argumentException.Message);
+        }
+
+        // Not one of ours → it's a bug. Return a generic 500 so no internal
+        // details reach the client; the correlationId links it to the logs.
         if (exception is not TallyVelException tallyVelException)
         {
-            _logger.LogError(exception, "Unhandled exception on {Method} {Path}",
-                httpContext.Request.Method, httpContext.Request.Path);
-            return false;
+            _logger.LogError(exception, "Request {CorrelationId} failed with 500",
+                Correlation.GetId(httpContext));
+
+            return await WriteProblemAsync(httpContext, exception,
+                StatusCodes.Status500InternalServerError, "Internal Server Error", "internal-error",
+                "Something went wrong on our side. Quote the correlationId if you report this.");
         }
 
         var (statusCode, title) = MapToResponse(tallyVelException);
 
-        // Expected domain failures: a warning, not an error, and no stack trace.
-        _logger.LogWarning("{Method} {Path} rejected with {StatusCode} ({Code}): {Message}",
-            httpContext.Request.Method, httpContext.Request.Path, statusCode,
-            tallyVelException.Code, tallyVelException.Message);
+        // Expected domain failures: Information, no stack trace, and never the
+        // message — several messages name users, stokvels or cycle labels.
+        _logger.LogInformation(
+            "Request {CorrelationId} rejected with {StatusCode} ({ExceptionType}, {Code})",
+            Correlation.GetId(httpContext), statusCode, exception.GetType().Name, tallyVelException.Code);
 
         return await WriteProblemAsync(
             httpContext, tallyVelException, statusCode, title, tallyVelException.Code, tallyVelException.Message);
@@ -102,13 +123,13 @@ public sealed class TallyVelExceptionHandler : IExceptionHandler
     private static (int StatusCode, string Title) MapToResponse(TallyVelException exception) =>
         exception switch
         {
-            PageSizeException                 => (StatusCodes.Status400BadRequest,          "Invalid Page Size"),
-            InvalidQueryException             => (StatusCodes.Status400BadRequest,          "Invalid Query"),
-            NotFoundException                 => (StatusCodes.Status404NotFound,            "Not Found"),
-            BusinessRuleViolationException    => (StatusCodes.Status422UnprocessableEntity, "Business Rule Violation"),
-            AlreadyExistsException            => (StatusCodes.Status409Conflict,            "Already Exists"),
-            IdempotencyKeyReusedException     => (StatusCodes.Status422UnprocessableEntity, "Idempotency Key Reused"),
-            IdempotencyKeyInProgressException => (StatusCodes.Status409Conflict,            "Request Still In Progress"),
+            PageSizeException => (StatusCodes.Status400BadRequest, "Invalid Page Size"),
+            InvalidQueryException => (StatusCodes.Status400BadRequest, "Invalid Query"),
+            NotFoundException => (StatusCodes.Status404NotFound, "Not Found"),
+            BusinessRuleViolationException => (StatusCodes.Status422UnprocessableEntity, "Business Rule Violation"),
+            AlreadyExistsException => (StatusCodes.Status409Conflict, "Already Exists"),
+            IdempotencyKeyReusedException => (StatusCodes.Status422UnprocessableEntity, "Idempotency Key Reused"),
+            IdempotencyKeyInProgressException => (StatusCodes.Status409Conflict, "Request Still In Progress"),
 
             // Fail loudly if a new TallyVelException is added without a
             // mapping, instead of silently becoming a 500.

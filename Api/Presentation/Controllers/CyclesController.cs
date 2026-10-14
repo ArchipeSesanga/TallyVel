@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using Api.Application.Contracts;
+using Api.Application.Services;
 using Api.Authorization;
 using Domain;
 
@@ -11,15 +12,18 @@ namespace Api.Presentation.Controllers;
 public class CyclesController : StokvelControllerBase
 {
     private readonly ICycleRepository _cycles;
+    private readonly PayoutService _payouts;
     private readonly IValidator<OpenCycleRequest> _openValidator;
     private readonly IValidator<PayoutRequest> _payoutValidator;
 
     public CyclesController(
         ICycleRepository cycles,
+        PayoutService payouts,
         IValidator<OpenCycleRequest> openValidator,
         IValidator<PayoutRequest> payoutValidator)
     {
         _cycles = cycles;
+        _payouts = payouts;
         _openValidator = openValidator;
         _payoutValidator = payoutValidator;
     }
@@ -69,7 +73,7 @@ public class CyclesController : StokvelControllerBase
         if (!validation.IsValid)
             return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
 
-        var payout = await _cycles.PayOutAsync(stokvelId, cycleId, request.RecipientUserId, ct);
+        var payout = await _payouts.ProcessAsync(stokvelId, cycleId, request.RecipientUserId, ct);
         return StatusCode(StatusCodes.Status201Created, PayoutResponse.FromDomain(payout));
     }
 }

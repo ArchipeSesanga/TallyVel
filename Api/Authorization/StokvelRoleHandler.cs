@@ -1,3 +1,4 @@
+using Api.Observability;
 using Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,8 @@ namespace Api.Authorization;
 /// role change or removal takes effect immediately, not when the access
 /// token expires.
 /// </summary>
-public sealed class StokvelRoleHandler(TallyVelDbContext db)
+public sealed class StokvelRoleHandler(
+    TallyVelDbContext db, TallyVelMetrics metrics, ILogger<StokvelRoleHandler> logger)
     : AuthorizationHandler<StokvelRoleRequirement, Guid>
 {
     public const string NotMember = "not-member";
@@ -31,11 +33,25 @@ public sealed class StokvelRoleHandler(TallyVelDbContext db)
             .Select(m => (Domain.MemberRole?)m.Role)
             .FirstOrDefaultAsync();
 
+        // The stokvel id is not logged: with the user id it says who is
+        // (or isn't) in which group. The trace still links to the request.
         if (role is null)
+        {
+            Refuse(userId, "not_found");
             context.Fail(new AuthorizationFailureReason(this, NotMember));
+        }
         else if (!requirement.AllowedRoles.Contains(role.Value))
+        {
+            Refuse(userId, "forbidden");
             context.Fail(new AuthorizationFailureReason(this, MissingRole));
+        }
         else
             context.Succeed(requirement);
+    }
+
+    private void Refuse(Guid userId, string result)
+    {
+        metrics.AuthorizationRefused(result);
+        logger.LogInformation("Stokvel access refused for user {UserId}: {Result}", userId, result);
     }
 }

@@ -16,7 +16,29 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 
+using Api.Observability;
+using Npgsql;
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+
 var builder = WebApplication.CreateBuilder(args);
+
+// Tagged "ready": only readiness runs it. Liveness must never depend on the
+// database, or one database blip restarts every container at once.
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<TallyVelDbContext>("database", tags: ["ready"]);
+
+// Add this AFTER timing the "before" number in 7.3.
+builder.Services.Configure<HealthCheckServiceOptions>(options =>
+{
+    foreach (var registration in options.Registrations)
+        registration.Timeout = TimeSpan.FromSeconds(3);
+});
 
 // Logging: ILogger<T> is resolvable from DI for every class. Levels come
 // from the "Logging" section of appsettings.*.json.
@@ -49,12 +71,15 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
 builder.Services.AddScoped<StokvelMembershipService>();
 builder.Services.AddScoped<IContributionService, ContributionServices>();
+builder.Services.AddScoped<PayoutService>();
 // Saves changes made to tracked entities (e.g. stokvel memberships) at the
 // end of each successful request.
 builder.Services.AddControllers(o => o.Filters.Add<SaveChangesFilter>());
 
 builder.Services.AddExceptionHandler<TallyVelExceptionHandler>();
-builder.Services.AddProblemDetails();
+builder.Services.AddProblemDetails(options =>
+    options.CustomizeProblemDetails = context =>
+        context.ProblemDetails.Extensions["correlationId"] = Correlation.GetId(context.HttpContext));
 
 // This automatically scans and registers all validators found in the same assembly as Program
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
@@ -119,6 +144,27 @@ builder.Services.AddScoped<IAuthorizationHandler, StokvelRoleHandler>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<ITokenService, TokenService>();
 
+//Metrics
+builder.Services.AddSingleton<TallyVelMetrics>();
+var openTelemetry = builder.Services.AddOpenTelemetry()
+    .ConfigureResource(r => r.AddService(TallyVelTelemetry.ServiceName))
+    .WithTracing(tracing => tracing
+        // One span per request, except health probes (they'd bury real traffic).
+        .AddAspNetCoreInstrumentation(o =>
+            o.Filter = ctx => !ctx.Request.Path.StartsWithSegments("/health"))
+        // One child span per SQL command: the SQL text, never parameter values.
+        .AddNpgsql()
+        // Our own spans: payout.process.
+        .AddSource(TallyVelTelemetry.SourceName))
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddMeter("System.Runtime")
+        .AddMeter(TallyVelTelemetry.SourceName))
+    .WithLogging();
+
+// Tests and CI never set this, so they never try to reach a dashboard.
+if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+    openTelemetry.UseOtlpExporter();
 
 var app = builder.Build();
 if (args.Contains("--seed-volume"))
@@ -147,6 +193,12 @@ if (app.Environment.IsDevelopment())
         Options.Theme = ScalarTheme.Moon; 
     }).AllowAnonymous();
 }
+
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false })
+    .AllowAnonymous();
+app.MapHealthChecks("/health/ready",
+        new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") })
+    .AllowAnonymous();
 
 app.UseExceptionHandler();
 // Turns empty 401/403/404 responses into application/problem+json.

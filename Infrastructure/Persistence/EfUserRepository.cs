@@ -40,7 +40,7 @@ public sealed class EfUserRepository : IUserRepository
         {
             _db.Entry(user).State = EntityState.Detached;
             throw new AlreadyExistsException(
-                "user-email-already-exists", $"A user with email '{user.Email}' already exists.");
+                "user-email-already-exists", "A user with this email already exists.");
         }
         catch (DbUpdateException ex) when (ex.IsUniqueViolation())
         {
@@ -72,7 +72,7 @@ public sealed class EfUserRepository : IUserRepository
         {
             _db.Entry(user).State = EntityState.Detached;
             throw new AlreadyExistsException(
-                "user-email-already-exists", $"A user with email '{user.Email}' already exists.");
+                "user-email-already-exists", "A user with this email already exists.");
         }
     }
 
