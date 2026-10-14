@@ -42,8 +42,19 @@ public sealed class TallyVelExceptionHandler : IExceptionHandler
                 "unique-violation", "The request conflicts with an existing record.");
         }
 
-        // Not one of ours → it's a bug. Let the default handler return a
-        // plain 500 so no internal details reach the client.
+        // A guard clause rejected the input (e.g. a missing Idempotency-Key).
+        if (exception is ArgumentException argumentException)
+        {
+            _logger.LogInformation(
+                "Request {CorrelationId} rejected with 400 ({ExceptionType})",
+                Correlation.GetId(httpContext), exception.GetType().Name);
+
+            return await WriteProblemAsync(httpContext, exception,
+                StatusCodes.Status400BadRequest, "Bad Request", "invalid-argument", argumentException.Message);
+        }
+
+        // Not one of ours → it's a bug. Return a generic 500 so no internal
+        // details reach the client; the correlationId links it to the logs.
         if (exception is not TallyVelException tallyVelException)
         {
             _logger.LogError(exception, "Request {CorrelationId} failed with 500",
@@ -53,7 +64,6 @@ public sealed class TallyVelExceptionHandler : IExceptionHandler
                 StatusCodes.Status500InternalServerError, "Internal Server Error", "internal-error",
                 "Something went wrong on our side. Quote the correlationId if you report this.");
         }
-
 
         var (statusCode, title) = MapToResponse(tallyVelException);
 
