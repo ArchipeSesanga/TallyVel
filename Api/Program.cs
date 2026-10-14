@@ -16,6 +16,13 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 
+using Api.Observability;
+using Npgsql;
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Logging: ILogger<T> is resolvable from DI for every class. Levels come
@@ -119,6 +126,27 @@ builder.Services.AddScoped<IAuthorizationHandler, StokvelRoleHandler>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<ITokenService, TokenService>();
 
+//Metrics
+builder.Services.AddSingleton<TallyVelMetrics>();
+var openTelemetry = builder.Services.AddOpenTelemetry()
+    .ConfigureResource(r => r.AddService(TallyVelTelemetry.ServiceName))
+    .WithTracing(tracing => tracing
+        // One span per request, except health probes (they'd bury real traffic).
+        .AddAspNetCoreInstrumentation(o =>
+            o.Filter = ctx => !ctx.Request.Path.StartsWithSegments("/health"))
+        // One child span per SQL command: the SQL text, never parameter values.
+        .AddNpgsql()
+        // Our own spans: payout.process.
+        .AddSource(TallyVelTelemetry.SourceName))
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddMeter("System.Runtime")
+        .AddMeter(TallyVelTelemetry.SourceName))
+    .WithLogging();
+
+// Tests and CI never set this, so they never try to reach a dashboard.
+if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+    openTelemetry.UseOtlpExporter();
 
 var app = builder.Build();
 if (args.Contains("--seed-volume"))
