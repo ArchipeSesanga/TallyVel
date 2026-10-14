@@ -81,6 +81,18 @@ builder.Services.AddProblemDetails(options =>
     options.CustomizeProblemDetails = context =>
         context.ProblemDetails.Extensions["correlationId"] = Correlation.GetId(context.HttpContext));
 
+// The frontend's origins come from configuration: localhost:3000 in
+// Development, none at all by default. Never "*" and never the request's
+// own Origin reflected back, because the refresh cookie needs credentials.
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+builder.Services.AddCors(options => options.AddPolicy(CorsPolicies.Frontend, policy => policy
+    .WithOrigins(allowedOrigins)
+    .AllowCredentials()
+    .WithMethods("GET", "POST", "PUT", "DELETE")
+    .WithHeaders("Authorization", "Content-Type", "Idempotency-Key", "traceparent")
+    .WithExposedHeaders("Retry-After")
+    .SetPreflightMaxAge(TimeSpan.FromMinutes(10))));
+
 // This automatically scans and registers all validators found in the same assembly as Program
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
@@ -203,6 +215,11 @@ app.MapHealthChecks("/health/ready",
 app.UseExceptionHandler();
 // Turns empty 401/403/404 responses into application/problem+json.
 app.UseStatusCodePages();
+// After the error middleware, so 401/403/404/429/500 responses still carry
+// CORS headers (otherwise the browser hides the error from the frontend).
+// Before authentication, so a preflight (which has no token) is answered
+// here instead of being refused by the fallback policy.
+app.UseCors(CorsPolicies.Frontend);
 
 app.UseHttpsRedirection();
 app.UseAuthentication();
