@@ -1,0 +1,16 @@
+{
+  "name": "@tallyvel/client-types",
+  "private": true,
+  "type": "module",
+  "description": "TypeScript types generated from the TallyVel OpenAPI document, plus a compile check.",
+  "scripts": {
+    "fetch": "node scripts/fetch-openapi.mjs",
+    "generate": "openapi-typescript openapi.json -o src/api.d.ts",
+    "check": "tsc --noEmit --strict",
+    "contract": "npm run generate && npm run check"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}
