@@ -828,3 +828,13 @@ Other behaviour: `GET /api/stokvels` lists only the caller's own stokvels, and `
 - Atomic handling of two simultaneous refreshes (today the loser is treated as reuse and the session is revoked).
 - Equal response timing for unknown email vs wrong password (a dummy hash narrows the gap but it is not measured).
 - Log excerpt / POPIA audit and rate limiting.
+
+
+6.3
+====
+
+justification for Warning in production
+• Volume. A payout runs about five SQL commands. At Information, every request writes several lines of SQL text that nobody reads.
+• Failures still appear. EF logs a failed command at Error, which Warning lets through.
+• The trace already has it. Npgsql instrumentation records every command as a span with its SQL text and duration. Logs answer "what happened to this request"; the trace answers "which SQL ran and how long it took".
+• Parameter values are never logged in either environment. They show as ? unless EnableSensitiveDataLogging() is on, and that call appears nowhere in TallyVel.
