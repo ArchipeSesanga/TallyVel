@@ -12,6 +12,7 @@ using Domain;
 using Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using System.Text;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
@@ -72,9 +73,15 @@ builder.Services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
 builder.Services.AddScoped<StokvelMembershipService>();
 builder.Services.AddScoped<IContributionService, ContributionServices>();
 builder.Services.AddScoped<PayoutService>();
+builder.Services.AddScoped<MemberHomeService>();
 // Saves changes made to tracked entities (e.g. stokvel memberships) at the
 // end of each successful request.
-builder.Services.AddControllers(o => o.Filters.Add<SaveChangesFilter>());
+// Enums travel as names ("Chairperson", "Monthly"). Numbers are still
+// accepted on input, so older clients keep working.
+builder.Services.AddControllers(o => o.Filters.Add<SaveChangesFilter>())
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+// The same settings for the OpenAPI document, so it describes what is sent.
+builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 builder.Services.AddExceptionHandler<TallyVelExceptionHandler>();
 builder.Services.AddProblemDetails(options =>
