@@ -29,6 +29,13 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Fail at startup, not on the first request, when the database isn't configured.
+var connectionString = builder.Configuration.GetConnectionString("TallyVel");
+if (string.IsNullOrWhiteSpace(connectionString))
+    throw new InvalidOperationException(
+        "Missing setting ConnectionStrings:TallyVel " +
+        "(environment variable ConnectionStrings__TallyVel).");
+
 // Tagged "ready": only readiness runs it. Liveness must never depend on the
 // database, or one database blip restarts every container at once.
 builder.Services.AddHealthChecks()
@@ -57,8 +64,13 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<TallyVelDbContext>(o =>
     o.UseNpgsql(
-        builder.Configuration.GetConnectionString("TallyVel"),
+        connectionString,
         npgsql => npgsql.MigrationsAssembly(typeof(TallyVelDbContext).Assembly.FullName)));
+
+// builder.Services.AddDbContext<TallyVelDbContext>(o =>
+//     o.UseNpgsql(
+//         builder.Configuration.GetConnectionString("TallyVel"),
+//         npgsql => npgsql.MigrationsAssembly(typeof(TallyVelDbContext).Assembly.FullName)));
 
 // Repositories are Scoped: they share the request's DbContext.
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();
