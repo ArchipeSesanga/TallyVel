@@ -15,6 +15,7 @@ public class TallyVelDbContext : DbContext
     public DbSet<ContributionCycle> ContributionCycles => Set<ContributionCycle>();
     public DbSet<Contribution> Contributions => Set<Contribution>();
     public DbSet<Payout> Payouts => Set<Payout>();
+    public DbSet<Arrear> Arrears => Set<Arrear>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     // Each entity's table, keys, constraints and relationships live in its

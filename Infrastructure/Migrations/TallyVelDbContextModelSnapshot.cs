@@ -22,6 +22,42 @@ namespace Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Domain.Arrear", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CycleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MemberUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("ShortfallCents")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("StokvelId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MemberUserId");
+
+                    b.HasIndex("StokvelId");
+
+                    b.HasIndex("CycleId", "MemberUserId")
+                        .IsUnique();
+
+                    b.ToTable("Arrears", t =>
+                        {
+                            t.HasCheckConstraint("CK_Arrears_Shortfall", "\"ShortfallCents\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("Domain.Contribution", b =>
                 {
                     b.Property<Guid>("Id")
@@ -65,10 +101,19 @@ namespace Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly?>("EndsOn")
+                        .HasColumnType("date");
+
                     b.Property<string>("Label")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<DateOnly?>("StartsOn")
+                        .HasColumnType("date");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -80,7 +125,15 @@ namespace Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ContributionCycles");
+                    b.HasIndex("EndsOn", "ClosedAt");
+
+                    b.HasIndex("StokvelId", "StartsOn")
+                        .IsUnique();
+
+                    b.ToTable("ContributionCycles", t =>
+                        {
+                            t.HasCheckConstraint("CK_ContributionCycles_Dates", "\"EndsOn\" >= \"StartsOn\"");
+                        });
                 });
 
             modelBuilder.Entity("Domain.Payout", b =>
@@ -242,6 +295,27 @@ namespace Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("Domain.Arrear", b =>
+                {
+                    b.HasOne("Domain.ContributionCycle", null)
+                        .WithMany()
+                        .HasForeignKey("CycleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("MemberUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Stokvel", null)
+                        .WithMany()
+                        .HasForeignKey("StokvelId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Domain.Contribution", b =>

@@ -16,6 +16,12 @@ public sealed class ContributionCycleConfiguration : IEntityTypeConfiguration<Co
         builder.HasAlternateKey(c => new { c.StokvelId, c.Id });
         builder.Property(c => c.Status).HasConversion<string>().HasMaxLength(20);
 
+        // One cycle per start date per stokvel; the cycle-close job scans by
+        // (EndsOn, ClosedAt).
+        builder.HasIndex(c => new { c.StokvelId, c.StartsOn }).IsUnique();
+        builder.HasIndex(c => new { c.EndsOn, c.ClosedAt });
+        builder.ToTable(t => t.HasCheckConstraint("CK_ContributionCycles_Dates", "\"EndsOn\" >= \"StartsOn\""));
+
         builder.HasOne<Stokvel>()
             .WithMany()
             .HasForeignKey(c => c.StokvelId)

@@ -181,6 +181,7 @@ builder.Services.AddScoped<IAuthorizationHandler, StokvelRoleHandler>();
 // for example to test an expired refresh token without waiting.
 // JsonWebTokenHandler comes with the JwtBearer package.
 builder.Services.AddSingleton(TimeProvider.System);
+_ = StokvelCalendar.Zone; // touch it now so a missing tzdata fails at startup, not on the first request
 builder.Services.AddSingleton<ITokenService, TokenService>();
 
 //Metrics

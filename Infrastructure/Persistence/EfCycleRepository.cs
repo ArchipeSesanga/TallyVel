@@ -5,7 +5,7 @@ using Domain;
 namespace Infrastructure.Persistence;
 
 /// <summary>Stores contribution cycles and their payouts in PostgreSQL. Scoped, like the other repositories.</summary>
-public sealed class EfCycleRepository(TallyVelDbContext db) : ICycleRepository
+public sealed class EfCycleRepository(TallyVelDbContext db, TimeProvider clock) : ICycleRepository
 {
     public async Task<IReadOnlyList<ContributionCycle>> ListAsync(Guid stokvelId, CancellationToken ct) =>
         await db.ContributionCycles
@@ -16,7 +16,20 @@ public sealed class EfCycleRepository(TallyVelDbContext db) : ICycleRepository
 
     public async Task<ContributionCycle> OpenAsync(Guid stokvelId, string label, CancellationToken ct)
     {
-        var cycle = new ContributionCycle(stokvelId, label);
+        var frequency = await db.Stokvels
+            .Where(s => s.Id == stokvelId)
+            .Select(s => (ContributionFrequency?)s.Cycle)
+            .FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException("stokvel", stokvelId);
+
+        // The next cycle starts the day after the last dated one ended, or today (SA date) for the first.
+        var lastEnd = await db.ContributionCycles
+            .Where(c => c.StokvelId == stokvelId && c.EndsOn != null)
+            .MaxAsync(c => c.EndsOn, ct);
+        var startsOn = lastEnd?.AddDays(1) ?? StokvelCalendar.Today(clock.GetUtcNow());
+        var endsOn = StokvelCalendar.EndOfCycle(startsOn, frequency);
+
+        var cycle = new ContributionCycle(stokvelId, label, startsOn, endsOn);
         db.ContributionCycles.Add(cycle);
         await db.SaveChangesAsync(ct);
         return cycle;

@@ -60,7 +60,7 @@ public sealed class MemberHomeService(TallyVelDbContext db, TimeProvider clock)
     // The one place a decimal amount becomes cents. Amounts are stored to 2
     // decimals, so the rounding only guards against a stray third decimal.
     public static long ToCents(decimal amount) =>
-        (long)Math.Round(amount * 100m, MidpointRounding.ToEven);
+        Money.ToCents(amount);
 
     /// <summary>
     /// Payout dates repeat every period (week, two weeks or month) counted from
