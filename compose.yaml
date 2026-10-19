@@ -1,0 +1,48 @@
+name: tallyvel
+
+services:
+  postgres:
+    image: postgres:17.6
+    environment:
+      POSTGRES_USER: tallyvel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (copy .env.example)}
+      POSTGRES_DB: tallyvel
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tallyvel -d tallyvel"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # No "ports:" here. Postgres is reachable only on the compose network.
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      target: migrator
+    environment:
+      # The bundle starts Program.cs too, so it needs the same setting as the API.
+      ConnectionStrings__TallyVel: Host=postgres;Port=5432;Database=tallyvel;Username=tallyvel;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      target: runtime
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ConnectionStrings__TallyVel: Host=postgres;Port=5432;Database=tallyvel;Username=tallyvel;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env (openssl rand -base64 48)}
+      Seed__DemoPassword: ${SEED_DEMO_PASSWORD:?Set SEED_DEMO_PASSWORD in .env}
+    ports:
+      - "8080:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  pgdata:

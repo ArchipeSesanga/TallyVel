@@ -29,12 +29,19 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Fail at startup, not on the first request, when the database isn't configured.
+var connectionString = builder.Configuration.GetConnectionString("TallyVel");
+if (string.IsNullOrWhiteSpace(connectionString))
+    throw new InvalidOperationException(
+        "Missing setting ConnectionStrings:TallyVel " +
+        "(environment variable ConnectionStrings__TallyVel).");
+
 // Tagged "ready": only readiness runs it. Liveness must never depend on the
 // database, or one database blip restarts every container at once.
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<TallyVelDbContext>("database", tags: ["ready"]);
 
-// Add this AFTER timing the "before" number in 7.3.
+// A probe must answer fast: a slow answer is an unhealthy answer.
 builder.Services.Configure<HealthCheckServiceOptions>(options =>
 {
     foreach (var registration in options.Registrations)
@@ -57,7 +64,7 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<TallyVelDbContext>(o =>
     o.UseNpgsql(
-        builder.Configuration.GetConnectionString("TallyVel"),
+        connectionString,
         npgsql => npgsql.MigrationsAssembly(typeof(TallyVelDbContext).Assembly.FullName)));
 
 // Repositories are Scoped: they share the request's DbContext.
@@ -122,21 +129,19 @@ builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 //This register the password hasher
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 
-
-
 //JWT decode
 builder.Services.AddOptions<JwtOptions>()
     .Bind(builder.Configuration.GetSection("Jwt"))
     .Validate(o => !string.IsNullOrWhiteSpace(o.SigningKey)
                    && Encoding.UTF8.GetByteCount(o.SigningKey) >= 32,
         "Jwt:SigningKey is missing or shorter than 32 bytes. " +
-        "Set it with: dotnet user-secrets set \"Jwt:SigningKey\" \"<random 32+ byte value>\"")
+        "Set environment variable Jwt__SigningKey, or locally: " +
+        "dotnet user-secrets set \"Jwt:SigningKey\" \"<random 32+ byte value>\"")
     .Validate(o => o.AccessTokenMinutes is > 0 and <= 15, "Jwt:AccessTokenMinutes must be 1–15.")
     .ValidateOnStart();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer();
-
 
 //this Configure JWT bearer validation
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
@@ -172,9 +177,8 @@ builder.Services.AddAuthorization(options =>
 });
 builder.Services.AddScoped<IAuthorizationHandler, StokvelRoleHandler>();
 
-
-//TimeProvider emulate time in tests later, 
-// for example to test an expired refresh token without waiting. 
+//TimeProvider emulate time in tests later,
+// for example to test an expired refresh token without waiting.
 // JsonWebTokenHandler comes with the JwtBearer package.
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<ITokenService, TokenService>();
@@ -207,7 +211,7 @@ if (args.Contains("--seed-volume"))
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<TallyVelDbContext>();
     await VolumeSeeder.RunAsync(db);
-    return; // seed 
+    return; // seed
 }
 
 // Fill an empty development database with the sample users and stokvels.
@@ -225,7 +229,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi().AllowAnonymous();
     app.MapScalarApiReference(Options =>
     {
-        Options.Theme = ScalarTheme.Moon; 
+        Options.Theme = ScalarTheme.Moon;
     }).AllowAnonymous();
 }
 

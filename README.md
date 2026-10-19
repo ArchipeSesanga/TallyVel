@@ -1298,3 +1298,63 @@ The rate-limit tests build their own host with small limits (`WithWebHostBuilder
 - **Current cycle and payout date are conventions.** They come from label order and the stokvel's creation date, because cycles carry no dates.
 - **Older endpoints return `decimal` amounts.** Only the home screen uses integer cents so far.
 - **No frontend is built yet.** The TypeScript types are generated and compile-checked, but nothing consumes them beyond `src/home.ts`.
+
+
+Assignment 6.4
+==============
+
+## Container image
+
+Multi-stage `Dockerfile` at the repo root: the .NET SDK builds and publishes,
+and the final image contains only the ASP.NET Core runtime and the published app.
+It runs as the image's non-root user (`USER 1654`, "app") and listens on 8080.
+
+| | |
+|---|---|
+| Image size | 386 MB on disk, 97.4 MB compressed (the app itself is 12.2 MB) |
+| First build (no cache) | 1 min 36 s |
+| Code-only rebuild | __ s (restore layer `CACHED`) |
+
+Project files are copied and restored before the source, so a code change
+reuses the cached restore layer and only re-runs `publish`.
+
+**Why the test project isn't in the image:** tests are build-time evidence, not
+runtime code. Shipping them would add size, test-only packages (xUnit,
+Testcontainers) and attack surface to every container, for no benefit at
+runtime. CI runs the tests before it builds the image.
+
+### No secrets in the image
+
+`docker history --no-trunc tallyvel-api:local` (our layers):
+
+```
+ENTRYPOINT ["dotnet" "Api.dll"]
+USER 1654
+EXPOSE [8080/tcp]
+ENV ASPNETCORE_HTTP_PORTS=8080
+COPY /app/publish ./ # buildkit                12.2MB
+WORKDIR /app
+```
+
+`docker inspect --format '{{json .Config.Env}}' tallyvel-api:local`:
+
+```
+["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","APP_UID=1654","ASPNETCORE_HTTP_PORTS=8080","DOTNET_RUNNING_IN_CONTAINER=true","DOTNET_VERSION=10.0.13","ASPNET_VERSION=10.0.13"]
+```
+
+Neither shows a secret because none is ever put into the image. History lists
+only Dockerfile instructions, and none of them sets or copies a secret (`.env`
+is excluded by `.dockerignore`). The environment holds only paths, the port and
+version numbers. The connection string and JWT key are passed when the container
+starts, so they exist only in the running container, never in a layer.
+
+### Fails fast without configuration
+
+`docker run --rm tallyvel-api:local`:
+
+```
+Unhandled exception. System.InvalidOperationException: Missing setting ConnectionStrings:TallyVel (environment variable ConnectionStrings__TallyVel).
+```
+
+The app stops at startup, naming the missing setting, instead of failing on the
+first request. 
