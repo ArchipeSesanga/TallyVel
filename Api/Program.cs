@@ -17,6 +17,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 
+using Api.Jobs;
 using Api.Observability;
 using Npgsql;
 using OpenTelemetry;
@@ -186,6 +187,15 @@ builder.Services.AddSingleton<ITokenService, TokenService>();
 
 //Metrics
 builder.Services.AddSingleton<TallyVelMetrics>();
+
+// Cycle-close job
+builder.Services.AddOptions<CycleCloseOptions>()
+    .Bind(builder.Configuration.GetSection(CycleCloseOptions.SectionName))
+    .Validate(o => o.Interval > TimeSpan.Zero && o.MaxCyclesPerRun > 0,
+        "Jobs:CycleClose:Interval and MaxCyclesPerRun must be greater than zero.")
+    .ValidateOnStart();
+builder.Services.AddSingleton<CycleCloser>();
+builder.Services.AddHostedService<CycleCloseJob>();
 var openTelemetry = builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService(TallyVelTelemetry.ServiceName))
     .WithTracing(tracing => tracing

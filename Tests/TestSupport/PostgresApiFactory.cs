@@ -5,6 +5,10 @@ using Microsoft.EntityFrameworkCore;
 using Testcontainers.PostgreSql;
 
 using Infrastructure.Data;
+using Api.Jobs;
+using Api.Observability;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Logging;
@@ -48,10 +52,20 @@ public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // Explicit, so the CORS tests don't depend on appsettings.Development.json.
         builder.UseSetting("Cors:AllowedOrigins:0", "http://localhost:3000");
 
+        // The hosted cycle-close job must never run on its own during tests;
+        // tests drive a CycleCloser directly with a fake clock.
+        builder.UseSetting("Jobs:CycleClose:Enabled", "false");
+
         // Self-contained: don't depend on the developer's user-secrets. TEST-ONLY
         // key, generated fresh on every run so no key value is ever committed.
         builder.UseSetting("Jwt:SigningKey", Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)));
     }
+
+    /// <summary>A cycle closer on the test database with the given clock.</summary>
+    public CycleCloser CreateCloser(TimeProvider clock, int maxCyclesPerRun = 1000) =>
+        new(Services.GetRequiredService<IServiceScopeFactory>(), clock,
+            Options.Create(new CycleCloseOptions { MaxCyclesPerRun = maxCyclesPerRun }),
+            Services.GetRequiredService<TallyVelMetrics>(), NullLogger<CycleCloser>.Instance);
 
     /// <summary>
     /// A fresh DbContext on the container, for tests that talk to the database
