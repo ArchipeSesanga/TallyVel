@@ -11,6 +11,7 @@ public sealed class ContributionConfiguration : IEntityTypeConfiguration<Contrib
         builder.HasKey(c => c.Id);
         builder.Property(c => c.Amount).HasPrecision(18, 2);
         builder.Property(c => c.Cycle).HasMaxLength(ContributionCycle.MaxLabelLength);
+        builder.Property(c => c.Status).HasConversion<string>().HasMaxLength(20);
         builder.HasIndex(c => new { c.StokvelId, c.MemberUserId, c.Cycle }).IsUnique();
 
         // Serves the keyset-paged listing (GetPageAsync): equality on StokvelId

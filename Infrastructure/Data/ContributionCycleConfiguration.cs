@@ -14,7 +14,8 @@ public sealed class ContributionCycleConfiguration : IEntityTypeConfiguration<Co
         // Lets Payout reference (StokvelId, Id) so a payout's stokvel
         // must match its cycle's stokvel.
         builder.HasAlternateKey(c => new { c.StokvelId, c.Id });
-        builder.Property(c => c.Status).HasConversion<string>().HasMaxLength(20);
+        // Status is worked out from IsPaidOut and ClosedAt (ContributionCycle.StatusOf), never stored.
+        builder.Ignore(c => c.Status);
 
         // One cycle per start date per stokvel; the cycle-close job scans by
         // (EndsOn, ClosedAt).

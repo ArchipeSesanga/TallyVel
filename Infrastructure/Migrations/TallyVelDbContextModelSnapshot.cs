@@ -79,6 +79,11 @@ namespace Infrastructure.Migrations
                     b.Property<DateTimeOffset>("RecordedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<Guid>("StokvelId")
                         .HasColumnType("uuid");
 
@@ -107,6 +112,9 @@ namespace Infrastructure.Migrations
                     b.Property<DateOnly?>("EndsOn")
                         .HasColumnType("date");
 
+                    b.Property<bool>("IsPaidOut")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Label")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -114,11 +122,6 @@ namespace Infrastructure.Migrations
 
                     b.Property<DateOnly?>("StartsOn")
                         .HasColumnType("date");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
 
                     b.Property<Guid>("StokvelId")
                         .HasColumnType("uuid");

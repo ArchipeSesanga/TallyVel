@@ -1,14 +1,18 @@
+using System.Linq.Expressions;
+
 namespace Domain;
 
 /// <summary>
-/// Whether a collection period's money has been paid out to its recipient.
-/// A closed set, same rationale as ContributionFrequency and MemberRole.
-/// (Closing a cycle — the collection period ending — is tracked separately
-/// by ClosedAt, set by the cycle-close job.)
+/// Where a collection period stands: Open while contributions are coming in,
+/// Closed once its last day has passed (the cycle-close job set ClosedAt),
+/// PaidOut once its money went to the recipient. A closed set, same rationale
+/// as ContributionFrequency and MemberRole. Never stored: it is worked out by
+/// <see cref="ContributionCycle.StatusOf"/>.
 /// </summary>
 public enum CycleStatus
 {
     Open,
+    Closed,
     PaidOut
 }
 
@@ -29,7 +33,11 @@ public sealed class ContributionCycle
     public Guid Id { get; private init; }
     public Guid StokvelId { get; private init; }
     public string Label { get; private init; }
-    public CycleStatus Status { get; private set; }
+
+    // The only status fact the database stores. Closed is not stored: ClosedAt says it.
+    public bool IsPaidOut { get; private set; }
+
+    public CycleStatus Status => StatusOf(IsPaidOut, ClosedAt);
 
     // South African calendar dates. Nullable: cycles opened before 6.4 have
     // no dates, and the cycle-close job never touches them.
@@ -62,7 +70,6 @@ public sealed class ContributionCycle
 
         StokvelId = stokvelId;
         Label = trimmed;
-        Status = CycleStatus.Open;
 
         Id = Guid.NewGuid();
     }
@@ -87,9 +94,26 @@ public sealed class ContributionCycle
     /// </summary>
     public void MarkPaidOut()
     {
-        if (Status == CycleStatus.PaidOut)
+        if (IsPaidOut)
             throw new InvalidOperationException("This contribution cycle has already been paid out.");
 
-        Status = CycleStatus.PaidOut;
+        IsPaidOut = true;
     }
+
+    /// <summary>
+    /// THE status rule: PaidOut if paid out, otherwise Closed if ClosedAt is set,
+    /// otherwise Open. Every status a response returns comes from here.
+    /// </summary>
+    public static CycleStatus StatusOf(bool isPaidOut, DateTimeOffset? closedAt) =>
+        isPaidOut ? CycleStatus.PaidOut
+        : closedAt is not null ? CycleStatus.Closed
+        : CycleStatus.Open;
+
+    /// <summary>
+    /// "StatusOf(...) == Open" as an expression, so a query can filter on it in
+    /// the database. Kept next to StatusOf; ContributionCycleStatusTests proves
+    /// the two agree for every combination.
+    /// </summary>
+    public static readonly Expression<Func<ContributionCycle, bool>> IsOpen =
+        c => !c.IsPaidOut && c.ClosedAt == null;
 }
