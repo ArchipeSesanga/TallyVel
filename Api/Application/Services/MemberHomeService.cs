@@ -10,6 +10,8 @@ public sealed class MemberHomeService(TallyVelDbContext db, TimeProvider clock)
 {
     public async Task<HomeResponse> GetAsync(Guid userId, CancellationToken ct)
     {
+        var today = StokvelCalendar.Today(clock.GetUtcNow());
+
         // One query: the memberships, each with its current cycle and the
         // caller's own total for it, as correlated subqueries (no N+1).
         var rows = await db.StokvelMembers
@@ -23,53 +25,68 @@ public sealed class MemberHomeService(TallyVelDbContext db, TimeProvider clock)
                 m.Stokvel.ContributionAmount,
                 Frequency = m.Stokvel.Cycle,
                 m.Stokvel.CreatedAt,
-                // Cycles have no date, so "latest" is the greatest label
-                // ("2026-10" > "2026-09"). See the README for this assumption.
+                // The current cycle is the open one that has already started
+                // (an undated legacy cycle counts as started). If several are
+                // open, the greatest label wins ("2026-10" > "2026-09").
+                // See the README for this assumption.
                 CurrentCycle = db.ContributionCycles
-                    .Where(c => c.StokvelId == m.StokvelId && c.Status == CycleStatus.Open)
+                    .Where(c => c.StokvelId == m.StokvelId)
+                    .Where(ContributionCycle.IsOpen)
+                    .Where(c => c.StartsOn == null || c.StartsOn <= today)
                     .OrderByDescending(c => c.Label)
-                    .Select(c => c.Label)
+                    .Select(c => new { c.Id, c.Label, c.StartsOn, c.EndsOn, c.IsPaidOut, c.ClosedAt })
                     .FirstOrDefault(),
             })
             .Select(x => new
             {
                 x.StokvelId, x.Name, x.Role, x.ContributionAmount, x.Frequency, x.CreatedAt, x.CurrentCycle,
+                // Only contributions that count (ContributionRules): Pending does not.
                 Paid = db.Contributions
-                    .Where(c => c.StokvelId == x.StokvelId && c.MemberUserId == userId && c.Cycle == x.CurrentCycle)
+                    .Where(ContributionRules.Counts)
+                    .Where(c => c.StokvelId == x.StokvelId && c.MemberUserId == userId
+                                && x.CurrentCycle != null && c.Cycle == x.CurrentCycle.Label)
                     .Sum(c => (decimal?)c.Amount) ?? 0m,
             })
             .OrderBy(x => x.Name)
             .ToListAsync(ct);
 
-        var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
-
         return new HomeResponse(rows.Select(r =>
         {
-            var paid = r.CurrentCycle is null ? 0m : r.Paid;
+            // No open cycle: nothing is being collected, so nothing is paid or owed.
+            if (r.CurrentCycle is not { } cycle)
+                return new HomeStokvelCard(r.StokvelId, r.Name, r.Role, null, 0, 0, null);
+
+            var paidCents = Money.ToCents(r.Paid);
+            var owedCents = Math.Max(0, Money.ToCents(r.ContributionAmount) - paidCents);
             return new HomeStokvelCard(
                 r.StokvelId,
                 r.Name,
                 r.Role,
-                r.CurrentCycle,
-                ToCents(paid),
-                ToCents(Math.Max(0m, r.ContributionAmount - paid)),
-                r.CurrentCycle is null ? null : NextPayoutDate(r.Frequency, r.CreatedAt, today));
+                new HomeCurrentCycle(
+                    cycle.Id,
+                    cycle.Label,
+                    ContributionCycle.StatusOf(cycle.IsPaidOut, cycle.ClosedAt),
+                    cycle.StartsOn,
+                    cycle.EndsOn),
+                paidCents,
+                owedCents,
+                NextPayoutDate(r.Frequency, r.CreatedAt, today));
         }).ToList());
     }
 
-    // The one place a decimal amount becomes cents. Amounts are stored to 2
-    // decimals, so the rounding only guards against a stray third decimal.
+    // Kept so existing callers and tests have one name; the conversion itself lives in Money.
     public static long ToCents(decimal amount) =>
         Money.ToCents(amount);
 
     /// <summary>
     /// Payout dates repeat every period (week, two weeks or month) counted from
-    /// the day the stokvel was created (UTC). Returns the first one on or after
-    /// today. Monthly dates keep the creation day, clamped to the month's end.
+    /// the day the stokvel was created, as a South African calendar date.
+    /// Returns the first one on or after <paramref name="today"/> (also a South
+    /// African date). Monthly dates keep the creation day, clamped to the month's end.
     /// </summary>
     public static DateOnly NextPayoutDate(ContributionFrequency frequency, DateTimeOffset createdAt, DateOnly today)
     {
-        var anchor = DateOnly.FromDateTime(createdAt.UtcDateTime);
+        var anchor = StokvelCalendar.Today(createdAt);
         if (anchor >= today)
             return anchor;
 
