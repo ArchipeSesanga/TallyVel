@@ -10,5 +10,8 @@ if (!response.ok) {
   process.exit(1);
 }
 const document = await response.json();
-await writeFile(new URL("../openapi.json", import.meta.url), JSON.stringify(document, null, 2) + "\n");
+// Descriptions come from XML doc comments, which carry the checkout's line endings (CRLF on
+// Windows). Write LF, so the file is the same on every machine.
+const text = JSON.stringify(document, null, 2).replaceAll("\\r\\n", "\\n");
+await writeFile(new URL("../openapi.json", import.meta.url), text + "\n");
 console.log(`Wrote openapi.json from ${url}`);
