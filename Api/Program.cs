@@ -7,6 +7,7 @@ using Api.Application.Interfaces;
 using Api.Authorization;
 using Api.Application.Services;
 using Api.Common;
+using Api.Validators;
 using Api.Filters;
 using Domain;
 using Infrastructure.Persistence;
@@ -225,13 +226,31 @@ if (args.Contains("--seed-volume"))
     return; // seed
 }
 
-// Fill an empty development database with the sample users and stokvels.
+// Fill an empty development database with the demo users, stokvels and contributions.
+// Every demo user's password is Seed:DemoPassword (env var Seed__DemoPassword),
+// hashed by the same hasher /auth/register uses. Never runs outside Development.
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
+    var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>();
+    var demoPassword = builder.Configuration["Seed:DemoPassword"];
     await DatabaseSeeder.SeedAsync(
         scope.ServiceProvider.GetRequiredService<TallyVelDbContext>(),
-        scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(DatabaseSeeder)));
+        scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(DatabaseSeeder)),
+        newPasswordHash: () =>
+        {
+            // Checked only when there is something to seed, so a machine whose database
+            // is already seeded does not need the setting.
+            if (string.IsNullOrWhiteSpace(demoPassword)
+                || demoPassword.Length < RegisterRequestValidator.MinPasswordLength)
+                throw new InvalidOperationException(
+                    "Missing or too short setting Seed:DemoPassword " +
+                    $"(at least {RegisterRequestValidator.MinPasswordLength} characters, like any password). " +
+                    "Set environment variable Seed__DemoPassword, or locally: " +
+                    "dotnet user-secrets set \"Seed:DemoPassword\" \"<password>\"");
+            return hasher.HashPassword(null!, demoPassword);
+        },
+        clock: scope.ServiceProvider.GetRequiredService<TimeProvider>());
 }
 
 // Configure the HTTP request pipeline.
