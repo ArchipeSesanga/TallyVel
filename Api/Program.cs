@@ -17,6 +17,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 
 using Api.Jobs;
 using Api.Observability;
@@ -62,7 +63,23 @@ builder.Logging.AddSimpleConsole(o =>
 builder.Logging.AddDebug();
 
 // Add services to the container.
-builder.Services.AddOpenApi();
+// The custom DateTimeOffset converter (writes Z) hides the type from the schema exporter,
+// so say what it is: a date-time string.
+builder.Services.AddOpenApi(options => options.AddSchemaTransformer((schema, context, _) =>
+{
+    var type = context.JsonTypeInfo.Type;
+    if (type == typeof(DateTimeOffset))
+    {
+        schema.Type = JsonSchemaType.String;
+        schema.Format = "date-time";
+    }
+    else if (type == typeof(DateTimeOffset?))
+    {
+        schema.Type = JsonSchemaType.String | JsonSchemaType.Null;
+        schema.Format = "date-time";
+    }
+    return Task.CompletedTask;
+}));
 
 builder.Services.AddDbContext<TallyVelDbContext>(o =>
     o.UseNpgsql(
@@ -94,6 +111,7 @@ builder.Services.AddControllers(o => o.Filters.Add<SaveChangesFilter>())
     .AddJsonOptions(o =>
     {
         o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        o.JsonSerializerOptions.Converters.Add(new UtcDateTimeOffsetConverter());
         o.JsonSerializerOptions.NumberHandling = JsonNumberHandling.Strict;
         o.AllowInputFormatterExceptionMessages = false;
     })
@@ -103,6 +121,7 @@ builder.Services.AddControllers(o => o.Filters.Add<SaveChangesFilter>())
 builder.Services.ConfigureHttpJsonOptions(o =>
 {
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    o.SerializerOptions.Converters.Add(new UtcDateTimeOffsetConverter());
     o.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;
 });
 
