@@ -25,7 +25,7 @@ public class MetricTests(PostgresApiFactory factory)
 
         var contribution = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/stokvels/{stokvelId}/contributions")
         {
-            Content = JsonContent.Create(new { memberUserId = user.Id, cycle = "2026-10", amount = 500m })
+            Content = JsonContent.Create(new { memberUserId = user.Id, cycle = "2026-10", amountCents = 50000 })
         };
         contribution.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
         (await client.SendAsync(contribution)).EnsureSuccessStatusCode();

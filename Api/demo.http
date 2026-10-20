@@ -90,7 +90,7 @@ POST {{baseUrl}}/api/v1/stokvels
 Authorization: Bearer {{loginLerato.response.body.accessToken}}
 Content-Type: application/json
 
-{ "name": "Demo Stokvel", "contributionAmount": 100, "cycle": 2, "creatorId": "{{regLerato.response.body.id}}" }
+{ "name": "Demo Stokvel", "contributionAmountCents": 10000, "cycle": 2, "creatorId": "{{regLerato.response.body.id}}" }
 
 ### 8. Lerato adds Thabo as a Member (role 0 = Member, 1 = Treasurer, 2 = Chairperson)
 POST {{baseUrl}}/api/v1/stokvels/{{createStokvel.response.body.id}}/members
@@ -113,7 +113,7 @@ Authorization: Bearer {{loginThabo.response.body.accessToken}}
 Idempotency-Key: {{runId}}-thabo-2026-10
 Content-Type: application/json
 
-{ "memberUserId": "{{regThabo.response.body.id}}", "cycle": "2026-10", "amount": 100 }
+{ "memberUserId": "{{regThabo.response.body.id}}", "cycle": "2026-10", "amountCents": 10000 }
 
 ### 11a. Payout as Sipho (NOT a member) -> 404: the API does not confirm the stokvel exists
 POST {{baseUrl}}/api/v1/stokvels/{{createStokvel.response.body.id}}/cycles/{{openCycle.response.body.id}}/payout

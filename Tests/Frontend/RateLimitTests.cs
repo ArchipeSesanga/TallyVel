@@ -26,7 +26,7 @@ public class RateLimitTests(PostgresApiFactory factory)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/stokvels/{stokvelId}/contributions")
         {
-            Content = JsonContent.Create(new { memberUserId = memberId, cycle, amount = 100m }),
+            Content = JsonContent.Create(new { memberUserId = memberId, cycle, amountCents = 10000 }),
         };
         request.Headers.Add("Idempotency-Key", key);
         return request;

@@ -34,7 +34,8 @@ public class ContributionsController : StokvelControllerBase
     [EndpointDescription(
         "Filters, sorting and paging all run in the database. pageSize defaults to 20 and is capped at 100; " +
         "sort is recordedAt (default) or amount, prefixed with '-' for descending. Pass nextPageToken back as " +
-        "pageToken for the next page; an empty nextPageToken means there are no more results.")]
+        "pageToken for the next page; an empty nextPageToken means there are no more results. " +
+        "minAmountCents and maxAmountCents filter by amount, in integer cents.")]
     [ProducesResponseType<PagedResponse<ContributionResponse>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     public async Task<IActionResult> GetPage(
@@ -44,8 +45,8 @@ public class ContributionsController : StokvelControllerBase
         [FromQuery] string? sort,
         [FromQuery] string? cycle,
         [FromQuery] Guid? memberUserId,
-        [FromQuery] decimal? minAmount,
-        [FromQuery] decimal? maxAmount,
+        [FromQuery] long? minAmountCents,
+        [FromQuery] long? maxAmountCents,
         CancellationToken ct)
     {
         if (await AuthorizeStokvelAsync(stokvelId, StokvelPolicies.Member) is { } denied) return denied;
@@ -55,7 +56,10 @@ public class ContributionsController : StokvelControllerBase
         var (sortBy, descending) = contributionQuery.ParseSort(sort);
 
         var query = new contributionQuery(
-            stokvelId, cycle?.Trim(), memberUserId, minAmount, maxAmount, sortBy, descending, size, pageToken);
+            stokvelId, cycle?.Trim(), memberUserId,
+            minAmountCents is { } min ? Money.FromCents(min) : null,
+            maxAmountCents is { } max ? Money.FromCents(max) : null,
+            sortBy, descending, size, pageToken);
 
         var (items, nextPageToken) = await _contributionRepository.GetPageAsync(query, ct);
 

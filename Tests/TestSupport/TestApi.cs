@@ -42,7 +42,7 @@ public static class TestApi
     {
         // The API reads enums as numbers (no JsonStringEnumConverter), so send the value, not "Monthly".
         var r = await Client(f, u.AccessToken).PostAsJsonAsync("/api/v1/stokvels",
-            new { name = "Leak Test Club", contributionAmount = 500m, cycle = (int)Domain.ContributionFrequency.Monthly, creatorId = u.Id });
+            new { name = "Leak Test Club", contributionAmountCents = 50000, cycle = (int)Domain.ContributionFrequency.Monthly, creatorId = u.Id });
         r.EnsureSuccessStatusCode();
         return (await r.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
     }

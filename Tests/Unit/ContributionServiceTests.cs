@@ -45,7 +45,7 @@ public class ContributionServiceTests
     [Fact]
     public async Task Recording_for_a_user_who_is_not_a_member_is_rejected()
     {
-        var request = new RecordContributionRequest(_outsider.Id, "2026-09", 500m);
+        var request = new RecordContributionRequest(_outsider.Id, "2026-09", 50000);
 
         var ex = await Assert.ThrowsAsync<BusinessRuleViolationException>(
             () => _service.RecordContributionAsync(_stokvel.Id, request, "key-1"));
@@ -56,7 +56,7 @@ public class ContributionServiceTests
     [Fact]
     public async Task Recording_for_a_nonexistent_stokvel_is_rejected()
     {
-        var request = new RecordContributionRequest(_admin.Id, "2026-09", 500m);
+        var request = new RecordContributionRequest(_admin.Id, "2026-09", 50000);
 
         var ex = await Assert.ThrowsAsync<NotFoundException>(
             () => _service.RecordContributionAsync(Guid.NewGuid(), request, "key-stokvel-missing"));
@@ -67,7 +67,7 @@ public class ContributionServiceTests
     [Fact]
     public async Task Recording_for_a_nonexistent_member_is_rejected()
     {
-        var request = new RecordContributionRequest(Guid.NewGuid(), "2026-09", 500m);
+        var request = new RecordContributionRequest(Guid.NewGuid(), "2026-09", 50000);
 
         var ex = await Assert.ThrowsAsync<NotFoundException>(
             () => _service.RecordContributionAsync(_stokvel.Id, request, "key-member-missing"));
@@ -81,7 +81,7 @@ public class ContributionServiceTests
     [InlineData("   ")]
     public async Task Recording_without_an_idempotency_key_is_rejected(string? idempotencyKey)
     {
-        var request = new RecordContributionRequest(_admin.Id, "2026-09", 500m);
+        var request = new RecordContributionRequest(_admin.Id, "2026-09", 50000);
 
         await Assert.ThrowsAsync<ArgumentException>(
             () => _service.RecordContributionAsync(_stokvel.Id, request, idempotencyKey));
@@ -90,7 +90,7 @@ public class ContributionServiceTests
     [Fact]
     public async Task Recording_a_non_positive_amount_is_rejected()
     {
-        var request = new RecordContributionRequest(_admin.Id, "2026-09", 0m);
+        var request = new RecordContributionRequest(_admin.Id, "2026-09", 0);
 
         await Assert.ThrowsAsync<ArgumentException>(
             () => _service.RecordContributionAsync(_stokvel.Id, request, "key-invalid-amount"));
@@ -99,7 +99,7 @@ public class ContributionServiceTests
     [Fact]
     public async Task Recording_a_valid_contribution_succeeds_and_persists_it()
     {
-        var request = new RecordContributionRequest(_admin.Id, "2026-09", 500m);
+        var request = new RecordContributionRequest(_admin.Id, "2026-09", 50000);
 
         var response = await _service.RecordContributionAsync(_stokvel.Id, request, "key-success");
 
@@ -107,17 +107,17 @@ public class ContributionServiceTests
         Assert.Equal(_stokvel.Id, response.StokvelId);
         Assert.Equal(_admin.Id, response.MemberUserId);
         Assert.Equal("2026-09", response.Cycle);
-        Assert.Equal(500m, response.Amount);
+        Assert.Equal(50000, response.AmountCents);
         Assert.NotNull(_contributions.GetById(response.Id));
     }
 
     [Fact]
     public async Task Recording_the_same_cycle_twice_for_the_same_member_is_rejected()
     {
-        var firstRequest = new RecordContributionRequest(_admin.Id, "2026-09", 500m);
+        var firstRequest = new RecordContributionRequest(_admin.Id, "2026-09", 50000);
         await _service.RecordContributionAsync(_stokvel.Id, firstRequest, "key-first");
 
-        var secondRequest = new RecordContributionRequest(_admin.Id, "2026-09", 500m);
+        var secondRequest = new RecordContributionRequest(_admin.Id, "2026-09", 50000);
 
         var ex = await Assert.ThrowsAsync<AlreadyExistsException>(
             () => _service.RecordContributionAsync(_stokvel.Id, secondRequest, "key-second"));
@@ -129,10 +129,10 @@ public class ContributionServiceTests
     [Fact]
     public async Task Duplicate_detection_ignores_surrounding_whitespace_in_the_cycle()
     {
-        var firstRequest = new RecordContributionRequest(_admin.Id, "2026-09", 500m);
+        var firstRequest = new RecordContributionRequest(_admin.Id, "2026-09", 50000);
         await _service.RecordContributionAsync(_stokvel.Id, firstRequest, "key-whitespace-1");
 
-        var secondRequest = new RecordContributionRequest(_admin.Id, "  2026-09  ", 500m);
+        var secondRequest = new RecordContributionRequest(_admin.Id, "  2026-09  ", 50000);
 
         var ex = await Assert.ThrowsAsync<AlreadyExistsException>(
             () => _service.RecordContributionAsync(_stokvel.Id, secondRequest, "key-whitespace-2"));
@@ -143,7 +143,7 @@ public class ContributionServiceTests
     [Fact]
     public async Task Retrying_with_the_same_idempotency_key_and_payload_replays_the_original_response()
     {
-        var request = new RecordContributionRequest(_admin.Id, "2026-09", 500m);
+        var request = new RecordContributionRequest(_admin.Id, "2026-09", 50000);
 
         var first = await _service.RecordContributionAsync(_stokvel.Id, request, "key-replay");
         var second = await _service.RecordContributionAsync(_stokvel.Id, request, "key-replay");
@@ -156,10 +156,10 @@ public class ContributionServiceTests
     [Fact]
     public async Task Reusing_an_idempotency_key_with_a_different_payload_is_rejected()
     {
-        var firstRequest = new RecordContributionRequest(_admin.Id, "2026-09", 500m);
+        var firstRequest = new RecordContributionRequest(_admin.Id, "2026-09", 50000);
         await _service.RecordContributionAsync(_stokvel.Id, firstRequest, "key-reused");
 
-        var differentRequest = new RecordContributionRequest(_admin.Id, "2026-10", 500m);
+        var differentRequest = new RecordContributionRequest(_admin.Id, "2026-10", 50000);
 
         var ex = await Assert.ThrowsAsync<IdempotencyKeyReusedException>(
             () => _service.RecordContributionAsync(_stokvel.Id, differentRequest, "key-reused"));

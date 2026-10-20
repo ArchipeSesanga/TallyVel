@@ -44,7 +44,7 @@ public class ContributionServices : IContributionService
         if (string.IsNullOrWhiteSpace(idempotencyKey))
             throw new ArgumentException("An Idempotency-Key header is required.", nameof(idempotencyKey));
 
-        var payloadHash = HashPayload(new { stokvelId, request.MemberUserId, request.Cycle, request.Amount });
+        var payloadHash = HashPayload(new { stokvelId, request.MemberUserId, request.Cycle, request.AmountCents });
 
         // (b) Atomically claim the key before doing anything else. Unlike
         // "check, then add at the end", this closes the window where two
@@ -96,7 +96,7 @@ public class ContributionServices : IContributionService
             }
 
             // (d) The one place the actual write happens.
-            var contribution = new Contribution(stokvelId, member.Id, request.Cycle, request.Amount);
+            var contribution = new Contribution(stokvelId, member.Id, request.Cycle, Money.FromCents(request.AmountCents));
             await _contributionRepository.AddAsync(contribution);
 
             var response = ContributionResponse.FromDomain(contribution);
