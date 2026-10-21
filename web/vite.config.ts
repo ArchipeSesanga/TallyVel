@@ -8,4 +8,6 @@ export default defineConfig({
     react(),
     babel({ presets: [reactCompilerPreset()] })
   ],
+  // Fixed port: if 3000 is busy, fail loudly instead of silently moving to another port.
+  server: { port: 3000, strictPort: true },
 })
