@@ -20,7 +20,7 @@ public class HomeScreenTests(PostgresApiFactory factory)
         (await mine.PostAsJsonAsync($"/api/v1/stokvels/{s1}/cycles", new { label = "2026-10" })).EnsureSuccessStatusCode();
         var contribution = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/stokvels/{s1}/contributions")
         {
-            Content = JsonContent.Create(new { memberUserId = me.Id, cycle = "2026-10", amount = 100.50m }),
+            Content = JsonContent.Create(new { memberUserId = me.Id, cycle = "2026-10", amountCents = 10050 }),
         };
         contribution.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
         (await mine.SendAsync(contribution)).EnsureSuccessStatusCode();
@@ -40,7 +40,9 @@ public class HomeScreenTests(PostgresApiFactory factory)
 
         var chair = cards[s1];
         Assert.Equal("Chairperson", chair.GetProperty("role").GetString());
-        Assert.Equal("2026-10", chair.GetProperty("currentCycle").GetString());
+        var cycle = chair.GetProperty("currentCycle");
+        Assert.Equal("2026-10", cycle.GetProperty("label").GetString());
+        Assert.Equal("Open", cycle.GetProperty("status").GetString());
         Assert.Equal(10050, chair.GetProperty("paidThisCycleCents").GetInt64());
         Assert.Equal(39950, chair.GetProperty("owedThisCycleCents").GetInt64());
         Assert.Equal(JsonValueKind.String, chair.GetProperty("nextPayoutDate").ValueKind);
@@ -48,6 +50,8 @@ public class HomeScreenTests(PostgresApiFactory factory)
         var member = cards[s2];
         Assert.Equal("Member", member.GetProperty("role").GetString());
         Assert.Equal(JsonValueKind.Null, member.GetProperty("currentCycle").ValueKind);
+        Assert.Equal(0, member.GetProperty("paidThisCycleCents").GetInt64());
+        Assert.Equal(0, member.GetProperty("owedThisCycleCents").GetInt64());
         Assert.Equal(JsonValueKind.Null, member.GetProperty("nextPayoutDate").ValueKind);
     }
 

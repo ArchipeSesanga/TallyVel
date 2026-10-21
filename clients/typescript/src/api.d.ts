@@ -239,7 +239,7 @@ export interface paths {
         };
         /**
          * List a stokvel's contributions, one page at a time
-         * @description Filters, sorting and paging all run in the database. pageSize defaults to 20 and is capped at 100; sort is recordedAt (default) or amount, prefixed with '-' for descending. Pass nextPageToken back as pageToken for the next page; an empty nextPageToken means there are no more results.
+         * @description Filters, sorting and paging all run in the database. pageSize defaults to 20 and is capped at 100; sort is recordedAt (default) or amount, prefixed with '-' for descending. Pass nextPageToken back as pageToken for the next page; an empty nextPageToken means there are no more results. minAmountCents and maxAmountCents filter by amount, in integer cents.
          */
         get: {
             parameters: {
@@ -249,8 +249,8 @@ export interface paths {
                     sort?: string;
                     cycle?: string;
                     memberUserId?: string;
-                    minAmount?: number;
-                    maxAmount?: number;
+                    minAmountCents?: number;
+                    maxAmountCents?: number;
                 };
                 header?: never;
                 path: {
@@ -610,7 +610,7 @@ export interface paths {
         };
         /**
          * Member home screen
-         * @description One card per stokvel the caller belongs to: their role, the current cycle, what they have paid and still owe this cycle (integer cents), and the next payout date (UTC). An empty list if they belong to none.
+         * @description One card per stokvel the caller belongs to: their role, the current cycle, what they have paid and still owe this cycle (integer cents), and the next payout date (a South African calendar date). currentCycle is an object with its dates (endsOn is the due date), or null when no cycle is open; paid and owed are then 0. An empty list if they belong to none.
          */
         get: {
             parameters: {
@@ -1134,6 +1134,7 @@ export interface components {
         };
         /** @enum {unknown} */
         ContributionFrequency: "Weekly" | "BiWeekly" | "Monthly";
+        /** @description A contribution. Money is integer cents; RecordedAt is UTC and ends in Z. */
         ContributionResponse: {
             /** Format: uuid */
             id: string;
@@ -1142,15 +1143,19 @@ export interface components {
             /** Format: uuid */
             memberUserId: string;
             cycle: string;
-            /** Format: double */
-            amount: number;
+            /** Format: int64 */
+            amountCents: number;
+            status: components["schemas"]["ContributionStatus"];
             /** Format: date-time */
             recordedAt: string;
         };
+        /** @enum {unknown} */
+        ContributionStatus: "Pending" | "Paid" | "Confirmed";
+        /** @description The contribution amount is integer cents (R500 is 50000). */
         CreateStokvelRequest: {
             name: string;
-            /** Format: double */
-            contributionAmount: number;
+            /** Format: int64 */
+            contributionAmountCents: number;
             cycle: components["schemas"]["ContributionFrequency"];
             /** Format: uuid */
             creatorId: string;
@@ -1169,7 +1174,21 @@ export interface components {
             status: components["schemas"]["CycleStatus"];
         };
         /** @enum {unknown} */
-        CycleStatus: "Open" | "PaidOut";
+        CycleStatus: "Open" | "Closed" | "PaidOut";
+        /**
+         * @description The stokvel's open cycle. EndsOn is the due date. StartsOn and EndsOn are
+         *     null only for a cycle created before cycles had dates.
+         */
+        HomeCurrentCycle: {
+            /** Format: uuid */
+            id: string;
+            label: string;
+            status: components["schemas"]["CycleStatus"];
+            /** Format: date */
+            startsOn: null | string;
+            /** Format: date */
+            endsOn: null | string;
+        };
         /**
          * @description Exactly what the member home screen shows: one card per stokvel the caller
          *     belongs to. Only the caller's own amounts; no member lists.
@@ -1177,13 +1196,16 @@ export interface components {
         HomeResponse: {
             stokvels: components["schemas"]["HomeStokvelCard"][];
         };
-        /** @description Money is integer cents (exact in JavaScript); dates are UTC calendar dates. */
+        /**
+         * @description Money is integer cents (exact in JavaScript); dates are South African
+         *     calendar dates ("2026-10-31"), not UTC dates.
+         */
         HomeStokvelCard: {
             /** Format: uuid */
             stokvelId: string;
             name: string;
             role: components["schemas"]["MemberRole"];
-            currentCycle: null | string;
+            currentCycle: null | components["schemas"]["HomeCurrentCycle"];
             /** Format: int64 */
             paidThisCycleCents: number;
             /** Format: int64 */
@@ -1214,6 +1236,7 @@ export interface components {
             /** Format: uuid */
             recipientUserId: string;
         };
+        /** @description A payout. Money is integer cents; PaidAt is UTC and ends in Z. */
         PayoutResponse: {
             /** Format: uuid */
             id: string;
@@ -1223,8 +1246,8 @@ export interface components {
             contributionCycleId: string;
             /** Format: uuid */
             recipientUserId: string;
-            /** Format: double */
-            amount: number;
+            /** Format: int64 */
+            amountCents: number;
             /** Format: date-time */
             paidAt: string;
         };
@@ -1241,13 +1264,14 @@ export interface components {
          *     deliberately not a field here — it comes from the route
          *     (POST /api/stokvels/{stokvelId}/contributions) so a client can never
          *     send a body that disagrees with the URL it actually called.
+         *     The amount is integer cents (R100.50 is 10050).
          */
         RecordContributionRequest: {
             /** Format: uuid */
             memberUserId: string;
             cycle: string;
-            /** Format: double */
-            amount: number;
+            /** Format: int64 */
+            amountCents: number;
         };
         RegisterRequest: {
             email: string;
@@ -1271,8 +1295,8 @@ export interface components {
             /** Format: uuid */
             id: string;
             name: string;
-            /** Format: double */
-            contributionAmount: number;
+            /** Format: int64 */
+            contributionAmountCents: number;
             cycle: components["schemas"]["ContributionFrequency"];
             /** Format: date-time */
             createdAt: string;

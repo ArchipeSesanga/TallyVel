@@ -11,7 +11,7 @@ public sealed record StokvelMembershipResponse(Guid UserId, MemberRole Role, Dat
 public sealed record StokvelResponse(
     Guid Id,
     string Name,
-    decimal ContributionAmount,
+    long ContributionAmountCents,
     ContributionFrequency Cycle,
     DateTimeOffset CreatedAt,
     IReadOnlyCollection<StokvelMembershipResponse> Members)
@@ -20,13 +20,14 @@ public sealed record StokvelResponse(
         new(
             stokvel.Id,
             stokvel.Name,
-            stokvel.ContributionAmount,
+            Money.ToCents(stokvel.ContributionAmount),
             stokvel.Cycle,
             stokvel.CreatedAt,
             stokvel.Members.Select(StokvelMembershipResponse.FromDomain).ToList());
 }
 
-public sealed record CreateStokvelRequest(string Name, decimal ContributionAmount, ContributionFrequency Cycle, Guid CreatorId);
+/// <summary>The contribution amount is integer cents (R500 is 50000).</summary>
+public sealed record CreateStokvelRequest(string Name, long ContributionAmountCents, ContributionFrequency Cycle, Guid CreatorId);
 
 public sealed record AddStokvelMemberRequest(Guid UserId, MemberRole Role = MemberRole.Member);
 

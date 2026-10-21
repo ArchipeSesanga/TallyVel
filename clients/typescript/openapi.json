@@ -223,7 +223,7 @@
           "Contributions"
         ],
         "summary": "List a stokvel\u0027s contributions, one page at a time",
-        "description": "Filters, sorting and paging all run in the database. pageSize defaults to 20 and is capped at 100; sort is recordedAt (default) or amount, prefixed with \u0027-\u0027 for descending. Pass nextPageToken back as pageToken for the next page; an empty nextPageToken means there are no more results.",
+        "description": "Filters, sorting and paging all run in the database. pageSize defaults to 20 and is capped at 100; sort is recordedAt (default) or amount, prefixed with \u0027-\u0027 for descending. Pass nextPageToken back as pageToken for the next page; an empty nextPageToken means there are no more results. minAmountCents and maxAmountCents filter by amount, in integer cents.",
         "parameters": [
           {
             "name": "stokvelId",
@@ -272,19 +272,19 @@
             }
           },
           {
-            "name": "minAmount",
+            "name": "minAmountCents",
             "in": "query",
             "schema": {
-              "type": "number",
-              "format": "double"
+              "type": "integer",
+              "format": "int64"
             }
           },
           {
-            "name": "maxAmount",
+            "name": "maxAmountCents",
             "in": "query",
             "schema": {
-              "type": "number",
-              "format": "double"
+              "type": "integer",
+              "format": "int64"
             }
           }
         ],
@@ -741,7 +741,7 @@
           "Me"
         ],
         "summary": "Member home screen",
-        "description": "One card per stokvel the caller belongs to: their role, the current cycle, what they have paid and still owe this cycle (integer cents), and the next payout date (UTC). An empty list if they belong to none.",
+        "description": "One card per stokvel the caller belongs to: their role, the current cycle, what they have paid and still owe this cycle (integer cents), and the next payout date (a South African calendar date). currentCycle is an object with its dates (endsOn is the due date), or null when no cycle is open; paid and owed are then 0. An empty list if they belong to none.",
         "responses": {
           "200": {
             "description": "OK",
@@ -1381,7 +1381,8 @@
           "stokvelId",
           "memberUserId",
           "cycle",
-          "amount",
+          "amountCents",
+          "status",
           "recordedAt"
         ],
         "type": "object",
@@ -1401,20 +1402,31 @@
           "cycle": {
             "type": "string"
           },
-          "amount": {
-            "type": "number",
-            "format": "double"
+          "amountCents": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ContributionStatus"
           },
           "recordedAt": {
             "type": "string",
             "format": "date-time"
           }
-        }
+        },
+        "description": "A contribution. Money is integer cents; RecordedAt is UTC and ends in Z."
+      },
+      "ContributionStatus": {
+        "enum": [
+          "Pending",
+          "Paid",
+          "Confirmed"
+        ]
       },
       "CreateStokvelRequest": {
         "required": [
           "name",
-          "contributionAmount",
+          "contributionAmountCents",
           "cycle",
           "creatorId"
         ],
@@ -1423,9 +1435,9 @@
           "name": {
             "type": "string"
           },
-          "contributionAmount": {
-            "type": "number",
-            "format": "double"
+          "contributionAmountCents": {
+            "type": "integer",
+            "format": "int64"
           },
           "cycle": {
             "$ref": "#/components/schemas/ContributionFrequency"
@@ -1434,7 +1446,8 @@
             "type": "string",
             "format": "uuid"
           }
-        }
+        },
+        "description": "The contribution amount is integer cents (R500 is 50000)."
       },
       "CreateUserRequest": {
         "required": [
@@ -1483,8 +1496,46 @@
       "CycleStatus": {
         "enum": [
           "Open",
+          "Closed",
           "PaidOut"
         ]
+      },
+      "HomeCurrentCycle": {
+        "required": [
+          "id",
+          "label",
+          "status",
+          "startsOn",
+          "endsOn"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CycleStatus"
+          },
+          "startsOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "endsOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          }
+        },
+        "description": "The stokvel\u0027s open cycle. EndsOn is the due date. StartsOn and EndsOn are\nnull only for a cycle created before cycles had dates."
       },
       "HomeResponse": {
         "required": [
@@ -1524,9 +1575,13 @@
             "$ref": "#/components/schemas/MemberRole"
           },
           "currentCycle": {
-            "type": [
-              "null",
-              "string"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HomeCurrentCycle"
+              }
             ]
           },
           "paidThisCycleCents": {
@@ -1545,7 +1600,7 @@
             "format": "date"
           }
         },
-        "description": "Money is integer cents (exact in JavaScript); dates are UTC calendar dates."
+        "description": "Money is integer cents (exact in JavaScript); dates are South African\ncalendar dates (\u00222026-10-31\u0022), not UTC dates."
       },
       "LoginRequest": {
         "required": [
@@ -1617,7 +1672,7 @@
           "stokvelId",
           "contributionCycleId",
           "recipientUserId",
-          "amount",
+          "amountCents",
           "paidAt"
         ],
         "type": "object",
@@ -1638,15 +1693,16 @@
             "type": "string",
             "format": "uuid"
           },
-          "amount": {
-            "type": "number",
-            "format": "double"
+          "amountCents": {
+            "type": "integer",
+            "format": "int64"
           },
           "paidAt": {
             "type": "string",
             "format": "date-time"
           }
-        }
+        },
+        "description": "A payout. Money is integer cents; PaidAt is UTC and ends in Z."
       },
       "ProblemDetails": {
         "type": "object",
@@ -1688,7 +1744,7 @@
         "required": [
           "memberUserId",
           "cycle",
-          "amount"
+          "amountCents"
         ],
         "type": "object",
         "properties": {
@@ -1699,12 +1755,12 @@
           "cycle": {
             "type": "string"
           },
-          "amount": {
-            "type": "number",
-            "format": "double"
+          "amountCents": {
+            "type": "integer",
+            "format": "int64"
           }
         },
-        "description": "What the caller sends to record a contribution. StokvelId is\ndeliberately not a field here \u2014 it comes from the route\n(POST /api/stokvels/{stokvelId}/contributions) so a client can never\nsend a body that disagrees with the URL it actually called."
+        "description": "What the caller sends to record a contribution. StokvelId is\ndeliberately not a field here \u2014 it comes from the route\n(POST /api/stokvels/{stokvelId}/contributions) so a client can never\nsend a body that disagrees with the URL it actually called.\nThe amount is integer cents (R100.50 is 10050)."
       },
       "RegisterRequest": {
         "required": [
@@ -1770,7 +1826,7 @@
         "required": [
           "id",
           "name",
-          "contributionAmount",
+          "contributionAmountCents",
           "cycle",
           "createdAt",
           "members"
@@ -1784,9 +1840,9 @@
           "name": {
             "type": "string"
           },
-          "contributionAmount": {
-            "type": "number",
-            "format": "double"
+          "contributionAmountCents": {
+            "type": "integer",
+            "format": "int64"
           },
           "cycle": {
             "$ref": "#/components/schemas/ContributionFrequency"

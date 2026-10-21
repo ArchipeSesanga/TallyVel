@@ -5,7 +5,7 @@ using Api.Application.Contracts;
 using Domain;
 
 
-//string Name, decimal ContributionAmount, ContributionFrequency Cycle, Guid CreatorId
+//string Name, long ContributionAmountCents, ContributionFrequency Cycle, Guid CreatorId
 public class CreateStokVelValidator: AbstractValidator<CreateStokvelRequest>
 {
     public CreateStokVelValidator()
@@ -16,9 +16,11 @@ public class CreateStokVelValidator: AbstractValidator<CreateStokvelRequest>
         .MaximumLength(Stokvel.MaxNameLength)
         .WithMessage($"Name cannot exceed {Stokvel.MaxNameLength} characters");
 
-    RuleFor(x => x.ContributionAmount)
+    RuleFor(x => x.ContributionAmountCents)
         .GreaterThan(0)
-        .WithMessage("Contribution amount must be bigger than 0");
+        .WithMessage("Contribution amount must be bigger than 0 cents")
+        .LessThanOrEqualTo(Money.MaxCents)
+        .WithMessage($"Contribution amount cannot exceed {Money.MaxCents} cents");
 
     RuleFor(x => x.Cycle)
         .IsInEnum()

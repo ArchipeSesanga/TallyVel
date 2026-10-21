@@ -19,6 +19,10 @@ namespace Tests.TestSupport;
 public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     public CapturedLogs Logs { get; } = new();
+
+    /// <summary>The password of every seeded demo user. TEST-ONLY, random on every run, never committed.</summary>
+    public string DemoPassword { get; } = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
+
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17")
         .WithDatabase("tallyvel_test")
         .WithUsername("postgres")
@@ -59,6 +63,9 @@ public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // Self-contained: don't depend on the developer's user-secrets. TEST-ONLY
         // key, generated fresh on every run so no key value is ever committed.
         builder.UseSetting("Jwt:SigningKey", Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)));
+
+        // The Development seeder hashes this as every demo user's password.
+        builder.UseSetting("Seed:DemoPassword", DemoPassword);
     }
 
     /// <summary>A cycle closer on the test database with the given clock.</summary>

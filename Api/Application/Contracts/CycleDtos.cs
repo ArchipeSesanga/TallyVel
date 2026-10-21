@@ -12,9 +12,11 @@ public sealed record CycleResponse(Guid Id, Guid StokvelId, string Label, CycleS
 
 public sealed record PayoutRequest(Guid RecipientUserId);
 
+/// <summary>A payout. Money is integer cents; PaidAt is UTC and ends in Z.</summary>
 public sealed record PayoutResponse(
-    Guid Id, Guid StokvelId, Guid ContributionCycleId, Guid RecipientUserId, decimal Amount, DateTimeOffset PaidAt)
+    Guid Id, Guid StokvelId, Guid ContributionCycleId, Guid RecipientUserId, long AmountCents, DateTimeOffset PaidAt)
 {
     public static PayoutResponse FromDomain(Payout payout) =>
-        new(payout.Id, payout.StokvelId, payout.ContributionCycleId, payout.RecipientUserId, payout.Amount, payout.PaidAt);
+        new(payout.Id, payout.StokvelId, payout.ContributionCycleId, payout.RecipientUserId,
+            Money.ToCents(payout.Amount), payout.PaidAt);
 }

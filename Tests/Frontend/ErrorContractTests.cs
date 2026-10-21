@@ -32,7 +32,7 @@ public class ErrorContractTests(PostgresApiFactory factory)
         var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/stokvels/{stokvelId}/contributions")
         {
             Content = new StringContent(
-                $$"""{ "memberUserId": "{{user.Id}}", "cycle": "2026-10", "amount": "100" }""",
+                $$"""{ "memberUserId": "{{user.Id}}", "cycle": "2026-10", "amountCents": "100" }""",
                 Encoding.UTF8, "application/json"),
         };
         request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
@@ -42,7 +42,7 @@ public class ErrorContractTests(PostgresApiFactory factory)
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var body = JsonDocument.Parse(text).RootElement;
-        Assert.True(body.GetProperty("errors").TryGetProperty("amount", out _), text);
+        Assert.True(body.GetProperty("errors").TryGetProperty("amountCents", out _), text);
         Assert.True(body.TryGetProperty("correlationId", out _), text);
         Assert.DoesNotContain("Api.", text);
         Assert.DoesNotContain("Domain.", text);

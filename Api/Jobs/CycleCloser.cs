@@ -120,6 +120,7 @@ public sealed class CycleCloser(
             {
                 m.UserId,
                 Paid = db.Contributions
+                    .Where(ContributionRules.Counts)
                     .Where(c => c.StokvelId == stokvelId && c.MemberUserId == m.UserId && c.Cycle == label)
                     .Sum(c => (decimal?)c.Amount) ?? 0m,
             })

@@ -46,6 +46,7 @@ public sealed class EfCycleRepository(TallyVelDbContext db, TimeProvider clock) 
                 "recipient-not-member", $"User {recipientUserId} is not a member of this stokvel.");
 
         var total = await db.Contributions
+            .Where(ContributionRules.Counts)
             .Where(c => c.StokvelId == stokvelId && c.Cycle == cycle.Label)
             .SumAsync(c => c.Amount, ct);
 

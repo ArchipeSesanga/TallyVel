@@ -9,13 +9,25 @@ namespace Api.Application.Contracts;
 public sealed record HomeResponse(IReadOnlyList<HomeStokvelCard> Stokvels);
 
 /// <summary>
-/// Money is integer cents (exact in JavaScript); dates are UTC calendar dates.
+/// Money is integer cents (exact in JavaScript); dates are South African
+/// calendar dates ("2026-10-31"), not UTC dates.
 /// </summary>
 public sealed record HomeStokvelCard(
     Guid StokvelId,
     string Name,
     MemberRole Role,
-    string? CurrentCycle,
+    HomeCurrentCycle? CurrentCycle,
     long PaidThisCycleCents,
     long OwedThisCycleCents,
     DateOnly? NextPayoutDate);
+
+/// <summary>
+/// The stokvel's open cycle. EndsOn is the due date. StartsOn and EndsOn are
+/// null only for a cycle created before cycles had dates.
+/// </summary>
+public sealed record HomeCurrentCycle(
+    Guid Id,
+    string Label,
+    CycleStatus Status,
+    DateOnly? StartsOn,
+    DateOnly? EndsOn);

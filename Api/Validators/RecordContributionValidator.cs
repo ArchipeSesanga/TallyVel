@@ -18,8 +18,10 @@ public class RecordContributionValidator : AbstractValidator<RecordContributionR
             .MaximumLength(ContributionCycle.MaxLabelLength)
             .WithMessage($"Cycle cannot exceed {ContributionCycle.MaxLabelLength} characters");
 
-        RuleFor(x => x.Amount)
+        RuleFor(x => x.AmountCents)
             .GreaterThan(0)
-            .WithMessage("Contribution amount must be bigger than 0");
+            .WithMessage("Contribution amount must be bigger than 0 cents")
+            .LessThanOrEqualTo(Money.MaxCents)
+            .WithMessage($"Contribution amount cannot exceed {Money.MaxCents} cents");
     }
 }

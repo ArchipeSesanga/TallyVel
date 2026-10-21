@@ -969,7 +969,7 @@ grep -rnE "Log[A-Z][a-z]*\(|throw new" --include="*.cs" Api Infrastructure Domai
 | `Api/Application/Services/StokvelMembershipService.cs:89` | `Information`: "Changed role of user {UserId} in stokvel {StokvelId} to {Role}" | User id, stokvel id, role | Group membership (pseudonymous) | Unchanged (see Gaps) |
 | `Api/Filters/SaveChangesFilter.cs:47` | `Debug`: "Saved {EntryCount} change(s) for {Action}" | Count, action name | No | Unchanged |
 | `Infrastructure/Persistence/DatabaseSeeder.cs:27` | `Debug`: "Database already has data; skipping seed" | Nothing | No | Unchanged |
-| `Infrastructure/Persistence/DatabaseSeeder.cs:36` | `Information`: "Seeded database with {UserCount} users and {StokvelCount} stokvels" | Counts | No | Unchanged |
+| `Infrastructure/Persistence/DatabaseSeeder.cs` | `Information`: "Seeded database with {UserCount} users, {StokvelCount} stokvels and {ContributionCount} contributions" | Counts | No | Unchanged |
 
 #### Exception messages
 
@@ -1070,6 +1070,8 @@ The observability tests:
 This section covers what a browser frontend needs from the API: one version prefix, CORS, rate limits, a screen-shaped response, one error shape, and TypeScript types generated from the OpenAPI document.
 
 > Paths in the earlier sections of this README predate this change. Every API route now starts with `/api/v1`, and enums are now sent as names, not numbers.
+>
+> Assignment 7.1 changed parts of this section: money fields have a `Cents` suffix everywhere, `currentCycle` is an object, timestamps end in `Z` and dates are South African. See "Handoff gaps fixed (Assignment 7.1)" at the end.
 
 ### 1. Versioning
 
@@ -1358,3 +1360,93 @@ Unhandled exception. System.InvalidOperationException: Missing setting Connectio
 
 The app stops at startup, naming the missing setting, instead of failing on the
 first request. 
+
+Assignment 7.1
+==============
+
+## Handoff gaps fixed (Assignment 7.1)
+
+The API had gaps that a React frontend would otherwise have had to work around. Each one is fixed in the API, with a test. Nothing was fixed by changing what the frontend would do.
+
+> **Breaking change inside v1.** Every money field is now integer cents with a `Cents` suffix. Nothing is live yet, so v1 was changed instead of adding v2. Clients must rename these fields:
+>
+> | Before | After |
+> |---|---|
+> | `ContributionResponse.amount` | `amountCents` |
+> | `PayoutResponse.amount` | `amountCents` |
+> | `StokvelResponse.contributionAmount`, `CreateStokvelRequest.contributionAmount` | `contributionAmountCents` |
+> | `RecordContributionRequest.amount` | `amountCents` (0 or less is a 400) |
+> | query `minAmount`, `maxAmount` on the contributions list | `minAmountCents`, `maxAmountCents` |
+>
+> Also changed: `HomeStokvelCard.currentCycle` is an object or `null` (was a string), `CycleStatus` has a new value `Closed`, `ContributionResponse` has a new field `status`, and timestamps end in `Z` instead of `+00:00`.
+
+| # | Gap | Fix | Test |
+|---|---|---|---|
+| 1 | Seeded demo users had placeholder password hashes, so nobody could sign in as them | The seeder hashes `Seed__DemoPassword` for every demo user with the same `IPasswordHasher<User>` that `/auth/register` uses. Development only, and idempotent | `SeedTests.A_seeded_user_logs_in_with_the_demo_password_and_gets_an_access_token`, `SeedTests.Every_seeded_user_can_log_in`, `SeedTests.A_wrong_password_still_fails_for_a_seeded_user`, `SeedTests.Seeding_twice_changes_nothing` |
+| 2 | The seed lacked the data the frontend needs | `SeedData` now has Lerato as Treasurer of "Family Stokvel" and Member of "Work Stokvel", owing in one and paid up in the other, all three contribution statuses, a 10-cent row, a row at `2026-10-31T22:30:00Z`, and four other members. Names are made up, emails end in `.test` | `SeedTests.Lerato_is_Treasurer_of_one_stokvel_and_a_Member_of_another`, `SeedTests.Lerato_owes_in_one_current_cycle_and_is_paid_up_in_the_other`, `SeedTests.The_seed_has_all_three_statuses_a_10_cent_row_and_the_midnight_row` |
+| 3 | Contributions had no status | `ContributionStatus` is `Pending`, `Paid` or `Confirmed`. It is stored (migration `AddContributionStatusAndCycleIsPaidOut`) and returned on `ContributionResponse` as an enum. Which statuses count lives in one place, `ContributionRules` | `ContributionRulesTests.Only_Paid_and_Confirmed_contributions_count`, `ContributionRulesTests.The_query_form_of_the_rule_agrees_with_the_in_memory_form_for_every_status`, `ApiReadinessTests.Only_Paid_and_Confirmed_contributions_count_towards_paid_and_owed_on_the_home_screen`, `ApiReadinessTests.A_Pending_contribution_is_not_paid_out`, `OpenApiDocumentTests.Statuses_and_roles_list_exactly_their_values` |
+| 4 | Amounts were `number`/double in the OpenAPI document | Integer cents everywhere (`long`, `"type": "integer"`), renamed as in the table above. Cents become a decimal with `Money.FromCents` (`cents / 100m`, decimal only), and a decimal becomes cents with `Money.ToCents`. A request above 2^53 − 1 cents (the largest number JavaScript holds exactly) is a 400 | `ApiReadinessTests.A_contribution_comes_back_in_the_exact_cents_it_was_sent_with_status_Paid`, `ApiReadinessTests.A_contribution_of_zero_cents_or_less_or_too_large_is_a_400`, `ApiReadinessTests.A_stokvel_is_created_and_returned_with_its_contribution_amount_in_cents`, `ApiReadinessTests.The_contribution_list_filters_by_amount_in_cents_and_returns_cents`, `ApiReadinessTests.A_payout_comes_back_in_cents`, `ApiReadinessTests.Retrying_a_contribution_with_the_same_key_replays_the_same_cents_and_status`, `OpenApiDocumentTests.No_money_field_anywhere_is_a_number`, `OpenApiDocumentTests.Nothing_in_the_document_is_a_floating_point_number` |
+| 5 | `currentCycle` on `/me/home` was just a label | It is `{ id, label, status, startsOn, endsOn }` or `null`. `startsOn` and `endsOn` are South African calendar dates (`format: date`); `endsOn` is the due date | `ApiReadinessTests.The_current_cycle_is_an_object_with_South_African_dates`, `ApiReadinessTests.With_no_open_cycle_the_current_cycle_is_null_and_nothing_is_paid_or_owed`, `ApiReadinessTests.A_closed_cycle_is_not_the_current_cycle`, `ApiReadinessTests.A_cycle_that_has_not_started_yet_is_not_the_current_cycle`, `OpenApiDocumentTests.The_current_cycle_is_an_object_that_may_be_null` |
+| 6 | `CycleStatus` was `Open \| PaidOut`, though the cycle-close job sets `ClosedAt` | `Open \| Closed \| PaidOut`: PaidOut if paid out, otherwise Closed if `ClosedAt` is set, otherwise Open. The rule is `ContributionCycle.StatusOf`; the database stores only `IsPaidOut` | `ContributionCycleStatusTests.Status_is_PaidOut_else_Closed_else_Open`, `ApiReadinessTests.A_cycle_is_Open_then_Closed_then_PaidOut`, `ApiReadinessTests.The_database_filter_for_an_open_cycle_agrees_with_the_status_rule_in_every_state` |
+| 7a | `System.Text.Json` writes `DateTimeOffset` as `…+00:00`, not `…Z` | `UtcDateTimeOffsetConverter` writes every timestamp as a UTC instant ending in `Z`. It is registered for controllers and for the OpenAPI document, with a schema transformer that keeps the type `string` / `date-time` | `ApiReadinessTests.A_timestamp_is_written_with_a_Z_and_not_a_zero_offset`, `ApiReadinessTests.Every_timestamp_in_every_kind_of_response_ends_in_Z`, `ApiReadinessTests.The_seeded_midnight_contribution_is_listed_as_exactly_2026_10_31_22_30_Z`, `OpenApiDocumentTests.Timestamps_are_date_time_strings_and_calendar_dates_are_dates` |
+| 7b | `nextPayoutDate` was computed on the UTC calendar day | Both "today" and the stokvel's creation date are South African dates (`StokvelCalendar`). The endpoint description says so | `NextPayoutDateTests.The_anchor_is_the_South_African_creation_date_not_the_UTC_date`, `ApiReadinessTests.The_next_payout_date_is_a_South_African_calendar_date` |
+| 8 | The generated TypeScript types had to compile and carry the right shapes | `clients/typescript/openapi.json` and `src/api.d.ts` are regenerated. `src/contract-check.ts` makes `tsc --strict` fail if `MemberRole`, the statuses, the money fields or the nullable fields change shape | `npm run contract` in `clients/typescript` (generate, then `tsc --noEmit --strict`) |
+| 9 | One stokvel's contribution list did not hold every case the frontend shows (the midnight row was in Work Stokvel, the Pending and 10-cent rows in Family) | The midnight row is now Sipho's in Family Stokvel (cycle `2026-11`), so `GET /stokvels/{id}/contributions` for Family returns Pending, Paid, Confirmed, 10 cents and `2026-10-31T22:30:00Z` together | `SeedTests.The_seed_has_all_three_statuses_a_10_cent_row_and_the_midnight_row`, `ApiReadinessTests.The_seeded_midnight_contribution_is_listed_as_exactly_2026_10_31_22_30_Z` |
+
+### Decisions
+
+- **Default status of existing contributions: `Paid`.** Each existing row was a payment a member recorded, and it already counted towards totals and payouts. `Pending` would have made every total drop, and `Confirmed` claims a confirmation nobody made. A contribution recorded through the API is also `Paid`. There is no endpoint yet that moves a contribution to `Confirmed`.
+- **Which statuses count: `Paid` and `Confirmed`. `Pending` does not.** The money has not arrived. The rule is `ContributionRules.Counts` (a query expression) and `ContributionRules.IsCounted` (the same rule in memory). The home screen's paid and owed amounts, the cycle-close job's arrears and a cycle's payout total all use it, so they cannot disagree.
+- **No open cycle: `currentCycle` is `null`, `paidThisCycleCents` is 0, `owedThisCycleCents` is 0 and `nextPayoutDate` is `null`.** Before, owed showed the full contribution amount even when nothing was being collected.
+- **Current cycle** = the open cycle that has already started (`StartsOn` is today or earlier, or empty for a cycle from before cycles had dates), and if several qualify, the greatest label. A closed or paid-out cycle is never current.
+- **`startsOn` and `endsOn` can still be `null`** (`string | null` in TypeScript) for a cycle created before cycles had dates, or created by recording a contribution against an unknown label. Cycles opened through the API always have both.
+- **The midnight contribution** (`2026-10-31T22:30:00Z` is 00:30 on 1 November in Johannesburg) is in the **`2026-11`** cycle (1 to 30 November) of Family Stokvel, so one stokvel's contribution list holds every case the frontend shows. The domain decides which cycle a day belongs to by the South African date (`StokvelCalendar.Today`), which is 1 November. A UTC reading (31 October) would put it in October. It belongs to Sipho and is for the next cycle, so it does not disturb Lerato's figures. That cycle starts in the future, so it is not the current cycle until 1 November.
+- **The rest of the seed is relative to today.** Each stokvel gets a cycle for the current South African month, so "current cycle" is true whenever the seed runs.
+
+### Running the seed
+
+- Set `Seed__DemoPassword` (`.env` for compose, or `dotnet user-secrets set "Seed:DemoPassword" "<password>"` locally). It needs at least 12 characters, like any password. It is read only when there is something to seed.
+- The demo accounts are `lerato@tallyvel.test`, `thabo@tallyvel.test`, `lindiwe@tallyvel.test`, `sipho@tallyvel.test`, `nomsa@tallyvel.test` and `nandi@tallyvel.test`, all with that password.
+- The seed only runs against an **empty** database. A database seeded before this change keeps its old placeholder users; `docker compose down -v` then `docker compose up --build` gives a fresh one.
+
+### Not done
+
+- The old `GET /api/v1/users` and `POST /api/v1/users` endpoints are unchanged. They are a follow-up.
+
+## Frontend
+
+The React app is in `web/` (Vite, React 19, TypeScript strict, Vitest). It shows two components from hard-coded sample data captured from this API (`web/src/data/sample.ts`). There is no fetching yet. A later assignment swaps the sample data for live calls, and the cards take only props, so they will not change.
+
+### How to run the frontend
+
+```bash
+cd web
+npm install
+npm run generate:api   # with the API running on :8080; rewrites src/api/schema.d.ts
+npm run dev            # http://localhost:3000
+```
+
+Checks: `npm run typecheck`, `npm run lint`, `npx vitest run`, `npm run build`.
+
+### How the role reaches the card
+
+Each entry of `GET /api/v1/me/home` carries the signed-in user's role in that one stokvel. `App` passes the entry to `StokvelCard` as a prop, and the card reads `entry.role` and nothing else. That is why Lerato's two cards differ by props alone: Family Stokvel's entry says `Treasurer` and Work Stokvel's says `Member`, so only the first shows "Treasurer tasks". There is no global "current role", no role read from the token and no React context.
+
+Hiding the Treasurer section is not security. The API still refuses a Member who calls a treasurer-only endpoint with a 403, checked against the database.
+
+### How status and role strings are handled
+
+`MemberRole`, `CycleStatus` and `ContributionStatus` are generated from the API's enums (`web/src/api/types.ts`), so they are unions of the exact allowed words and a typo does not compile. The words people read ("Paid out", "You're the Treasurer") are `Record`s keyed by those unions, so a new value in the API fails to compile until it has a label. The one rule about who may run a cycle, "Treasurer or Chairperson", is the tested helper `canRunCycle` in `web/src/lib/roles.ts`. The role and every status are printed as text, never by colour alone.
+
+### The `useMemo` note
+
+In `StokvelCard`, the "Still owed" line is a value I was tempted to memoize: `owedThisCycleCents === 0 ? 'All paid up for this cycle' : formatCents(...)`, together with the label lookups next to it. `vite.config.ts` runs the React Compiler (`babel-plugin-react-compiler`), which memoizes components and values on its own, so no `useMemo`, `useCallback` or `React.memo` is written anywhere. The work is also a comparison and a string format, so there is nothing expensive to protect even without the compiler. I did not inspect the compiler's output, so I do not claim what it cached for this component.
+
+### Handoff gaps fixed
+
+The backend changes this work forced are in the table under **Handoff gaps fixed (Assignment 7.1)**, each with its test (rows 1 to 9). Row 9 is new in this assignment. The reason for the 401 on Lerato's login was not a code gap: the local database had been seeded before the fix and the seeder only runs against an empty one (see **Running the seed**).
+
+Also:
+
+- The 6.3 client was moved into `web/`. Its `formatRand` used `cents / 100` and `toFixed`. It was replaced by `formatCents` (`web/src/lib/money.ts`), which works on whole cents and splits the digits as text.
+- The old `GET /api/v1/users` and `POST /api/v1/users` endpoints remain as a known follow-up.
