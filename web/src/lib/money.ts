@@ -15,10 +15,12 @@ export function formatCents(cents: number): string {
   const sign = cents < 0 ? '-' : ''
   const whole = Math.abs(cents)
 
-  const centsPart = whole % 100               // 15050 → 50
-  const randsPart = (whole - centsPart) / 100 // (15050 - 50) / 100 → 150, always exact
+  // Split the digits as text: "15050" → rands "150", cents "50". No division, so no fractions.
+  const digits = String(whole).padStart(3, '0')
+  const randsPart = digits.slice(0, -2)
+  const centsPart = digits.slice(-2)
 
-  const exact = `${sign}${randsPart}.${String(centsPart).padStart(2, '0')}` // "150.50"
+  const exact = `${sign}${randsPart}.${centsPart}` // "150.50"
 
   return rands.format(exact as Intl.StringNumericLiteral)
 }
