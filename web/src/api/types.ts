@@ -15,3 +15,5 @@ export type ContributionItem = Schemas['PagedResponseOfContributionResponse']['i
 export type MemberRole = Schemas['MemberRole']
 export type CycleStatus = Schemas['CycleStatus']
 export type ContributionStatus = Schemas['ContributionStatus']
+
+export type AccessTokenResponse = Schemas['AccessTokenResponse']

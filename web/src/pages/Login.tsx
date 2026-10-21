@@ -1,44 +1,63 @@
-type LoginProps = {
-  // Called when the form is submitted. For now App just switches to the dashboard;
-  // a later assignment will check the email and password here first.
-  onSignIn: () => void
+import { useState, type FormEvent } from 'react'
+import { ApiError, login } from '../auth/session'
+
+/** What a member sees when sign-in fails. Never says WHICH of email/password was wrong. */
+function signInErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401) return 'Email or password is incorrect.'
+    if (error.status === 429) {
+      const seconds = Number(error.retryAfter)
+      return Number.isFinite(seconds)
+        ? `Too many sign-in attempts. Try again in ${seconds} seconds.`
+        : 'Too many sign-in attempts. Try again in a moment.'
+    }
+    return 'Something went wrong signing you in. Please try again.'
+  }
+  // fetch itself failed: no response at all, so the API is down or the network is gone.
+  return "Can't reach RondiTrack. Check your connection."
 }
 
-export default function Login({ onSignIn }: LoginProps) {
+type LoginProps = {
+  onSignedIn: () => void
+}
+
+export default function Login({ onSignedIn }: LoginProps) {
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault() // stop the browser from reloading the page
+    const form = new FormData(event.currentTarget)
+
+    setSubmitting(true)
+    setError(null)
+    try {
+      await login(String(form.get('email')), String(form.get('password')))
+      onSignedIn()
+    } catch (err) {
+      setError(signInErrorMessage(err))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
     <main className="flex flex-col items-center justify-center bg-background px-4 py-4 text-foreground md:px-8 lg:min-h-screen">
       <div className="grid max-w-lg items-center gap-12 lg:max-w-6xl lg:grid-cols-2">
         <div>
-          <p className="text-4xl font-bold !leading-tight lg:text-5xl">
+          <p className="text-3xl font-bold !leading-tight sm:text-4xl lg:text-5xl">
             Keep your stokvel on track, together.
           </p>
           <p className="mt-6 text-base leading-relaxed text-muted-foreground">
             Log contributions, see who has paid, and share a payout rotation everyone can trust. No more
             spreadsheets or WhatsApp screenshots.
           </p>
-
-          <div className="mt-6 text-sm lg:mt-12">
-            Don't have an account?
-            <a
-              href="#"
-              className="ml-1 rounded font-medium text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              Register here
-            </a>
-          </div>
         </div>
 
-        <div className="w-full max-w-md lg:ml-auto">
+        <div className="w-full max-w-md border-t border-border pt-12 lg:ml-auto lg:flex lg:flex-col lg:justify-center lg:self-stretch lg:border-t-0 lg:border-l lg:pt-0 lg:pl-12">
           <h1 className="mb-10 text-3xl font-bold">Sign in</h1>
 
-          <form
-            className="space-y-6"
-            onSubmit={(event) => {
-              // Stop the browser from reloading the page, which is what a form does by default.
-              event.preventDefault()
-              onSignIn()
-            }}
-          >
+          <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="email" className="mb-2 inline-block text-sm font-medium">
                 Email
@@ -69,11 +88,19 @@ export default function Login({ onSignIn }: LoginProps) {
               />
             </div>
 
+            {/* role="alert" makes screen readers read the error out as soon as it appears */}
+            {error !== null && (
+              <p role="alert" className="text-sm font-medium text-destructive">
+                {error}
+              </p>
+            )}
+
             <button
               type="submit"
-              className="w-full cursor-pointer rounded-md border border-primary bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              disabled={submitting}
+              className="w-full cursor-pointer rounded-md border border-primary bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Sign in
+              {submitting ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
         </div>
