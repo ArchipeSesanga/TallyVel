@@ -397,11 +397,11 @@ public class ApiReadinessTests(PostgresApiFactory factory)
             .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString()!;
         var client = TestApi.Client(factory, token);
         var home = await client.GetFromJsonAsync<JsonElement>("/api/v1/me/home");
-        var workId = home.GetProperty("stokvels").EnumerateArray()
-            .Single(c => c.GetProperty("name").GetString() == Infrastructure.Persistence.SeedData.WorkStokvelName)
+        var familyId = home.GetProperty("stokvels").EnumerateArray()
+            .Single(c => c.GetProperty("name").GetString() == Infrastructure.Persistence.SeedData.FamilyStokvelName)
             .GetProperty("stokvelId").GetGuid();
 
-        var text = await client.GetStringAsync($"/api/v1/stokvels/{workId}/contributions?cycle=2026-11");
+        var text = await client.GetStringAsync($"/api/v1/stokvels/{familyId}/contributions?cycle=2026-11");
 
         Assert.Contains("\"recordedAt\":\"2026-10-31T22:30:00Z\"", text);
     }

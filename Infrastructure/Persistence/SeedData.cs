@@ -20,7 +20,7 @@ public sealed record SeedSet(
 ///  - In the current cycle she still owes in Family Stokvel (her contribution is
 ///    Pending, which does not count) and is all paid up in Work Stokvel.
 ///  - Contributions exist in all three statuses, including exactly 10 cents and
-///    one recorded at 2026-10-31T22:30:00Z.
+///    one recorded at 2026-10-31T22:30:00Z. Family Stokvel's list holds all of them.
 /// </summary>
 public static class SeedData
 {
@@ -106,9 +106,10 @@ public static class SeedData
         // The midnight-boundary row. The domain puts a contribution in the cycle containing the
         // South African date of RecordedAt, which here is 1 November 2026, so it goes in the
         // "2026-11" cycle (1-30 November), not the October one its UTC date suggests.
-        var november = CycleFor(work, StokvelCalendar.Today(MidnightBoundaryAt));
+        // It is in Family Stokvel so that one stokvel's list holds every case the frontend shows.
+        var november = CycleFor(family, StokvelCalendar.Today(MidnightBoundaryAt));
         contributions.Add(new Contribution(
-            work.Id, nandi.Id, november.Label, 300m, ContributionStatus.Paid, MidnightBoundaryAt));
+            family.Id, sipho.Id, november.Label, 500m, ContributionStatus.Paid, MidnightBoundaryAt));
 
         return new SeedSet(users, stokvels, cycles.Values.ToList(), contributions);
     }
