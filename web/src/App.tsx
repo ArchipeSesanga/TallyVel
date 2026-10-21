@@ -1,33 +1,15 @@
-import { ContributionCard } from './components/ContributionCard'
-import { StokvelCard } from './components/StokvelCard'
-import { chosenStokvelName, contributions, home } from './data/sample'
+import { useState } from 'react'
 import './App.css'
+import Dashboard from './pages/Dashboard'
+import Login from './pages/Login'
 
-// Hard-coded sample data for now. A later assignment fetches it instead, and only these
-// two lines change: the cards just take props, so they will not need to.
 function App() {
-  return (
-    <main>
-      <h1>My stokvels</h1>
+  // Real state: nothing else tells us whether the person has signed in.
+  // For now "Sign in" just flips it; a later assignment checks the password first.
+  const [signedIn, setSignedIn] = useState(false)
 
-      <div className="grid">
-        {home.map((entry) => (
-          // The key is the database id: it stays with the same stokvel even if the list
-          // is reordered, unlike an array index.
-          <StokvelCard key={entry.stokvelId} entry={entry} />
-        ))}
-      </div>
-
-      <h2>Contributions in {chosenStokvelName}</h2>
-      <ul className="grid">
-        {contributions.map((c) => (
-          <li key={c.id}>
-            <ContributionCard contribution={c} />
-          </li>
-        ))}
-      </ul>
-    </main>
-  )
+  // Each page brings its own layout, so App adds no wrapper of its own.
+  return signedIn ? <Dashboard /> : <Login onSignIn={() => setSignedIn(true)} />
 }
 
 export default App
