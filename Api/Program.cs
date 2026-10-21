@@ -78,6 +78,24 @@ builder.Services.AddOpenApi(options => options.AddSchemaTransformer((schema, con
         schema.Type = JsonSchemaType.String | JsonSchemaType.Null;
         schema.Format = "date-time";
     }
+    else if (type == typeof(Microsoft.AspNetCore.Mvc.ProblemDetails) ||
+             type == typeof(Microsoft.AspNetCore.Mvc.ValidationProblemDetails))
+    {
+        // Every error body carries these two (the error handler adds them), but the framework's
+        // own type does not declare them. Without this the generated TypeScript type has no
+        // correlationId, and a client has to widen it by hand to show members a reference.
+        schema.Properties ??= new Dictionary<string, IOpenApiSchema>();
+        schema.Properties["correlationId"] = new OpenApiSchema
+        {
+            Type = JsonSchemaType.String | JsonSchemaType.Null,
+            Description = "The reference a member can quote to support. Also written to the server log.",
+        };
+        schema.Properties["traceId"] = new OpenApiSchema
+        {
+            Type = JsonSchemaType.String | JsonSchemaType.Null,
+            Description = "The W3C trace id of the request.",
+        };
+    }
     return Task.CompletedTask;
 }));
 

@@ -53,6 +53,19 @@ public class OpenApiDocumentTests(PostgresApiFactory factory)
     private static bool IsMoneyName(string name) =>
         name.EndsWith("Cents", StringComparison.Ordinal) || name.Contains("Amount", StringComparison.OrdinalIgnoreCase);
 
+    [Theory]
+    [InlineData("ProblemDetails")]
+    [InlineData("ValidationProblemDetails")]
+    public async Task An_error_body_declares_the_correlationId_the_api_really_sends(string schemaName)
+    {
+        var doc = await DocumentAsync();
+
+        var properties = Schema(doc, schemaName)["properties"]!.AsObject();
+
+        Assert.True(properties.ContainsKey("correlationId"), $"{schemaName} has no correlationId");
+        Assert.Contains("string", TypesOf(properties["correlationId"]));
+    }
+
     [Fact]
     public async Task No_money_field_anywhere_is_a_number()
     {
