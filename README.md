@@ -1391,6 +1391,7 @@ The API had gaps that a React frontend would otherwise have had to work around. 
 | 7a | `System.Text.Json` writes `DateTimeOffset` as `…+00:00`, not `…Z` | `UtcDateTimeOffsetConverter` writes every timestamp as a UTC instant ending in `Z`. It is registered for controllers and for the OpenAPI document, with a schema transformer that keeps the type `string` / `date-time` | `ApiReadinessTests.A_timestamp_is_written_with_a_Z_and_not_a_zero_offset`, `ApiReadinessTests.Every_timestamp_in_every_kind_of_response_ends_in_Z`, `ApiReadinessTests.The_seeded_midnight_contribution_is_listed_as_exactly_2026_10_31_22_30_Z`, `OpenApiDocumentTests.Timestamps_are_date_time_strings_and_calendar_dates_are_dates` |
 | 7b | `nextPayoutDate` was computed on the UTC calendar day | Both "today" and the stokvel's creation date are South African dates (`StokvelCalendar`). The endpoint description says so | `NextPayoutDateTests.The_anchor_is_the_South_African_creation_date_not_the_UTC_date`, `ApiReadinessTests.The_next_payout_date_is_a_South_African_calendar_date` |
 | 8 | The generated TypeScript types had to compile and carry the right shapes | `clients/typescript/openapi.json` and `src/api.d.ts` are regenerated. `src/contract-check.ts` makes `tsc --strict` fail if `MemberRole`, the statuses, the money fields or the nullable fields change shape | `npm run contract` in `clients/typescript` (generate, then `tsc --noEmit --strict`) |
+| 9 | One stokvel's contribution list did not hold every case the frontend shows (the midnight row was in Work Stokvel, the Pending and 10-cent rows in Family) | The midnight row is now Sipho's in Family Stokvel (cycle `2026-11`), so `GET /stokvels/{id}/contributions` for Family returns Pending, Paid, Confirmed, 10 cents and `2026-10-31T22:30:00Z` together | `SeedTests.The_seed_has_all_three_statuses_a_10_cent_row_and_the_midnight_row`, `ApiReadinessTests.The_seeded_midnight_contribution_is_listed_as_exactly_2026_10_31_22_30_Z` |
 
 ### Decisions
 
@@ -1411,3 +1412,41 @@ The API had gaps that a React frontend would otherwise have had to work around. 
 ### Not done
 
 - The old `GET /api/v1/users` and `POST /api/v1/users` endpoints are unchanged. They are a follow-up.
+
+## Frontend
+
+The React app is in `web/` (Vite, React 19, TypeScript strict, Vitest). It shows two components from hard-coded sample data captured from this API (`web/src/data/sample.ts`). There is no fetching yet. A later assignment swaps the sample data for live calls, and the cards take only props, so they will not change.
+
+### How to run the frontend
+
+```bash
+cd web
+npm install
+npm run generate:api   # with the API running on :8080; rewrites src/api/schema.d.ts
+npm run dev            # http://localhost:3000
+```
+
+Checks: `npm run typecheck`, `npm run lint`, `npx vitest run`, `npm run build`.
+
+### How the role reaches the card
+
+Each entry of `GET /api/v1/me/home` carries the signed-in user's role in that one stokvel. `App` passes the entry to `StokvelCard` as a prop, and the card reads `entry.role` and nothing else. That is why Lerato's two cards differ by props alone: Family Stokvel's entry says `Treasurer` and Work Stokvel's says `Member`, so only the first shows "Treasurer tasks". There is no global "current role", no role read from the token and no React context.
+
+Hiding the Treasurer section is not security. The API still refuses a Member who calls a treasurer-only endpoint with a 403, checked against the database.
+
+### How status and role strings are handled
+
+`MemberRole`, `CycleStatus` and `ContributionStatus` are generated from the API's enums (`web/src/api/types.ts`), so they are unions of the exact allowed words and a typo does not compile. The words people read ("Paid out", "You're the Treasurer") are `Record`s keyed by those unions, so a new value in the API fails to compile until it has a label. The one rule about who may run a cycle, "Treasurer or Chairperson", is the tested helper `canRunCycle` in `web/src/lib/roles.ts`. The role and every status are printed as text, never by colour alone.
+
+### The `useMemo` note
+
+In `StokvelCard`, the "Still owed" line is a value I was tempted to memoize: `owedThisCycleCents === 0 ? 'All paid up for this cycle' : formatCents(...)`, together with the label lookups next to it. `vite.config.ts` runs the React Compiler (`babel-plugin-react-compiler`), which memoizes components and values on its own, so no `useMemo`, `useCallback` or `React.memo` is written anywhere. The work is also a comparison and a string format, so there is nothing expensive to protect even without the compiler. I did not inspect the compiler's output, so I do not claim what it cached for this component.
+
+### Handoff gaps fixed
+
+The backend changes this work forced are in the table under **Handoff gaps fixed (Assignment 7.1)**, each with its test (rows 1 to 9). Row 9 is new in this assignment. The reason for the 401 on Lerato's login was not a code gap: the local database had been seeded before the fix and the seeder only runs against an empty one (see **Running the seed**).
+
+Also:
+
+- The 6.3 client was moved into `web/`. Its `formatRand` used `cents / 100` and `toFixed`. It was replaced by `formatCents` (`web/src/lib/money.ts`), which works on whole cents and splits the digits as text.
+- The old `GET /api/v1/users` and `POST /api/v1/users` endpoints remain as a known follow-up.
