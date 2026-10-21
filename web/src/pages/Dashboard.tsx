@@ -78,7 +78,9 @@ const PROFILE_MENU = [
 ];
 
 export default function Dashboard() {
-  const [isSidebarOpen, setSidebarOpen] = useState(true);
+  // Mobile first: the sidebar starts closed (a drawer over the page on a phone).
+  // From the lg breakpoint up it is always shown, so this only matters on small screens.
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isProfileOpen, setProfileOpen] = useState(false);
 
   // The ref points at the profile <div>, so we can tell whether a click landed inside it.
@@ -91,7 +93,12 @@ export default function Dashboard() {
       // event.target is typed as "maybe null", so we say it is a DOM Node for contains().
       if (profileRef.current && !profileRef.current.contains(event.target as Node)) setProfileOpen(false);
     };
-    const handleEsc = (event: KeyboardEvent) => { if (event.key === "Escape") setProfileOpen(false); };
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setProfileOpen(false);
+        setSidebarOpen(false);
+      }
+    };
 
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleEsc);
@@ -104,16 +111,19 @@ export default function Dashboard() {
   
   return (
     // A <div>, not <main>: App already wraps the page in one <main>.
-    <div className="h-screen">
-      <div className="flex items-start h-full">
-        {/* Sidebar */}
-        <aside
-          id="sidebar"
-          className={`${isSidebarOpen ? "w-[264px] min-w-[264px] opacity-100" : "w-0 min-w-0 opacity-0"
-            } overflow-hidden transition-all duration-300 ease-in-out`}
-          aria-label="Sidebar navigation"
-        >
-          <div className="fixed top-0 left-0 w-[264px] h-full flex flex-col overflow-auto py-6 px-4 bg-[#0F3D32] text-white border-r border-white/10">
+    <div className="min-h-screen">
+      {/* Dark backdrop behind the open drawer on phones. Tapping it closes the drawer. */}
+      {isSidebarOpen && (
+        <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
+      )}
+
+      {/* Sidebar: slid off-screen by default (phones), always in place from lg up. */}
+      <aside
+        id="sidebar"
+        className={`fixed inset-y-0 left-0 z-40 w-64 transition-transform duration-300 ease-in-out lg:translate-x-0 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+        aria-label="Sidebar navigation"
+      >
+        <div className="flex h-full flex-col overflow-auto py-6 px-4 bg-[#0F3D32] text-white border-r border-white/10">
             <div className="mb-6">
               <a href="#" className="min-h-9 inline-block focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded">
                 <span className="sr-only">TalliVel</span>
@@ -141,6 +151,7 @@ export default function Dashboard() {
                   <li key={item.id}>
                     <a
                       href="#"
+                      onClick={() => setSidebarOpen(false)}
                       className="flex items-center gap-2.5 hover:bg-white/10 rounded-md px-3 py-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
                     >
                       {item.icon}
@@ -161,25 +172,26 @@ export default function Dashboard() {
           </div>
         </aside>
 
-        {/* Main Content Area */}
-        <div className="w-full h-full">
-          <header className="flex py-2 sticky top-0 w-full bg-[#0F3D32] border-b border-slate-300 px-6 dark:border-neutral-700 dark:bg-neutral-900 min-h-[68px] z-20">
+      {/* Main content: full width on a phone, pushed right of the sidebar from lg up. */}
+      <div className="lg:pl-64">
+          <header className="flex py-2 sticky top-0 w-full bg-[#0F3D32] text-white border-b border-white/10 px-4 sm:px-6 min-h-[68px] z-20">
             <div className="flex flex-wrap items-center gap-4 w-full">
               <button
                 type="button"
                 onClick={() => setSidebarOpen(!isSidebarOpen)}
                 aria-expanded={isSidebarOpen}
-                className="cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+                aria-controls="sidebar"
+                className="cursor-pointer rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-white lg:hidden"
               >
                 <span className="sr-only">Toggle sidebar menu</span>
-                <svg xmlns="http://www.w3.org/2000/svg" className="size-[18px] fill-slate-900 dark:fill-slate-50" viewBox="0 0 20 20" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" className="size-[18px] fill-white" viewBox="0 0 20 20" aria-hidden="true">
                   <path fillRule="evenodd"
                     d="M.13 17.05a1.41 1.41 0 0 1 1.41-1.41H10a1.41 1.41 0 1 1 0 2.82H1.54a1.41 1.41 0 0 1-1.41-1.41zm0-14.1a1.41 1.41 0 0 1 1.41-1.41h16.92a1.41 1.41 0 1 1 0 2.82H1.54A1.41 1.41 0 0 1 .13 2.95zm0 7.05a1.41 1.41 0 0 1 1.41-1.41h16.92a1.41 1.41 0 1 1 0 2.82H1.54A1.41 1.41 0 0 1 .13 10z"
                     clipRule="evenodd" data-original="#000000" />
                 </svg>
               </button>
 
-              <h1 className="text-xl text-slate-900 font-bold dark:text-slate-50 bg-[#0F3D32] border-b border-white/10">Dashboard</h1>
+              <h1 className="text-xl text-white font-bold">Dashboard</h1>
 
               <div className="flex items-center flex-wrap gap-5 ml-auto">
                 {/* Notification Bell */}
@@ -187,7 +199,7 @@ export default function Dashboard() {
                   className="relative block focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded">
                   <span className="sr-only">View notifications</span>
                   <svg xmlns="http://www.w3.org/2000/svg"
-                    className="size-5 fill-slate-900 dark:fill-slate-50 overflow-visible"
+                    className="size-5 fill-white overflow-visible"
                     viewBox="0 0 371.263 371.263" aria-hidden="true">
                     <path
                       d="M305.402 234.794v-70.54c0-52.396-33.533-98.085-79.702-115.151.539-2.695.838-5.449.838-8.204C226.539 18.324 208.215 0 185.64 0s-40.899 18.324-40.899 40.899c0 2.695.299 5.389.778 7.964-15.868 5.629-30.539 14.551-43.054 26.647-23.593 22.755-36.587 53.354-36.587 86.169v73.115c0 2.575-2.096 4.731-4.731 4.731-22.096 0-40.959 16.647-42.995 37.845-1.138 11.797 2.755 23.533 10.719 32.276 7.904 8.683 19.222 13.713 31.018 13.713h72.217c2.994 26.887 25.869 47.905 53.534 47.905s50.54-21.018 53.534-47.905h72.217c11.797 0 23.114-5.03 31.018-13.713 7.904-8.743 11.797-20.479 10.719-32.276-2.036-21.198-20.958-37.845-42.995-37.845a4.704 4.704 0 0 1-4.731-4.731zM185.64 23.952c9.341 0 16.946 7.605 16.946 16.946 0 .778-.12 1.497-.24 2.275-4.072-.599-8.204-1.018-12.336-1.138-7.126-.24-14.132.24-21.078 1.198-.12-.778-.24-1.497-.24-2.275.002-9.401 7.607-17.006 16.948-17.006zm0 323.358c-14.431 0-26.527-10.3-29.342-23.952h58.683c-2.813 13.653-14.909 23.952-29.341 23.952zm143.655-67.665c.479 5.15-1.138 10.12-4.551 13.892-3.533 3.773-8.204 5.868-13.353 5.868H59.89c-5.15 0-9.82-2.096-13.294-5.868-3.473-3.772-5.09-8.743-4.611-13.892.838-9.042 9.282-16.168 19.162-16.168 15.809 0 28.683-12.874 28.683-28.683v-73.115c0-26.228 10.419-50.719 29.282-68.923 18.024-17.425 41.498-26.887 66.528-26.887 1.198 0 2.335 0 3.533.06 50.839 1.796 92.277 45.929 92.277 98.325v70.54c0 15.809 12.874 28.683 28.683 28.683 9.88 0 18.264 7.126 19.162 16.168z"
@@ -222,19 +234,19 @@ export default function Dashboard() {
             </div>
           </header>
 
-          <section className="p-6">
-            <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-50">My stokvels</h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <section className="p-4 sm:p-6">
+            <h2 className="mb-4 text-lg font-semibold">My stokvels</h2>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {home.map((entry) => (
                 // The key is the database id, not the array index.
                 <StokvelCard key={entry.stokvelId} entry={entry} />
               ))}
             </div>
 
-            <h2 className="mt-8 mb-4 text-lg font-semibold text-slate-900 dark:text-slate-50">
+            <h2 className="mt-8 mb-4 text-lg font-semibold">
               Contributions in {chosenStokvelName}
             </h2>
-            <ul className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {contributions.map((c) => (
                 <li key={c.id}>
                   <ContributionCard contribution={c} />
@@ -242,7 +254,6 @@ export default function Dashboard() {
               ))}
             </ul>
           </section>
-        </div>
       </div>
     </div>
   );
