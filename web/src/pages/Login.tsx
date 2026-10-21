@@ -90,7 +90,7 @@ export default function Login({ onSignedIn }: LoginProps) {
 
             {/* role="alert" makes screen readers read the error out as soon as it appears */}
             {error !== null && (
-              <p role="alert" className="text-sm font-medium text-destructive">
+              <p role="alert" className="rounded-md border border-destructive bg-destructive-soft px-3 py-2 text-sm font-medium text-destructive">
                 {error}
               </p>
             )}

@@ -14,6 +14,9 @@
   --border: #cbd2d9;
   --input: #cbd2d9;
   --ring: #0b6e4f;
+  --destructive: #b42318;
+  --destructive-foreground: #ffffff;
+  --destructive-soft: #fef3f2;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -28,6 +31,9 @@
     --border: #3e4c59;
     --input: #3e4c59;
     --ring: #5fd1a3;
+    --destructive: #f97066;
+    --destructive-foreground: #12181f;
+    --destructive-soft: #3b1512;
   }
 }
 
@@ -43,4 +49,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-soft: var(--destructive-soft);
 }
