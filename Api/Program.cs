@@ -65,7 +65,25 @@ builder.Logging.AddDebug();
 // Add services to the container.
 // The custom DateTimeOffset converter (writes Z) hides the type from the schema exporter,
 // so say what it is: a date-time string.
-builder.Services.AddOpenApi(options => options.AddSchemaTransformer((schema, context, _) =>
+builder.Services.AddOpenApi(options => options.AddOperationTransformer((operation, context, _) =>
+{
+    // The controller reads the header by hand (Request.Headers) so a missing key stays a 400 from the
+    // service. Declaring it here only describes it, so generated clients send it; behavior is unchanged.
+    if (context.Description.ActionDescriptor.RouteValues.TryGetValue("action", out var action) &&
+        action == nameof(Api.Presentation.Controllers.ContributionsController.RecordContribution))
+    {
+        operation.Parameters ??= [];
+        operation.Parameters.Add(new OpenApiParameter
+        {
+            Name = "Idempotency-Key",
+            In = ParameterLocation.Header,
+            Required = true,
+            Description = "A fresh UUID per attempt. Retrying the same request with the same key replays the first result instead of recording twice.",
+            Schema = new OpenApiSchema { Type = JsonSchemaType.String, Format = "uuid" },
+        });
+    }
+    return Task.CompletedTask;
+}).AddSchemaTransformer((schema, context, _) =>
 {
     var type = context.JsonTypeInfo.Type;
     if (type == typeof(DateTimeOffset))
