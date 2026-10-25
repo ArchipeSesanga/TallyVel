@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { queryClient } from './api/queryClient'
 import { onSignedOut, refreshAccessToken } from './auth/session'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import AppLayout from './layouts/AppLayout'
+import Contributions from './pages/Contributions'
 import Dashboard from './pages/Dashboard'
+import Stokvels from './pages/Stokvels'
 import Login from './pages/Login'
 
 type SessionStatus = 'checking' | 'signedIn' | 'signedOut'
@@ -33,7 +37,18 @@ function App() {
 
   if (status === 'checking') return <p className="p-4">Loading…</p>
   if (status === 'signedOut') return <Login onSignedIn={() => setStatus('signedIn')} />
-  return <Dashboard />
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="stokvels" element={<Stokvels />} />
+          <Route path="contributions" element={<Contributions />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  )
 }
 
 export default App

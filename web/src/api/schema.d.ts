@@ -290,7 +290,10 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /** @description A fresh UUID per attempt. Retrying the same request with the same key replays the first result instead of recording twice. */
+                    "Idempotency-Key": string;
+                };
                 path: {
                     stokvelId: string;
                 };
