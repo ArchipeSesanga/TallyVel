@@ -8,8 +8,6 @@ import { queryClient } from './api/queryClient'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {/* useQuery looks up the shared client from here; without this provider it throws
-        "No QueryClient set". */}
     <QueryClientProvider client={queryClient}>
       <App />
     </QueryClientProvider>

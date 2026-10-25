@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ContributionCard } from '../components/ContributionCard';
 import { StokvelCard } from '../components/StokvelCard';
 import logo from '../assets/LogoWrap.png';
-import { chosenStokvelName, contributions, home } from '../data/sample';
+import { useContributions, useHome, useMe } from '../api/queries';
+import { logout } from '../auth/session';
 
 const NAVIGATION_ITEMS = [
   {
@@ -77,11 +78,26 @@ const PROFILE_MENU = [
   { label: "Logout", icon: <svg className="size-[18px] fill-current" aria-hidden="true" viewBox="0 0 6.35 6.35"><path d="M3.172.292a.289.29 0 0 0-.286.292v2.318a.289.29 0 0 0 .578 0V.584a.289.29 0 0 0-.292-.292m1.683.58a.289.29 0 0 0-.029 0 .289.29 0 0 0-.16.512c.5.426.816 1.06.816 1.772A2.31 2.31 0 0 1 3.176 5.48 2.31 2.31 0 0 1 .87 3.16c0-.709.311-1.339.806-1.766a.289.29 0 1 0-.375-.44 2.9 2.9 0 0 0-1.01 2.203A2.9 2.9 0 0 0 3.178 6.06 2.896 2.896 0 0 0 6.06 3.156 2.9 2.9 0 0 0 5.04.944a.289.29 0 0 0-.185-.072" /></svg> },
 ];
 
+/** "Lerato Mokoena" -> "LM". Empty until the profile has loaded. */
+function initials(fullName: string | undefined): string {
+  if (!fullName) return "";
+  return fullName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+}
+
 export default function Dashboard() {
   // Mobile first: the sidebar starts closed (a drawer over the page on a phone).
   // From the lg breakpoint up it is always shown, so this only matters on small screens.
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isProfileOpen, setProfileOpen] = useState(false);
+
+  // Live data. The contributions list follows the selected stokvel (the first one by default).
+  const meQuery = useMe();
+  const homeQuery = useHome();
+  const home = homeQuery.data ?? [];
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const chosen = home.find((s) => s.stokvelId === selectedId) ?? home[0];
+  const contributionsQuery = useContributions(chosen?.stokvelId ?? '');
+  const contributions = contributionsQuery.data ?? [];
 
   // The ref points at the profile <div>, so we can tell whether a click landed inside it.
   const profileRef = useRef<HTMLDivElement>(null);
@@ -163,10 +179,15 @@ export default function Dashboard() {
             </nav>
 
             <a href="#" className="flex flex-wrap items-center gap-4 rounded-md mt-6 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-              <img src="https://readymadeui.com/team-2.webp" className="w-10 h-10 rounded-md border border-white/20" alt="User avatar" />
+              <span
+                aria-hidden="true"
+                className="flex size-10 items-center justify-center rounded-md border border-white/20 bg-white/10 text-sm font-semibold text-white"
+              >
+                {initials(meQuery.data?.fullName)}
+              </span>
               <div>
-                <p className="text-sm text-white font-medium">John Doe</p>
-                <p className="text-xs text-white/70 mt-0.5">Active free account</p>
+                <p className="text-sm text-white font-medium">{meQuery.data?.fullName ?? "…"}</p>
+                <p className="text-xs text-white/70 mt-0.5 break-all">{meQuery.data?.email ?? ""}</p>
               </div>
             </a>
           </div>
@@ -220,7 +241,13 @@ export default function Dashboard() {
                       <li key={item.label}>
                         <a
                           href="#"
-                          onClick={() => setProfileOpen(false)}
+                          onClick={(e) => {
+                            setProfileOpen(false);
+                            if (item.label === "Logout") {
+                              e.preventDefault();
+                              void logout();
+                            }
+                          }}
                           className="w-full p-2 flex items-center gap-2.5 rounded-md cursor-pointer transition-colors hover:text-slate-900 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:text-slate-50 dark:hover:bg-neutral-700"
                         >
                           {item.icon}
@@ -236,6 +263,13 @@ export default function Dashboard() {
 
           <section className="p-4 sm:p-6">
             <h2 className="mb-4 text-lg font-semibold">My stokvels</h2>
+            {homeQuery.isPending && <p className="text-sm text-muted-foreground">Loading…</p>}
+            {homeQuery.isError && (
+              <p role="alert" className="text-sm text-red-600">Could not load your stokvels.</p>
+            )}
+            {homeQuery.isSuccess && home.length === 0 && (
+              <p className="text-sm text-muted-foreground">You are not in any stokvel yet.</p>
+            )}
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {home.map((entry) => (
                 // The key is the database id, not the array index.
@@ -243,16 +277,39 @@ export default function Dashboard() {
               ))}
             </div>
 
-            <h2 className="mt-8 mb-4 text-lg font-semibold">
-              Contributions in {chosenStokvelName}
-            </h2>
-            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {contributions.map((c) => (
-                <li key={c.id}>
-                  <ContributionCard contribution={c} />
-                </li>
-              ))}
-            </ul>
+            {chosen && (
+              <>
+                <div className="mt-8 mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-lg font-semibold">Contributions in {chosen.name}</h2>
+                  <select
+                    aria-label="Show contributions for"
+                    value={chosen.stokvelId}
+                    onChange={(e) => setSelectedId(e.target.value)}
+                    className="rounded-md border border-border bg-card px-2 py-1 text-sm"
+                  >
+                    {home.map((s) => (
+                      <option key={s.stokvelId} value={s.stokvelId}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+                {contributionsQuery.isPending && (
+                  <p className="text-sm text-muted-foreground">Loading…</p>
+                )}
+                {contributionsQuery.isError && (
+                  <p role="alert" className="text-sm text-red-600">Could not load contributions.</p>
+                )}
+                {contributionsQuery.isSuccess && contributions.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No contributions yet.</p>
+                )}
+                <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {contributions.map((c) => (
+                    <li key={c.id}>
+                      <ContributionCard contribution={c} />
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </section>
       </div>
     </div>

@@ -601,6 +601,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who am I
+         * @description The signed-in member: id, email and full name. Never includes the password hash. Their role is not here because a role belongs to one stokvel; /me/home returns it per stokvel.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["UserResponse"];
+                        "application/json": components["schemas"]["UserResponse"];
+                        "text/json": components["schemas"]["UserResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/home": {
         parameters: {
             query?: never;
@@ -1258,6 +1308,10 @@ export interface components {
             status?: null | number;
             detail?: null | string;
             instance?: null | string;
+            /** @description The reference a member can quote to support. Also written to the server log. */
+            correlationId?: null | string;
+            /** @description The W3C trace id of the request. */
+            traceId?: null | string;
         };
         /**
          * @description What the caller sends to record a contribution. StokvelId is
@@ -1324,6 +1378,10 @@ export interface components {
             errors?: {
                 [key: string]: string[];
             };
+            /** @description The reference a member can quote to support. Also written to the server log. */
+            correlationId?: null | string;
+            /** @description The W3C trace id of the request. */
+            traceId?: null | string;
         };
     };
     responses: never;
