@@ -54,6 +54,47 @@ public class OpenApiDocumentTests(PostgresApiFactory factory)
         name.EndsWith("Cents", StringComparison.Ordinal) || name.Contains("Amount", StringComparison.OrdinalIgnoreCase);
 
     [Fact]
+    public async Task Recording_a_contribution_declares_a_required_uuid_Idempotency_Key_header()
+    {
+        var doc = await DocumentAsync();
+
+        var parameters = doc["paths"]!["/api/v1/stokvels/{stokvelId}/contributions"]!["post"]!["parameters"]!.AsArray();
+        var header = Assert.Single(parameters, p => p!["name"]!.GetValue<string>() == "Idempotency-Key")!;
+
+        Assert.Equal("header", header["in"]!.GetValue<string>());
+        Assert.True(header["required"]!.GetValue<bool>());
+        Assert.Equal("string", header["schema"]!["type"]!.GetValue<string>());
+        Assert.Equal("uuid", header["schema"]!["format"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Only_the_record_contribution_operation_declares_the_Idempotency_Key_header()
+    {
+        var doc = await DocumentAsync();
+
+        var withHeader = doc["paths"]!.AsObject()
+            .SelectMany(path => path.Value!.AsObject().Select(op => (Path: path.Key, Method: op.Key, Op: op.Value!)))
+            .Where(x => x.Op["parameters"]?.AsArray().Any(p => p!["name"]!.GetValue<string>() == "Idempotency-Key") == true)
+            .Select(x => $"{x.Method.ToUpperInvariant()} {x.Path}")
+            .ToList();
+
+        Assert.Equal(["POST /api/v1/stokvels/{stokvelId}/contributions"], withHeader);
+    }
+
+    [Theory]
+    [InlineData("ProblemDetails")]
+    [InlineData("ValidationProblemDetails")]
+    public async Task An_error_body_declares_the_correlationId_the_api_really_sends(string schemaName)
+    {
+        var doc = await DocumentAsync();
+
+        var properties = Schema(doc, schemaName)["properties"]!.AsObject();
+
+        Assert.True(properties.ContainsKey("correlationId"), $"{schemaName} has no correlationId");
+        Assert.Contains("string", TypesOf(properties["correlationId"]));
+    }
+
+    [Fact]
     public async Task No_money_field_anywhere_is_a_number()
     {
         var doc = await DocumentAsync();
