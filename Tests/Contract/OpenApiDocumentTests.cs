@@ -128,6 +128,8 @@ public class OpenApiDocumentTests(PostgresApiFactory factory)
             "ContributionResponse.amountCents", "PayoutResponse.amountCents", "RecordContributionRequest.amountCents",
             "StokvelResponse.contributionAmountCents", "CreateStokvelRequest.contributionAmountCents",
             "HomeStokvelCard.paidThisCycleCents", "HomeStokvelCard.owedThisCycleCents",
+            "StokvelDetailResponse.contributionAmountCents",
+            "StokvelCurrentCycle.collectedCents", "StokvelCurrentCycle.dueCents",
         ];
         foreach (var field in expected)
             Assert.Contains(field, moneyFields);
@@ -206,6 +208,25 @@ public class OpenApiDocumentTests(PostgresApiFactory factory)
         Assert.Equal(
             ["id", "label", "status", "startsOn", "endsOn"],
             Schema(doc, "HomeCurrentCycle")["properties"]!.AsObject().Select(p => p.Key));
+    }
+
+    [Fact]
+    public async Task Getting_a_stokvel_declares_the_member_count_and_a_nullable_current_cycle()
+    {
+        var doc = await DocumentAsync();
+
+        var ok = doc["paths"]!["/api/v1/stokvels/{id}"]!["get"]!["responses"]!["200"]!["content"]!["application/json"]!["schema"]!;
+        Assert.Equal("#/components/schemas/StokvelDetailResponse", ok["$ref"]!.GetValue<string>());
+
+        var properties = Schema(doc, "StokvelDetailResponse")["properties"]!.AsObject();
+        Assert.Equal(["integer"], TypesOf(properties["memberCount"]));
+        var options = properties["currentCycle"]!["oneOf"]!.AsArray();
+        Assert.Contains(options, o => o!["type"]?.GetValue<string>() == "null");
+        Assert.Contains(options, o => o!["$ref"]?.GetValue<string>() == "#/components/schemas/StokvelCurrentCycle");
+        Assert.Equal(
+            ["id", "label", "status", "endsOn", "collectedCents", "dueCents"],
+            Schema(doc, "StokvelCurrentCycle")["properties"]!.AsObject().Select(p => p.Key));
+        Assert.Equal("date", Schema(doc, "StokvelCurrentCycle")["properties"]!["endsOn"]!["format"]!.GetValue<string>());
     }
 
     // A numeric schema must not be ["integer","string"] / ["number","string"],

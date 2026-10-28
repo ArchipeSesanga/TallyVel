@@ -336,6 +336,16 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A fresh UUID per attempt. Retrying the same request with the same key replays the first result instead of recording twice.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "requestBody": {
@@ -735,6 +745,47 @@
         }
       }
     },
+    "/api/v1/me": {
+      "get": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "Who am I",
+        "description": "The signed-in member: id, email and full name. Never includes the password hash. Their role is not here because a role belongs to one stokvel; /me/home returns it per stokvel.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me/home": {
       "get": {
         "tags": [
@@ -881,7 +932,7 @@
           "Stokvel"
         ],
         "summary": "Get a stokvel by id",
-        "description": "Returns a single stokvel, including its current members and their roles.",
+        "description": "Returns a single stokvel, including its current members and their roles, the member count and its current cycle (null when no cycle is open) with the cents collected and due.",
         "parameters": [
           {
             "name": "id",
@@ -899,17 +950,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/StokvelResponse"
+                  "$ref": "#/components/schemas/StokvelDetailResponse"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StokvelResponse"
+                  "$ref": "#/components/schemas/StokvelDetailResponse"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StokvelResponse"
+                  "$ref": "#/components/schemas/StokvelDetailResponse"
                 }
               }
             }
@@ -1737,6 +1788,20 @@
               "null",
               "string"
             ]
+          },
+          "correlationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The reference a member can quote to support. Also written to the server log."
+          },
+          "traceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The W3C trace id of the request."
           }
         }
       },
@@ -1800,6 +1865,99 @@
             "type": "string"
           }
         }
+      },
+      "StokvelCurrentCycle": {
+        "required": [
+          "id",
+          "label",
+          "status",
+          "endsOn",
+          "collectedCents",
+          "dueCents"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CycleStatus"
+          },
+          "endsOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "collectedCents": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "dueCents": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "description": "The open cycle. CollectedCents is what has arrived (Paid and Confirmed contributions);\nDueCents is what the whole stokvel owes for the cycle (members times the contribution\namount). EndsOn is null only for a cycle created before cycles had dates."
+      },
+      "StokvelDetailResponse": {
+        "required": [
+          "id",
+          "name",
+          "contributionAmountCents",
+          "cycle",
+          "createdAt",
+          "members",
+          "memberCount",
+          "currentCycle"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "contributionAmountCents": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "cycle": {
+            "$ref": "#/components/schemas/ContributionFrequency"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StokvelMembershipResponse"
+            }
+          },
+          "memberCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "currentCycle": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/StokvelCurrentCycle"
+              }
+            ]
+          }
+        },
+        "description": "One stokvel with the numbers its page shows. Money is integer cents; EndsOn is a\nSouth African calendar date. CurrentCycle is null when no cycle is open."
       },
       "StokvelMembershipResponse": {
         "required": [
@@ -1927,6 +2085,20 @@
                 "type": "string"
               }
             }
+          },
+          "correlationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The reference a member can quote to support. Also written to the server log."
+          },
+          "traceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The W3C trace id of the request."
           }
         }
       }

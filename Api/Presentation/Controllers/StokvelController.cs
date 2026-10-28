@@ -15,6 +15,7 @@ public class StokvelController : StokvelControllerBase
 {
     private readonly IStokvelRepository _stokvelRepository;
     private readonly StokvelMembershipService _membershipService;
+    private readonly StokvelSummaryService _summaryService;
     private readonly IValidator<CreateStokvelRequest> _validator;
     private readonly IValidator<AddStokvelMemberRequest> _addMemberValidator;
     private readonly IValidator<ChangeStokvelMemberRoleRequest> _changeRoleValidator;
@@ -22,12 +23,14 @@ public class StokvelController : StokvelControllerBase
     public StokvelController(
         IStokvelRepository stokvelRepository,
         StokvelMembershipService membershipService,
+        StokvelSummaryService summaryService,
         IValidator<CreateStokvelRequest> validator,
         IValidator<AddStokvelMemberRequest> addMemberValidator,
         IValidator<ChangeStokvelMemberRoleRequest> changeRoleValidator)
     {
         _stokvelRepository = stokvelRepository;
         _membershipService = membershipService;
+        _summaryService = summaryService;
         _validator = validator;
         _addMemberValidator = addMemberValidator;
         _changeRoleValidator = changeRoleValidator;
@@ -44,17 +47,17 @@ public class StokvelController : StokvelControllerBase
 
     [HttpGet("{id:guid}")]
     [EndpointSummary("Get a stokvel by id")]
-    [EndpointDescription("Returns a single stokvel, including its current members and their roles.")]
-    [ProducesResponseType<StokvelResponse>(StatusCodes.Status200OK)]
+    [EndpointDescription("Returns a single stokvel, including its current members and their roles, the member count and its current cycle (null when no cycle is open) with the cents collected and due.")]
+    [ProducesResponseType<StokvelDetailResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
-    public async Task<IActionResult> GetById(Guid id)
+    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         if (await AuthorizeStokvelAsync(id, StokvelPolicies.Member) is { } denied) return denied;
 
         var stokvel = _stokvelRepository.GetById(id)
             ?? throw new NotFoundException("stokvel", id);
 
-        return Ok(StokvelResponse.FromDomain(stokvel));
+        return Ok(StokvelDetailResponse.FromDomain(stokvel, await _summaryService.GetAsync(stokvel, ct)));
     }
 
     [HttpPost]
