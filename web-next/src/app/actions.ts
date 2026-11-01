@@ -49,6 +49,53 @@ export async function signIn(_previous: SignInState, formData: FormData): Promis
   redirect('/dashboard/member')
 }
 
+export type RegisterState = {
+  message: string | null
+  reference: string | null
+  fieldErrors: Record<string, string[]>
+  // What the person typed (never the password), so the form can keep it after an error.
+  values: { email: string; fullName: string }
+}
+
+export async function register(_previous: RegisterState, formData: FormData): Promise<RegisterState> {
+  const email = String(formData.get('email') ?? '')
+  const fullName = String(formData.get('fullName') ?? '')
+  const password = String(formData.get('password') ?? '')
+  const values = { email, fullName }
+
+  const result = await api.POST('/api/v1/auth/register', { body: { email, password, fullName } }).catch(() => null)
+  if (result === null) {
+    return { message: "Can't reach RondiTrack. Check your connection.", reference: null, fieldErrors: {}, values }
+  }
+
+  if (result.data === undefined) {
+    const status = result.response.status
+    const reference = correlationIdOf(result.error)
+
+    // 400: the API's message for each field goes next to that field.
+    if (status === 400 && typeof result.error === 'object' && result.error !== null && 'errors' in result.error) {
+      const errors = (result.error as { errors?: Record<string, string[]> }).errors ?? {}
+      return { message: null, reference, fieldErrors: errors, values }
+    }
+
+    // 409: the email already has an account. We don't say so, because that would tell anyone
+    // who has an account (account enumeration). See README, API check question 3.
+    if (status === 409) {
+      return {
+        message: "We couldn't create an account with those details. If you already have one, sign in.",
+        reference,
+        fieldErrors: {},
+        values,
+      }
+    }
+
+    return { message: describeApiError(status, result.response.headers.get('Retry-After')), reference, fieldErrors: {}, values }
+  }
+
+  // Registered. The API doesn't sign people in, so send them to sign in (README: Sessions and refresh).
+  redirect('/login?registered=1')
+}
+
 export async function signOut(): Promise<void> {
   const session = await getSession()
   if (session !== null) {

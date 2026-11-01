@@ -1,13 +1,20 @@
 import { Suspense } from 'react'
+import Link from 'next/link'
 import { LoginForm } from './LoginForm'
 
-/** Reads ?expired=1. searchParams is a Promise in Next.js 16, so it is awaited here, inside <Suspense>, and the rest of the page stays static. */
-async function ExpiredNotice({ searchParams }: { searchParams: PageProps<'/login'>['searchParams'] }) {
-  const { expired } = await searchParams
-  if (expired === undefined) return null
+/** Reads ?expired=1 and ?registered=1. searchParams is a Promise in Next.js 16, so it is awaited here, inside <Suspense>, and the rest of the page stays static. */
+async function LoginNotice({ searchParams }: { searchParams: PageProps<'/login'>['searchParams'] }) {
+  const { expired, registered } = await searchParams
+  const text =
+    registered !== undefined
+      ? 'Your account was created. Please sign in.'
+      : expired !== undefined
+        ? 'Your session ended. Please sign in again.'
+        : null
+  if (text === null) return null
   return (
     <p role="status" className="mb-6 text-sm text-muted-foreground">
-      Your session ended. Please sign in again.
+      {text}
     </p>
   )
 }
@@ -29,9 +36,12 @@ export default function LoginPage({ searchParams }: PageProps<'/login'>) {
         <div className="w-full max-w-md border-t border-border pt-12 lg:ml-auto lg:flex lg:flex-col lg:justify-center lg:self-stretch lg:border-t-0 lg:border-l lg:pt-0 lg:pl-12">
           <h1 className="mb-10 text-3xl font-bold">Sign in</h1>
           <Suspense>
-            <ExpiredNotice searchParams={searchParams} />
+            <LoginNotice searchParams={searchParams} />
           </Suspense>
           <LoginForm />
+          <p className="mt-6 text-sm">
+            New to RondiTrack? <Link href="/register" className="underline">Create an account</Link>
+          </p>
         </div>
       </div>
     </main>

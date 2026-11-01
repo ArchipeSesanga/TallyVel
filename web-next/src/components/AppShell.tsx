@@ -183,6 +183,17 @@ export function AppShell({ fullName, email, children }: AppShellProps) {
               </ul>
             </nav>
 
+            {/* Always visible, so people on a shared phone can find it. It revokes the refresh token at the API. */}
+            <form action={signOut} className="mt-6 text-sm text-white font-medium">
+              <button
+                type="submit"
+                className="flex w-full cursor-pointer items-center gap-2.5 hover:bg-white/10 rounded-md px-3 py-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                {PROFILE_MENU.find((item) => item.label === "Logout")?.icon}
+                <span>Sign out</span>
+              </button>
+            </form>
+
             <div className="flex flex-wrap items-center gap-4 rounded-md mt-6">
               <span
                 aria-hidden="true"
