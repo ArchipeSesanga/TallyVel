@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, unwrap } from './client'
 import type { RecordContributionRequest } from './types'
+import { api, unwrap } from './client'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 // Every key in one place. Everything about one stokvel starts with ['stokvels', id],
 // so refreshing one stokvel never touches another.
@@ -42,26 +42,33 @@ export function useContributions(stokvelId: string) {
   })
 }
 
-/**
- * Records a contribution (POST /api/v1/stokvels/{id}/contributions). The caller owns the
- * idempotency key: retrying the same payment must send the same key, so it is passed in.
- */
+
+type RecordContributionInput = {
+  body: RecordContributionRequest
+  idempotencyKey: string
+}
+
+/** Records a contribution, then refreshes everything that shows money for this stokvel. */
 export function useRecordContribution(stokvelId: string) {
   const queryClient = useQueryClient()
+
   return useMutation({
-    mutationFn: async (input: { idempotencyKey: string; body: RecordContributionRequest }) =>
+    mutationFn: async ({ body, idempotencyKey }: RecordContributionInput) =>
       unwrap(
         await api.POST('/api/v1/stokvels/{stokvelId}/contributions', {
-          params: { path: { stokvelId }, header: { 'Idempotency-Key': input.idempotencyKey } },
-          body: input.body,
+          params: {
+            path: { stokvelId },
+            header: { 'Idempotency-Key': idempotencyKey },
+          },
+          body,
         }),
       ),
-    // The list and the paid/owed figures on the cards are now out of date.
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.contributions(stokvelId) }),
+    // Returning the promise makes mutateAsync wait until the queries have refetched,
+    // so the button stays disabled until the screen shows the new totals.
+    onSuccess: () =>
+      Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.home }),
-      ])
-    },
+        queryClient.invalidateQueries({ queryKey: queryKeys.contributions(stokvelId) }),
+      ]),
   })
 }

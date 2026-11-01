@@ -1,3 +1,5 @@
 {
-    "dotnet.defaultSolution": "TallyVel.slnx"
+    "dotnet.defaultSolution": "TallyVel.slnx",
+    // Tailwind's at-rules (@theme, @custom-variant, @apply) are not plain CSS, so VS Code's CSS checker flags them.
+    "css.lint.unknownAtRules": "ignore"
 }
