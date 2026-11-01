@@ -1,8 +1,7 @@
 import Link from 'next/link'
 import { api, readOrFail } from '@/lib/api'
 import { ApiErrorView } from '@/components/ApiErrorView'
-import { formatCents } from '@/lib/money'
-import { formatDate } from '@/lib/dates'
+import { StokvelCard } from '@/components/StokvelCard'
 import { stokvelsWhereTreasurer } from '@/lib/treasurer'
 
 export default async function TreasurerDashboard() {
@@ -18,7 +17,7 @@ export default async function TreasurerDashboard() {
     // not a redirect: nothing was forbidden, this person just doesn't run a stokvel yet.
     return (
       <section className="space-y-2">
-        <h1 className="text-2xl font-bold">Treasurer dashboard</h1>
+        <h2 className="text-lg font-semibold">Treasurer dashboard</h2>
         <p>You don&apos;t run any stokvels yet. When you are made Treasurer of one, it will show up here.</p>
         <p>
           <Link href="/dashboard/member" className="underline">
@@ -30,26 +29,18 @@ export default async function TreasurerDashboard() {
   }
 
   return (
-    <section className="space-y-4">
-      <h1 className="text-2xl font-bold">Treasurer dashboard</h1>
-      <ul className="grid gap-4 md:grid-cols-2">
+    <>
+      <h2 className="mb-4 text-lg font-semibold">Stokvels you run</h2>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {mine.map((s) => (
-          <li key={s.stokvelId} className="rounded-lg border border-border p-4">
-            <h2 className="font-semibold">
-              <Link href={`/stokvels/${s.stokvelId}`} className="underline">
-                {s.name}
-              </Link>
-            </h2>
-            <p>Paid this cycle: {formatCents(s.paidThisCycleCents)}</p>
-            <p>
-              {s.owedThisCycleCents === 0
-                ? 'All paid up for this cycle'
-                : `Still owed: ${formatCents(s.owedThisCycleCents)}`}
-            </p>
-            <p>Next payout: {s.nextPayoutDate === null ? 'No payout scheduled' : formatDate(s.nextPayoutDate)}</p>
-          </li>
+          <div key={s.stokvelId} className="space-y-2">
+            <StokvelCard entry={s} />
+            <Link href={`/stokvels/${s.stokvelId}`} className="text-sm underline">
+              View {s.name}
+            </Link>
+          </div>
         ))}
-      </ul>
-    </section>
+      </div>
+    </>
   )
 }
