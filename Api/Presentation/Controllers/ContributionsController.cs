@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Api.Application.Contracts;
 using Api.Application.Interfaces;
 using Api.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Domain;
 
 namespace Api.Presentation.Controllers;
@@ -17,15 +18,18 @@ public class ContributionsController : StokvelControllerBase
 
     private readonly IContributionRepository _contributionRepository;
     private readonly IContributionService _contributionService;
+    private readonly IStokvelRepository _stokvelRepository;
     private readonly IValidator<RecordContributionRequest> _validator;
 
     public ContributionsController(
         IContributionRepository contributionRepository,
         IContributionService contributionService,
+        IStokvelRepository stokvelRepository,
         IValidator<RecordContributionRequest> validator)
     {
         _contributionRepository = contributionRepository;
         _contributionService = contributionService;
+        _stokvelRepository = stokvelRepository;
         _validator = validator;
     }
 
@@ -86,9 +90,10 @@ public class ContributionsController : StokvelControllerBase
     [HttpPost]
     [EnableRateLimiting(RateLimitPolicies.Money)]
     [EndpointSummary("Record a contribution")]
-    [EndpointDescription("Records a member's payment for a stokvel cycle. Requires an Idempotency-Key header, and rejects a second contribution from the same member for the same cycle.")]
+    [EndpointDescription("Records a member's payment for a stokvel cycle. Any member can record their own. Recording for another member needs the Treasurer or Chairperson role in this stokvel. The member must belong to the stokvel. Requires an Idempotency-Key header, and rejects a second contribution from the same member for the same cycle.")]
     [ProducesResponseType<ContributionResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
@@ -100,6 +105,25 @@ public class ContributionsController : StokvelControllerBase
         var validationResult = await _validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
             return ValidationProblem(validationResult.ToModelState());
+
+        // Who the contribution is for is checked here, against the database, and before the
+        // service reserves the Idempotency-Key, so a refused request never uses up its key.
+        if (request.MemberUserId != CallerId)
+        {
+            // The same rule as the cycle and payout endpoints: Treasurer or Chairperson, read from the database.
+            var authorization = HttpContext.RequestServices.GetRequiredService<IAuthorizationService>();
+            if (!(await authorization.AuthorizeAsync(User, stokvelId, StokvelPolicies.Treasurer)).Succeeded)
+                return Problem(
+                    title: "Forbidden",
+                    detail: "Only this stokvel's Treasurer or Chairperson can record a contribution for another member.",
+                    statusCode: StatusCodes.Status403Forbidden);
+
+            // The stokvel exists: the Member policy above found the caller in it.
+            if (_stokvelRepository.GetById(stokvelId)!.Members.All(m => m.UserId != request.MemberUserId))
+                throw new BusinessRuleViolationException(
+                    "not-a-member",
+                    "The member you are recording for does not belong to this stokvel.");
+        }
 
         // The key travels as a header, not a body field, because it
         // identifies this *HTTP request attempt*, not the payment
