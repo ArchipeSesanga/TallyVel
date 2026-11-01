@@ -42,7 +42,8 @@ public class ContributionServices : IContributionService
         // (a) Key is mandatory: without it a retry is indistinguishable
         // from a second, genuine payment.
         if (string.IsNullOrWhiteSpace(idempotencyKey))
-            throw new ArgumentException("An Idempotency-Key header is required.", nameof(idempotencyKey));
+            // No parameter name: ArgumentException would append "(Parameter 'idempotencyKey')" to the message people read.
+            throw new ArgumentException("An Idempotency-Key header is required.");
 
         var payloadHash = HashPayload(new { stokvelId, request.MemberUserId, request.Cycle, request.AmountCents });
 
@@ -92,7 +93,7 @@ public class ContributionServices : IContributionService
             {
                 throw new AlreadyExistsException(
                     "contribution-already-recorded",
-                    $"User {member.Id} has already contributed to stokvel {stokvelId} for cycle '{request.Cycle}'.");
+                    $"A contribution has already been recorded for this member in cycle {request.Cycle.Trim()}.");
             }
 
             // (d) The one place the actual write happens.

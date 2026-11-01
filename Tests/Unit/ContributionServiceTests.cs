@@ -83,8 +83,10 @@ public class ContributionServiceTests
     {
         var request = new RecordContributionRequest(_admin.Id, "2026-09", 50000);
 
-        await Assert.ThrowsAsync<ArgumentException>(
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
             () => _service.RecordContributionAsync(_stokvel.Id, request, idempotencyKey));
+
+        Assert.Equal("An Idempotency-Key header is required.", ex.Message);
     }
 
     [Fact]
@@ -123,6 +125,7 @@ public class ContributionServiceTests
             () => _service.RecordContributionAsync(_stokvel.Id, secondRequest, "key-second"));
 
         Assert.Equal("contribution-already-recorded", ex.Code);
+        Assert.Equal("A contribution has already been recorded for this member in cycle 2026-09.", ex.Message);
         Assert.Single(_contributions.GetAll());
     }
 

@@ -111,7 +111,7 @@ public sealed class EfContributionRepository : IContributionRepository
         _db.Entry(contribution).State = EntityState.Detached;
         return new AlreadyExistsException(
             "contribution-already-recorded",
-            $"User {contribution.MemberUserId} has already contributed to stokvel {contribution.StokvelId} for cycle '{contribution.Cycle}'.");
+            $"A contribution has already been recorded for this member in cycle {contribution.Cycle}.");
     }
 
     public async Task<(IReadOnlyList<Contribution> Items, string NextPageToken)> GetPageAsync(
