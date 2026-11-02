@@ -239,7 +239,7 @@ export interface paths {
         };
         /**
          * List a stokvel's contributions, one page at a time
-         * @description Filters, sorting and paging all run in the database. pageSize defaults to 20 and is capped at 100; sort is recordedAt (default) or amount, prefixed with '-' for descending. Pass nextPageToken back as pageToken for the next page; an empty nextPageToken means there are no more results. minAmountCents and maxAmountCents filter by amount, in integer cents.
+         * @description Filters, sorting and paging all run in the database. pageSize defaults to 20 and is capped at 100; sort is recordedAt (default) or amount, prefixed with '-' for descending. Pass nextPageToken back as pageToken for the next page; an empty nextPageToken means there are no more results. minAmountCents and maxAmountCents filter by amount, in integer cents. from and to are UTC instants in ISO 8601 ending in Z, compared with recordedAt in the database: from is INCLUDED and to is EXCLUDED, so one range ends exactly where the next begins. memberUserId must belong to this stokvel. A pageToken only works with the same filter and sort that produced it (otherwise 400, code page-token-filter-mismatch).
          */
         get: {
             parameters: {
@@ -251,6 +251,8 @@ export interface paths {
                     memberUserId?: string;
                     minAmountCents?: number;
                     maxAmountCents?: number;
+                    from?: string;
+                    to?: string;
                 };
                 header?: never;
                 path: {
@@ -273,6 +275,15 @@ export interface paths {
                 };
                 /** @description Bad Request */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -692,6 +703,68 @@ export interface paths {
                         "text/plain": components["schemas"]["HomeResponse"];
                         "application/json": components["schemas"]["HomeResponse"];
                         "text/json": components["schemas"]["HomeResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My recent activity
+         * @description Contributions recorded, payouts made and members joined, across ONLY the stokvels the caller belongs to, newest first. pageSize defaults to 20 and is capped at 100. Pass nextPageToken back as pageToken for the next page; nextPageToken is an empty string ("") on the last page. occurredAt is UTC and ends in Z. amountCents is null when no money is involved. personName is the member the line is about, and is null once they are no longer in that stokvel.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    pageSize?: number;
+                    pageToken?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PagedResponseOfActivityItem"];
+                        "application/json": components["schemas"]["PagedResponseOfActivityItem"];
+                        "text/json": components["schemas"]["PagedResponseOfActivityItem"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -1186,6 +1259,29 @@ export interface components {
             /** Format: date-time */
             expiresAt: string;
         };
+        /**
+         * @description One line in the signed-in member's activity feed. Only stokvels the member belongs to ever appear.
+         *     Id is unique and stable, but opaque: do not parse it. OccurredAt is UTC and ends in Z.
+         *     AmountCents is null when no money is involved (MemberJoined). PersonName is the member the line is about
+         *     (who paid, who was paid, who joined), and is null when that person is no longer a member of the stokvel.
+         */
+        ActivityItem: {
+            id: string;
+            kind: components["schemas"]["ActivityKind"];
+            /** Format: uuid */
+            stokvelId: string;
+            stokvelName: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** Format: int64 */
+            amountCents: null | number;
+            personName: null | string;
+        };
+        /**
+         * @description What happened. Sent as the name (for example "ContributionRecorded").
+         * @enum {unknown}
+         */
+        ActivityKind: "ContributionRecorded" | "PayoutMade" | "MemberJoined";
         AddStokvelMemberRequest: {
             /** Format: uuid */
             userId: string;
@@ -1283,6 +1379,16 @@ export interface components {
         MemberRole: "Member" | "Treasurer" | "Chairperson";
         OpenCycleRequest: {
             label: string;
+        };
+        /**
+         * @description One page of a list endpoint. NextPageToken is opaque to the client:
+         *     pass it back as ?pageToken= to get the next page. An empty string
+         *     means this is the last page. No total count, on purpose — counting
+         *     would cost an extra COUNT(*) query on every page.
+         */
+        PagedResponseOfActivityItem: {
+            items: components["schemas"]["ActivityItem"][];
+            nextPageToken: string;
         };
         /**
          * @description One page of a list endpoint. NextPageToken is opaque to the client:
