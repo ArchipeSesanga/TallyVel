@@ -107,7 +107,8 @@ public class OpenApiDocumentTests(PostgresApiFactory factory)
                 if (IsMoneyName(propertyName))
                 {
                     moneyFields.Add($"{schemaName}.{propertyName}");
-                    if (!TypesOf(property).SequenceEqual(["integer"]) || property!["format"]?.GetValue<string>() != "int64")
+                    // "integer" only. "null" may sit beside it when there is no money to show (a member-joined line).
+                    if (!TypesOf(property).Where(t => t != "null").SequenceEqual(["integer"]) || property!["format"]?.GetValue<string>() != "int64")
                         offenders.Add($"{schemaName}.{propertyName}: {property!.ToJsonString()}");
                 }
         foreach (var (path, item) in doc["paths"]!.AsObject())
@@ -130,6 +131,7 @@ public class OpenApiDocumentTests(PostgresApiFactory factory)
             "HomeStokvelCard.paidThisCycleCents", "HomeStokvelCard.owedThisCycleCents",
             "StokvelDetailResponse.contributionAmountCents",
             "StokvelCurrentCycle.collectedCents", "StokvelCurrentCycle.dueCents",
+            "ActivityItem.amountCents",
         ];
         foreach (var field in expected)
             Assert.Contains(field, moneyFields);
