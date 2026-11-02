@@ -14,6 +14,7 @@ namespace Api.Presentation.Controllers;
 public class StokvelController : StokvelControllerBase
 {
     private readonly IStokvelRepository _stokvelRepository;
+    private readonly IUserRepository _userRepository;
     private readonly StokvelMembershipService _membershipService;
     private readonly StokvelSummaryService _summaryService;
     private readonly IValidator<CreateStokvelRequest> _validator;
@@ -22,6 +23,7 @@ public class StokvelController : StokvelControllerBase
 
     public StokvelController(
         IStokvelRepository stokvelRepository,
+        IUserRepository userRepository,
         StokvelMembershipService membershipService,
         StokvelSummaryService summaryService,
         IValidator<CreateStokvelRequest> validator,
@@ -29,6 +31,7 @@ public class StokvelController : StokvelControllerBase
         IValidator<ChangeStokvelMemberRoleRequest> changeRoleValidator)
     {
         _stokvelRepository = stokvelRepository;
+        _userRepository = userRepository;
         _membershipService = membershipService;
         _summaryService = summaryService;
         _validator = validator;
@@ -47,7 +50,7 @@ public class StokvelController : StokvelControllerBase
 
     [HttpGet("{id:guid}")]
     [EndpointSummary("Get a stokvel by id")]
-    [EndpointDescription("Returns a single stokvel, including its current members and their roles, the member count and its current cycle (null when no cycle is open) with the cents collected and due.")]
+    [EndpointDescription("Returns a single stokvel, including its current members with their names and roles, the member count and its current cycle (null when no cycle is open) with the cents collected and due.")]
     [ProducesResponseType<StokvelDetailResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
@@ -57,7 +60,13 @@ public class StokvelController : StokvelControllerBase
         var stokvel = _stokvelRepository.GetById(id)
             ?? throw new NotFoundException("stokvel", id);
 
-        return Ok(StokvelDetailResponse.FromDomain(stokvel, await _summaryService.GetAsync(stokvel, ct)));
+        // The caller is a member (checked above), so they may see who else is in the stokvel.
+        var names = new Dictionary<Guid, string>();
+        foreach (var member in stokvel.Members)
+            if (_userRepository.GetById(member.UserId) is { } user)
+                names[user.Id] = user.FullName;
+
+        return Ok(StokvelDetailResponse.FromDomain(stokvel, await _summaryService.GetAsync(stokvel, ct), names));
     }
 
     [HttpPost]

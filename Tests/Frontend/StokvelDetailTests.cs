@@ -48,6 +48,25 @@ public class StokvelDetailTests(PostgresApiFactory factory)
     }
 
     [Fact]
+    public async Task The_detail_lists_each_member_with_their_full_name_and_role()
+    {
+        var chair = await TestApi.RegisterAndLoginAsync(factory);
+        var member = await TestApi.RegisterAndLoginAsync(factory);
+        var stokvel = await TestApi.CreateStokvelAsync(factory, chair);
+        var client = TestApi.Client(factory, chair.AccessToken);
+        (await client.PostAsJsonAsync($"/api/v1/stokvels/{stokvel}/members", new { userId = member.Id, role = "Treasurer" }))
+            .EnsureSuccessStatusCode();
+
+        var body = await client.GetFromJsonAsync<JsonElement>($"/api/v1/stokvels/{stokvel}");
+
+        var members = body.GetProperty("members").EnumerateArray().ToList();
+        Assert.Equal(2, members.Count);
+        foreach (var m in members)
+            Assert.Equal("Leak Test", m.GetProperty("fullName").GetString()); // the name TestApi registers every user with
+        Assert.Contains(members, m => m.GetProperty("userId").GetGuid() == member.Id && m.GetProperty("role").GetString() == "Treasurer");
+    }
+
+    [Fact]
     public async Task A_stokvel_without_an_open_cycle_has_a_null_current_cycle()
     {
         var chair = await TestApi.RegisterAndLoginAsync(factory);

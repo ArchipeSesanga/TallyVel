@@ -2,10 +2,14 @@ using Domain;
 
 namespace Api.Application.Contracts;
 
-public sealed record StokvelMembershipResponse(Guid UserId, MemberRole Role, DateTimeOffset JoinedAt)
+/// <summary>
+/// FullName is filled in by the stokvel detail endpoint, so a Treasurer can pick a member by name.
+/// It is null in the other responses that list members.
+/// </summary>
+public sealed record StokvelMembershipResponse(Guid UserId, MemberRole Role, DateTimeOffset JoinedAt, string? FullName = null)
 {
-    public static StokvelMembershipResponse FromDomain(StokvelMember membership) =>
-        new(membership.UserId, membership.Role, membership.JoinedAt);
+    public static StokvelMembershipResponse FromDomain(StokvelMember membership, string? fullName = null) =>
+        new(membership.UserId, membership.Role, membership.JoinedAt, fullName);
 }
 
 public sealed record StokvelResponse(
@@ -23,7 +27,7 @@ public sealed record StokvelResponse(
             Money.ToCents(stokvel.ContributionAmount),
             stokvel.Cycle,
             stokvel.CreatedAt,
-            stokvel.Members.Select(StokvelMembershipResponse.FromDomain).ToList());
+            stokvel.Members.Select(m => StokvelMembershipResponse.FromDomain(m)).ToList());
 }
 
 /// <summary>
@@ -40,14 +44,17 @@ public sealed record StokvelDetailResponse(
     int MemberCount,
     StokvelCurrentCycle? CurrentCycle)
 {
-    public static StokvelDetailResponse FromDomain(Stokvel stokvel, StokvelSummary summary) =>
+    public static StokvelDetailResponse FromDomain(
+        Stokvel stokvel, StokvelSummary summary, IReadOnlyDictionary<Guid, string> memberNames) =>
         new(
             stokvel.Id,
             stokvel.Name,
             Money.ToCents(stokvel.ContributionAmount),
             stokvel.Cycle,
             stokvel.CreatedAt,
-            stokvel.Members.Select(StokvelMembershipResponse.FromDomain).ToList(),
+            stokvel.Members
+                .Select(m => StokvelMembershipResponse.FromDomain(m, memberNames.GetValueOrDefault(m.UserId)))
+                .ToList(),
             summary.MemberCount,
             summary.CurrentCycle);
 }

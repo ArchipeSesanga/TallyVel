@@ -285,12 +285,15 @@ export interface paths {
         put?: never;
         /**
          * Record a contribution
-         * @description Records a member's payment for a stokvel cycle. Requires an Idempotency-Key header, and rejects a second contribution from the same member for the same cycle.
+         * @description Records a member's payment for a stokvel cycle. Any member can record their own. Recording for another member needs the Treasurer or Chairperson role in this stokvel. The member must belong to the stokvel. Requires an Idempotency-Key header, and rejects a second contribution from the same member for the same cycle.
          */
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /** @description A fresh UUID per attempt. Retrying the same request with the same key replays the first result instead of recording twice. */
+                    "Idempotency-Key": string;
+                };
                 path: {
                     stokvelId: string;
                 };
@@ -322,6 +325,15 @@ export interface paths {
                     };
                     content: {
                         "application/problem+json": components["schemas"]["ValidationProblemDetails"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
                 /** @description Not Found */
@@ -601,6 +613,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who am I
+         * @description The signed-in member: id, email and full name. Never includes the password hash. Their role is not here because a role belongs to one stokvel; /me/home returns it per stokvel.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["UserResponse"];
+                        "application/json": components["schemas"]["UserResponse"];
+                        "text/json": components["schemas"]["UserResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/home": {
         parameters: {
             query?: never;
@@ -741,7 +803,7 @@ export interface paths {
         };
         /**
          * Get a stokvel by id
-         * @description Returns a single stokvel, including its current members and their roles.
+         * @description Returns a single stokvel, including its current members with their names and roles, the member count and its current cycle (null when no cycle is open) with the cents collected and due.
          */
         get: {
             parameters: {
@@ -760,9 +822,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["StokvelResponse"];
-                        "application/json": components["schemas"]["StokvelResponse"];
-                        "text/json": components["schemas"]["StokvelResponse"];
+                        "text/plain": components["schemas"]["StokvelDetailResponse"];
+                        "application/json": components["schemas"]["StokvelDetailResponse"];
+                        "text/json": components["schemas"]["StokvelDetailResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -1258,6 +1320,10 @@ export interface components {
             status?: null | number;
             detail?: null | string;
             instance?: null | string;
+            /** @description The reference a member can quote to support. Also written to the server log. */
+            correlationId?: null | string;
+            /** @description The W3C trace id of the request. */
+            traceId?: null | string;
         };
         /**
          * @description What the caller sends to record a contribution. StokvelId is
@@ -1284,12 +1350,52 @@ export interface components {
             email: string;
             fullName: string;
         };
+        /**
+         * @description The open cycle. CollectedCents is what has arrived (Paid and Confirmed contributions);
+         *     DueCents is what the whole stokvel owes for the cycle (members times the contribution
+         *     amount). EndsOn is null only for a cycle created before cycles had dates.
+         */
+        StokvelCurrentCycle: {
+            /** Format: uuid */
+            id: string;
+            label: string;
+            status: components["schemas"]["CycleStatus"];
+            /** Format: date */
+            endsOn: null | string;
+            /** Format: int64 */
+            collectedCents: number;
+            /** Format: int64 */
+            dueCents: number;
+        };
+        /**
+         * @description One stokvel with the numbers its page shows. Money is integer cents; EndsOn is a
+         *     South African calendar date. CurrentCycle is null when no cycle is open.
+         */
+        StokvelDetailResponse: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: int64 */
+            contributionAmountCents: number;
+            cycle: components["schemas"]["ContributionFrequency"];
+            /** Format: date-time */
+            createdAt: string;
+            members: components["schemas"]["StokvelMembershipResponse"][];
+            /** Format: int32 */
+            memberCount: number;
+            currentCycle: null | components["schemas"]["StokvelCurrentCycle"];
+        };
+        /**
+         * @description FullName is filled in by the stokvel detail endpoint, so a Treasurer can pick a member by name.
+         *     It is null in the other responses that list members.
+         */
         StokvelMembershipResponse: {
             /** Format: uuid */
             userId: string;
             role: components["schemas"]["MemberRole"];
             /** Format: date-time */
             joinedAt: string;
+            fullName?: null | string;
         };
         StokvelResponse: {
             /** Format: uuid */
@@ -1324,6 +1430,10 @@ export interface components {
             errors?: {
                 [key: string]: string[];
             };
+            /** @description The reference a member can quote to support. Also written to the server log. */
+            correlationId?: null | string;
+            /** @description The W3C trace id of the request. */
+            traceId?: null | string;
         };
     };
     responses: never;
