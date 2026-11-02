@@ -4,7 +4,10 @@ import { api, readOrFail } from '@/lib/api'
 import { ApiErrorView } from '@/components/ApiErrorView'
 import { formatCents } from '@/lib/money'
 import { formatDate, formatDateTime } from '@/lib/dates'
-import { roleLabel } from '@/lib/roles'
+import { canRunCycle, roleLabel } from '@/lib/roles'
+import { centsToInput } from '@/lib/moneyInput'
+import { getSession } from '@/lib/session'
+import { ContributionForm } from '@/components/ContributionForm'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -56,7 +59,9 @@ async function StokvelDetail({ params }: { params: Promise<{ id: string }> }) {
   const entry = home.data.stokvels.find((s) => s.stokvelId === id)
   if (entry === undefined) notFound()
 
-  const { name, contributionAmountCents, memberCount, currentCycle } = stokvel.data
+  const { name, contributionAmountCents, memberCount, currentCycle, members } = stokvel.data
+  const session = await getSession() // the page is inside <Suspense>, so reading the cookie is fine
+  if (session === null) notFound() // readOrFail has already sent a signed-out person to /login; this only narrows the type
 
   return (
     <div className="space-y-8">
@@ -88,6 +93,25 @@ async function StokvelDetail({ params }: { params: Promise<{ id: string }> }) {
         </dl>
       </section>
 
+      {/* Only while the cycle is open. THIS stokvel's role comes from the API (/me/home), never from the session. */}
+      {currentCycle !== null && currentCycle.status === 'Open' && (
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold">Record a contribution</h2>
+          <ContributionForm
+            stokvelId={id}
+            cycle={currentCycle.label}
+            youId={session.user.id}
+            members={
+              canRunCycle(entry.role)
+                ? members.map((m) => ({ userId: m.userId, name: m.fullName ?? 'A member' }))
+                : null
+            }
+            prefill={entry.owedThisCycleCents > 0 ? centsToInput(entry.owedThisCycleCents) : ''}
+            firstKey={crypto.randomUUID()}
+          />
+        </section>
+      )}
+
       {/* NEW: its own boundary, so the top of the page never waits for this list. */}
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Recent contributions</h2>
@@ -105,7 +129,7 @@ async function RecentContributions({ recentPromise }: { recentPromise: ReturnTyp
   if (!recent.ok) return <ApiErrorView {...recent.problem} />
 
   if (recent.data.items.length === 0) {
-    return <p className="text-muted-foreground">No contributions yet. They'll appear here as members pay.</p>
+    return <p className="text-muted-foreground">No contributions yet. They&apos;ll appear here as members pay.</p>
   }
 
   return (

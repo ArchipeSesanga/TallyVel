@@ -23,7 +23,10 @@ export async function readOrFail<T>(call: Call<T>): Promise<ReadResult<T>> {
   })
 
   if (error === undefined && data !== undefined) return { ok: true, data }
-  if (response.status === 401) redirect(await loginPath({ expired: true }))
+  if (response.status === 401) {
+    console.log(`[api] 401 from ${response.url ? new URL(response.url).pathname : 'the API'} -> /login?expired=1`)
+    redirect(await loginPath({ expired: true }))
+  }
   if (response.status === 404) notFound()
 
   return {

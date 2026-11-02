@@ -285,7 +285,7 @@ export interface paths {
         put?: never;
         /**
          * Record a contribution
-         * @description Records a member's payment for a stokvel cycle. Requires an Idempotency-Key header, and rejects a second contribution from the same member for the same cycle.
+         * @description Records a member's payment for a stokvel cycle. Any member can record their own. Recording for another member needs the Treasurer or Chairperson role in this stokvel. The member must belong to the stokvel. Requires an Idempotency-Key header, and rejects a second contribution from the same member for the same cycle.
          */
         post: {
             parameters: {
@@ -325,6 +325,15 @@ export interface paths {
                     };
                     content: {
                         "application/problem+json": components["schemas"]["ValidationProblemDetails"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
                 /** @description Not Found */
@@ -794,7 +803,7 @@ export interface paths {
         };
         /**
          * Get a stokvel by id
-         * @description Returns a single stokvel, including its current members and their roles, the member count and its current cycle (null when no cycle is open) with the cents collected and due.
+         * @description Returns a single stokvel, including its current members with their names and roles, the member count and its current cycle (null when no cycle is open) with the cents collected and due.
          */
         get: {
             parameters: {
@@ -1376,12 +1385,17 @@ export interface components {
             memberCount: number;
             currentCycle: null | components["schemas"]["StokvelCurrentCycle"];
         };
+        /**
+         * @description FullName is filled in by the stokvel detail endpoint, so a Treasurer can pick a member by name.
+         *     It is null in the other responses that list members.
+         */
         StokvelMembershipResponse: {
             /** Format: uuid */
             userId: string;
             role: components["schemas"]["MemberRole"];
             /** Format: date-time */
             joinedAt: string;
+            fullName?: null | string;
         };
         StokvelResponse: {
             /** Format: uuid */

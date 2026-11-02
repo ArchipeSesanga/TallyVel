@@ -40,6 +40,7 @@ const NAVIGATION_ITEMS: NavItem[] = [
   },
   {
     id: "contributions",
+    to: "/contributions",
     label: "Contributions",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="size-[18px] fill-current overflow-visible" viewBox="0 0 28 28" aria-hidden="true">

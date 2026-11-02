@@ -105,6 +105,88 @@ Unchanged since 7.4:
 
 **Why the frontend needs it:** the Server Action keeps the key after an unknown outcome (no answer, a timeout), and makes a new key after a success or a changed amount.
 
+## The race
+
+The API rotates refresh tokens and treats a reused one as theft: it revokes the whole token family. When several requests arrive at the Next.js server together with a nearly expired access token, each one would call `/auth/refresh` with the SAME refresh token. One wins, the others are refused, and the person is signed out.
+
+**The fix** is in `src/lib/sharedRefresh.ts`, the only place the app refreshes (`proxy.ts` calls `refreshSession` and nothing else does):
+
+- A `Map` from refresh token to the in-flight refresh, so concurrent callers with the same token await ONE request.
+- A finished result is kept for 30 seconds under the OLD token, because a request that arrives just after the refresh still carries the old cookie (the browser has not received the new one yet). Expired entries are removed on every call.
+- A refused refresh is shared and remembered like a good one, so no caller retries it. An unreachable API is shared while the request is running but is not remembered, so the next request tries again.
+- The map is only in this server's memory. Tokens are never logged or put in a response.
+
+**The test** (`src/lib/sharedRefresh.test.ts`, no running API: `fetch` is stubbed with a 20 ms delay so the calls really overlap) checks that five concurrent calls make exactly one request and get the same new session, that a call 1 s later with the old token gets the stored result without a new request, that the result is forgotten after 30 s, and that a refused refresh is shared and not retried.
+
+With the sharing in place:
+
+```
+RUN  v5.0.5 /Users/archipesesanga/Development/TallyVel/web-next
+
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  23:28:47
+   Duration  388ms (tests 78%, transform 18%, import 3%, worker 1%)
+```
+
+With the sharing removed (`refreshSession` calling the API directly), the same test fails:
+
+```
+ RUN  v5.0.5 /Users/archipesesanga/Development/TallyVel/web-next
+ ❯ src/lib/sharedRefresh.test.ts (6 tests | 4 failed) 249ms
+     × five concurrent calls with the same token make exactly one request and share the new session 54ms
+     × a call made 1 second after the first finished, with the old token, gets the stored result without a new request 42ms
+     × a refused refresh is shared too, and no caller retries it 43ms
+     × an unreachable API is shared while in flight but not remembered, so the next request tries again 43ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected "vi.fn()" to be called 1 times, but got 5 times
+AssertionError: expected "vi.fn()" to be called 1 times, but got 2 times
+AssertionError: expected "vi.fn()" to be called 1 times, but got 6 times
+AssertionError: expected "vi.fn()" to be called 2 times, but got 4 times
+ Test Files  1 failed (1)
+      Tests  4 failed | 2 passed (6)
+```
+
+(The sharing is back in the code. The failing run was done once to capture this output.)
+
+**What this fix handles**
+
+- Several requests reaching ONE Next.js server at the same time with the same token: one refresh, everyone gets the same new session.
+- A request that arrives up to 30 seconds after the refresh finished but still carries the old cookie.
+- A refused refresh: it is not retried by every caller.
+
+**What it does not handle**
+
+- **Several Next.js servers.** Each has its own memory and its own map, so two servers can still refresh with the same token at once, and the API will see a reuse. That needs a grace window in the API (accept the previous token for a few seconds and answer with the same successor) or a store shared by the servers. The API's reuse detection is unchanged on purpose.
+- **A request that left before another tab's refresh came back.** A tab can send a request with the old cookie, and the request can reach the server later than 30 seconds after the refresh (a slow network, a sleeping laptop). The shared result is gone by then, so it refreshes with a used token and the API revokes the family. A longer window would shrink this but makes the next point worse.
+- **A lost answer.** If the API rotates the token but the response never reaches the server (a network error), nothing is remembered, and the next request retries with a token the API has already used.
+- **What the window costs.** For 30 seconds after a refresh, anyone who sends the OLD session cookie to this server gets the NEW session back from memory instead of a refusal. A thief replaying an old copy of the cookie in that window would not set off the API's reuse detection and would receive working tokens. After the window the normal reuse detection applies again. 30 seconds is a trade between this and the lost-race case above.
+
+## Record a contribution
+
+On `/stokvels/[id]`, while the stokvel's current cycle is Open, a form records a contribution. It is a small client component (`src/components/ContributionForm.tsx`, `useActionState`) backed by the `recordContribution` Server Action in `src/app/actions.ts`. The action checks, in order: the session, then a Zod schema (`src/lib/contributionSchema.ts`), then the API (`POST /api/v1/stokvels/<built-in function id>/contributions` with the `Idempotency-Key` header).
+
+- **Amount.** The person types rands ("150.50"). `parseRandsToCents` (`src/lib/moneyInput.ts`, with its tests) turns it into whole cents with string logic only, and refuses "150.505". The field is prefilled with what the member still owes, from `/me/home`.
+- **Who it is for.** Everyone can record for themselves. Someone who is Treasurer or Chairperson in THIS stokvel (the role comes from this stokvel's entry in `/me/home`, never from the session) also gets a picker of the stokvel's members. The picker shows names, so the stokvel endpoint now returns each member's `fullName` (an API change with a test, `The_detail_lists_each_member_with_their_full_name_and_role`). The picker is a convenience: the API decides, and answers 403 to anyone else.
+- **Errors are returned as state, never thrown.** 400: a message under each field. 409, 422 and 403: the API's `detail` at the top (a 403 never signs anyone out). 429: "Try again in N seconds." from `Retry-After`. No answer or a 5xx: "This payment may have gone through. Trying again is safe." 401: back to sign in. Every API error shows `Reference: <correlationId>`. The form keeps what was typed after any failure.
+- **One click, one request.** The button is disabled while the request runs.
+
+**The Idempotency-Key** is a hidden field the server writes. The page renders the first key, and the action's returned state carries the key for the next attempt:
+
+| What happened | Key for the next attempt |
+|---|---|
+| Form opened, or the last attempt succeeded (a replayed 201 counts) | NEW key |
+| No response, a 5xx, or a 429 | SAME key |
+| The person changed the amount or the member | NEW key (the API answers 422 to a reused key with a different body) |
+| 400, 409 or 422, then sent again unchanged | SAME key |
+
+Why the same key after a 400, 409 or 422: the API releases the key whenever a request fails (`ContributionServices` releases it in its `catch`), and the refusal is about the data, not the key. Sending the same body again is the same request, so the same key is correct, and if the person fixes the amount the rule above gives a new key. The action remembers the body each key was last sent with (`keyBody` in the form state) to see whether it changed.
+
+**After a success** the action calls `refresh()` from `next/cache`, and the form says who, how much and which cycle. I recorded a contribution once WITHOUT `refresh()` first: the confirmation appeared, but the "Current cycle" line on the same page stayed at "R 0,00 collected of R 500,00" until the page was reloaded (then "R 150,50 collected"). With `refresh()` the line changes straight away, with no reload.
+
+Checked in a browser against the running API: "150.505" shows one message under the amount and keeps what was typed; a successful record shows the confirmation and a new key; recording again for the same member and cycle shows the API's 409 with a reference and keeps the key; a double click on the button records one contribution.
+
 ## Known gaps
 
 - Registration reveals whether an email has an account (409); hiding it needs email verification.

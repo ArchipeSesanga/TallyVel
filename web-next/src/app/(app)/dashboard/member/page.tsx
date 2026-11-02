@@ -22,7 +22,7 @@ async function MemberStokvels() {
   if (!home.ok) return <ApiErrorView {...home.problem} />
 
   const stokvels = home.data.stokvels
-  if (stokvels.length === 0) return <p>You're not in any stokvel yet. Ask a treasurer to add you.</p>
+  if (stokvels.length === 0) return <p>You&apos;re not in any stokvel yet. Ask a treasurer to add you.</p>
 
   return (
     <ul className="grid gap-4 md:grid-cols-2">

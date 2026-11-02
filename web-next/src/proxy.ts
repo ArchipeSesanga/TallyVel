@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import type { AccessTokenResponse } from '@/api/types'
-import { SESSION_COOKIE, decryptSession, encryptSession, sessionCookieOptions, type Session } from '@/lib/session' // NEW
-import { refreshCookieHeader, refreshTokenFrom } from '@/lib/refreshCookie' // NEW
+import { SESSION_COOKIE, decryptSession, encryptSession, sessionCookieOptions } from '@/lib/session' // NEW
+import { refreshSession } from '@/lib/sharedRefresh' // NEW
 
 /** The request header that carries the page the person asked for (path + query). Set only here. */
 export const NEXT_PATH_HEADER = 'x-next-path'
@@ -9,33 +8,6 @@ export const NEXT_PATH_HEADER = 'x-next-path'
 /** NEW: refresh when less than this is left (60 s by default; REFRESH_MARGIN_SECONDS in .env.local overrides it for testing). */
 function refreshMarginMs(): number {
   return Number(process.env.REFRESH_MARGIN_SECONDS ?? '60') * 1000
-}
-
-type RefreshResult = { kind: 'refreshed'; session: Session } | { kind: 'refused' } | { kind: 'unreachable' }
-
-/** NEW: asks the API for new tokens. This is the ONLY place in the app that refreshes. */
-async function refresh(session: Session): Promise<RefreshResult> {
-  let response: Response
-  try {
-    response = await fetch(`${process.env.API_BASE_URL}/api/v1/auth/refresh`, {
-      method: 'POST',
-      headers: { Cookie: refreshCookieHeader(session.refreshToken) },
-      cache: 'no-store',
-    })
-  } catch {
-    return { kind: 'unreachable' } // the API is down: never sign anyone out for that
-  }
-  if (!response.ok) return { kind: 'refused' }
-
-  const body = (await response.json()) as AccessTokenResponse
-  const refreshToken = refreshTokenFrom(response)
-  if (refreshToken === null) return { kind: 'refused' }
-
-  console.log(`[proxy] refreshed the session at ${new Date().toISOString()}`)
-  return {
-    kind: 'refreshed',
-    session: { ...session, accessToken: body.accessToken, accessTokenExpiresAt: body.expiresAt, refreshToken },
-  }
 }
 
 /**
@@ -53,6 +25,8 @@ export async function proxy(request: NextRequest) {
   const cookieValue = request.cookies.get(SESSION_COOKIE)?.value
   const session = cookieValue ? await decryptSession(cookieValue) : null
   if (session === null) {
+    // Say WHY (no token, no personal data), so "I was logged out" can be traced to a cause.
+    console.log(`[proxy] ${request.method} ${url.pathname} -> /login: ${cookieValue ? 'session cookie could not be read (changed key or old format)' : 'no session cookie'}`)
     const login = new URL('/login', request.url)
     login.searchParams.set('next', nextPath)
     return NextResponse.redirect(login)
@@ -61,9 +35,10 @@ export async function proxy(request: NextRequest) {
   // NEW 2. Token nearly used up: refresh before the page renders.
   let refreshedValue: string | null = null
   if (Date.parse(session.accessTokenExpiresAt) - Date.now() <= refreshMarginMs()) {
-    const result = await refresh(session)
+    const result = await refreshSession(session)
 
     if (result.kind === 'refused') {
+      console.log(`[proxy] ${request.method} ${url.pathname} -> /login?expired=1: the API refused the refresh`)
       const response = NextResponse.redirect(new URL('/login?expired=1', request.url))
       response.cookies.delete(SESSION_COOKIE)
       return response
@@ -89,6 +64,8 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Pages only: not assets, and not the sign-in and register pages (they never redirect to /login).
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|login|register).*)'],
+  // Pages and Server Actions only: not Next's assets, not files in public/ (any path ending in a file
+  // extension, e.g. /LogoWrap.png, which next/image fetches without cookies), and not the sign-in and
+  // register pages (they never redirect to /login).
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|login|register|.*\\.[a-zA-Z0-9]+$).*)'],
 }
