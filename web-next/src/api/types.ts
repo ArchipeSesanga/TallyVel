@@ -23,3 +23,11 @@ export type ValidationProblemDetails = Schemas['ValidationProblemDetails']
 
 // GET /api/v1/stokvels/{id}: the stokvel with its member count and current cycle already worked out by the API
 export type StokvelDetail = Schemas['StokvelDetailResponse']
+
+// One page of GET /api/v1/stokvels/{id}/contributions. nextPageToken is "" on the last page.
+export type ContributionPage = Schemas['PagedResponseOfContributionResponse']
+
+// GET /api/v1/me/activity: the member's feed across their own stokvels, newest first
+export type ActivityItem = Schemas['ActivityItem']
+export type ActivityKind = Schemas['ActivityKind']
+export type ActivityPage = Schemas['PagedResponseOfActivityItem']

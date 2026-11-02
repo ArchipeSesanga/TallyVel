@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { api, readOrFail } from '@/lib/api'
 import { ApiErrorView } from '@/components/ApiErrorView'
@@ -114,7 +115,10 @@ async function StokvelDetail({ params }: { params: Promise<{ id: string }> }) {
 
       {/* NEW: its own boundary, so the top of the page never waits for this list. */}
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Recent contributions</h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-xl font-semibold">Recent contributions</h2>
+          <Link href={`/stokvels/${id}/contributions`} className="text-sm underline">See the full history</Link>
+        </div>
         <Suspense fallback={<RecentSkeleton />}>
           <RecentContributions recentPromise={recentPromise} />
         </Suspense>
