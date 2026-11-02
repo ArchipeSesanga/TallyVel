@@ -5,16 +5,9 @@ import { api, correlationIdOf } from '@/lib/api'
 import { createSession, deleteSession, getSession } from '@/lib/session'
 import { describeApiError } from '@/lib/errorMessages'
 import { safeNextPath } from '@/lib/safeNext'
+import { refreshCookieHeader, refreshTokenFrom } from '@/lib/refreshCookie'
 
 export type SignInState = { message: string | null; reference: string | null }
-
-const REFRESH_COOKIE = 'tallyvel_rt='
-
-/** A browser hides Set-Cookie from JavaScript; a server can read it. */
-function refreshTokenFrom(response: Response): string | null {
-  const cookie = response.headers.getSetCookie().find((c) => c.startsWith(REFRESH_COOKIE))
-  return cookie ? cookie.split(';')[0].slice(REFRESH_COOKIE.length) : null
-}
 
 export async function signIn(_previous: SignInState, formData: FormData): Promise<SignInState> {
   const email = String(formData.get('email') ?? '')
@@ -44,6 +37,7 @@ export async function signIn(_previous: SignInState, formData: FormData): Promis
 
   await createSession({
     accessToken: login.data.accessToken,
+    accessTokenExpiresAt: login.data.expiresAt,
     refreshToken,
     user: { id: me.data.id, email: me.data.email, fullName: me.data.fullName },
   })
@@ -103,7 +97,7 @@ export async function signOut(): Promise<void> {
     // The API reads the refresh token from its own cookie, so send it the way a browser would.
     await fetch(`${process.env.API_BASE_URL}/api/v1/auth/logout`, {
       method: 'POST',
-      headers: { Cookie: `tallyvel_rt=${session.refreshToken}` },
+      headers: { Cookie: refreshCookieHeader(session.refreshToken) },
     }).catch(() => undefined) // sign out locally even if the API is unreachable
   }
   await deleteSession()
