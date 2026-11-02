@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { Landmark } from 'lucide-react'
+import { History, Landmark } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { signOut } from '@/app/actions'
 
@@ -31,6 +31,12 @@ const NAVIGATION_ITEMS: NavItem[] = [
         <circle cx="379.16" cy="286.132" r="16.658" />
       </svg>
     ),
+  },
+  {
+    id: "activity",
+    to: "/activity",
+    label: "Activity",
+    icon: <History className="size-[18px] overflow-visible" aria-hidden="true" />,
   },
   {
     id: "treasurer",

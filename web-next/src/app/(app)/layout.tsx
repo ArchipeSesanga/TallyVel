@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { AppShell } from '@/components/AppShell'
+import { QueryProvider } from '@/components/QueryProvider'
 import { loginPath } from '@/lib/loginPath'
 import { getSession } from '@/lib/session'
 
@@ -18,9 +19,12 @@ async function SignedInShell({ children }: { children: React.ReactNode }) {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    // While the session loads, the same frame shows with no name yet.
-    <Suspense fallback={<AppShell fullName="" email="">{children}</AppShell>}>
-      <SignedInShell>{children}</SignedInShell>
-    </Suspense>
+    // The TanStack Query cache lives here, for the signed-in part of the site only.
+    <QueryProvider>
+      {/* While the session loads, the same frame shows with no name yet. */}
+      <Suspense fallback={<AppShell fullName="" email="">{children}</AppShell>}>
+        <SignedInShell>{children}</SignedInShell>
+      </Suspense>
+    </QueryProvider>
   )
 }

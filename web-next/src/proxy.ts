@@ -20,6 +20,7 @@ export async function proxy(request: NextRequest) {
   const url = request.nextUrl.clone()
   url.searchParams.delete('_rsc') // Next's own marker on client-side navigations, not part of the page's address
   const nextPath = url.pathname + url.search
+  const isBffPath = url.pathname.startsWith('/bff/')
 
   // NEW 1. No session (missing, forged, expired or an old shape): off to sign in, remembering where they were going.
   const cookieValue = request.cookies.get(SESSION_COOKIE)?.value
@@ -27,6 +28,8 @@ export async function proxy(request: NextRequest) {
   if (session === null) {
     // Say WHY (no token, no personal data), so "I was logged out" can be traced to a cause.
     console.log(`[proxy] ${request.method} ${url.pathname} -> /login: ${cookieValue ? 'session cookie could not be read (changed key or old format)' : 'no session cookie'}`)
+    // A fetch() from the browser to /bff/... can't follow a redirect to a page: it gets a JSON 401 it can act on.
+    if (isBffPath) return NextResponse.json({ error: 'unauthenticated', message: 'Your session has ended. Please sign in again.' }, { status: 401 })
     const login = new URL('/login', request.url)
     login.searchParams.set('next', nextPath)
     return NextResponse.redirect(login)
@@ -39,7 +42,9 @@ export async function proxy(request: NextRequest) {
 
     if (result.kind === 'refused') {
       console.log(`[proxy] ${request.method} ${url.pathname} -> /login?expired=1: the API refused the refresh`)
-      const response = NextResponse.redirect(new URL('/login?expired=1', request.url))
+      const response = isBffPath
+        ? NextResponse.json({ error: 'unauthenticated', message: 'Your session has ended. Please sign in again.' }, { status: 401 })
+        : NextResponse.redirect(new URL('/login?expired=1', request.url))
       response.cookies.delete(SESSION_COOKIE)
       return response
     }
