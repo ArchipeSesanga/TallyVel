@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { api, correlationIdOf } from '@/lib/api'
 import { createSession, deleteSession, getSession } from '@/lib/session'
 import { describeApiError } from '@/lib/errorMessages'
+import { safeNextPath } from '@/lib/safeNext'
 
 export type SignInState = { message: string | null; reference: string | null }
 
@@ -46,7 +47,7 @@ export async function signIn(_previous: SignInState, formData: FormData): Promis
     refreshToken,
     user: { id: me.data.id, email: me.data.email, fullName: me.data.fullName },
   })
-  redirect('/dashboard/member')
+  redirect(safeNextPath(String(formData.get('next') ?? '') || null))
 }
 
 export type RegisterState = {

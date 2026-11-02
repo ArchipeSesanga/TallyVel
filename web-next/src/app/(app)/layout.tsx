@@ -1,12 +1,13 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { AppShell } from '@/components/AppShell'
+import { loginPath } from '@/lib/loginPath'
 import { getSession } from '@/lib/session'
 
 /** Reads the session, so it sits inside <Suspense>: the frame shows straight away without it. */
 async function SignedInShell({ children }: { children: React.ReactNode }) {
   const session = await getSession()
-  if (session === null) redirect('/login')
+  if (session === null) redirect(await loginPath())
   // Only the name and email cross into the browser, never the session object.
   return (
     <AppShell fullName={session.user.fullName} email={session.user.email}>

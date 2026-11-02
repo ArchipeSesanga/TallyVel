@@ -8,11 +8,13 @@ const initialState: SignInState = { message: null, reference: null }
 const inputClass =
   'w-full rounded-md bg-card px-3 py-2.5 text-sm text-card-foreground outline-1 -outline-offset-1 outline-input placeholder:text-muted-foreground focus:outline-2 focus:-outline-offset-2 focus:outline-ring'
 
-export function LoginForm() {
+export function LoginForm({ next }: { next: string }) {
   const [state, formAction, pending] = useActionState(signIn, initialState)
 
   return (
     <form action={formAction} className="space-y-6">
+      {/* Where to go after signing in. The Server Action checks it again with safeNextPath. */}
+      <input type="hidden" name="next" value={next} />
       <div>
         <label htmlFor="email" className="mb-2 inline-block text-sm font-medium">
           Email

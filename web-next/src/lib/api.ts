@@ -3,7 +3,8 @@ import createClient from 'openapi-fetch'
 import { notFound, redirect } from 'next/navigation'
 import type { paths } from '@/api/schema'
 import { getSession } from './session'
-import { describeApiError } from './errorMessages' 
+import { describeApiError } from './errorMessages'
+import { loginPath } from './loginPath'
 
 export const api = createClient<paths>({ baseUrl: process.env.API_BASE_URL })
 
@@ -15,14 +16,14 @@ type Call<T> = (init: AuthInit) => Promise<{ data?: T; error?: unknown; response
 
 export async function readOrFail<T>(call: Call<T>): Promise<ReadResult<T>> {
   const session = await getSession()
-  if (session === null) redirect('/login')
+  if (session === null) redirect(await loginPath())
 
   const { data, error, response } = await call({
     headers: { Authorization: `Bearer ${session.accessToken}` },
   })
 
   if (error === undefined && data !== undefined) return { ok: true, data }
-  if (response.status === 401) redirect('/login?expired=1')
+  if (response.status === 401) redirect(await loginPath({ expired: true }))
   if (response.status === 404) notFound()
 
   return {
