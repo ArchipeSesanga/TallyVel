@@ -128,6 +128,9 @@ public sealed class EfContributionRepository : IContributionRepository
     //refinining part through the conditions 
     if (q.Cycle is { } cycle)         query = query.Where(c => c.Cycle == cycle);
     if (q.MemberUserId is { } member) query = query.Where(c => c.MemberUserId == member);
+    // Half-open range [From, To): a contribution exactly at To belongs to the NEXT range, so ranges never overlap or leave gaps.
+    if (q.From is { } from)           query = query.Where(c => c.RecordedAt >= from);
+    if (q.To is { } to)               query = query.Where(c => c.RecordedAt < to);
     if (q.MinAmount is { } min)       query = query.Where(c => c.Amount >= min);
     if (q.MaxAmount is { } max)       query = query.Where(c => c.Amount <= max);
 
@@ -136,10 +139,16 @@ public sealed class EfContributionRepository : IContributionRepository
     {
         var t = ContributionPageToken.Decode(q.PageToken);
 
-        // Malformed, or reused with a different filter/sort → 400
-        if (t is null || t.QueryFingerprint != q.Fingerprint())
+        // Malformed → 400 "invalid-pagetoken".
+        if (t is null)
+            throw new InvalidQueryException("pageToken", "Invalid page token.");
+
+        // Made under a different filter or sort → 400 "page-token-filter-mismatch", so a client can tell the
+        // two apart (the second one means "start again from page one", the first is a bug).
+        if (t.QueryFingerprint != q.Fingerprint())
             throw new InvalidQueryException("pageToken",
-                "Invalid page token, or token used with a different filter or sort.");
+                "This page token was issued for a different filter or sort. Start again from the first page.",
+                InvalidQueryException.PageTokenFilterMismatch);
 
          //At this point the query get tuned for the database 
         query = (q.SortBy, q.Descending) switch 

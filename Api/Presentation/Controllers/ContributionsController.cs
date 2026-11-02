@@ -39,9 +39,14 @@ public class ContributionsController : StokvelControllerBase
         "Filters, sorting and paging all run in the database. pageSize defaults to 20 and is capped at 100; " +
         "sort is recordedAt (default) or amount, prefixed with '-' for descending. Pass nextPageToken back as " +
         "pageToken for the next page; an empty nextPageToken means there are no more results. " +
-        "minAmountCents and maxAmountCents filter by amount, in integer cents.")]
+        "minAmountCents and maxAmountCents filter by amount, in integer cents. " +
+        "from and to are UTC instants in ISO 8601 ending in Z, compared with recordedAt in the database: " +
+        "from is INCLUDED and to is EXCLUDED, so one range ends exactly where the next begins. " +
+        "memberUserId must belong to this stokvel. A pageToken only works with the same filter and sort that produced it " +
+        "(otherwise 400, code page-token-filter-mismatch).")]
     [ProducesResponseType<PagedResponse<ContributionResponse>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public async Task<IActionResult> GetPage(
         Guid stokvelId,
         [FromQuery] int? pageSize,
@@ -51,9 +56,23 @@ public class ContributionsController : StokvelControllerBase
         [FromQuery] Guid? memberUserId,
         [FromQuery] long? minAmountCents,
         [FromQuery] long? maxAmountCents,
+        [FromQuery] string? from,
+        [FromQuery] string? to,
         CancellationToken ct)
     {
         if (await AuthorizeStokvelAsync(stokvelId, StokvelPolicies.Member) is { } denied) return denied;
+
+        // All of these throw a TallyVelException on bad input → 400 via TallyVelExceptionHandler.
+        var fromInstant = UtcInstant.Parse(from, "from");
+        var toInstant = UtcInstant.Parse(to, "to");
+        if (fromInstant is { } start && toInstant is { } end && start >= end)
+            throw new InvalidQueryException("to", "'from' must be earlier than 'to'.");
+
+        // The caller is a member (checked above), so the stokvel exists. The answer is the same whether the
+        // user exists elsewhere or not: it never says anything about other stokvels' members.
+        if (memberUserId is { } member &&
+            _stokvelRepository.GetById(stokvelId)!.Members.All(m => m.UserId != member))
+            throw new InvalidQueryException("memberUserId", "That member does not belong to this stokvel.");
 
         // Both throw a TallyVelException on bad input → 400 via TallyVelExceptionHandler.
         var size = Paging.ResolvePageSize(pageSize);
@@ -63,7 +82,7 @@ public class ContributionsController : StokvelControllerBase
             stokvelId, cycle?.Trim(), memberUserId,
             minAmountCents is { } min ? Money.FromCents(min) : null,
             maxAmountCents is { } max ? Money.FromCents(max) : null,
-            sortBy, descending, size, pageToken);
+            sortBy, descending, size, pageToken, fromInstant, toInstant);
 
         var (items, nextPageToken) = await _contributionRepository.GetPageAsync(query, ct);
 

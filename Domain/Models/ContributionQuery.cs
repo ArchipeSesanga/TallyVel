@@ -10,10 +10,17 @@ public sealed record contributionQuery(
     ContributionSortField SortBy,
     bool Descending,
     int PageSize,
-    string? PageToken)
+    string? PageToken,
+    DateTimeOffset? From = null,   // UTC instant, INCLUDED: recordedAt >= From
+    DateTimeOffset? To = null)     // UTC instant, EXCLUDED: recordedAt < To
 {
+     // Everything that changes WHICH rows match or in WHAT order. A page token carries this, so a token
+     // made under one filter is refused under another (pageSize is not in it: it only sets the page length).
      public string Fingerprint() =>
-        $"{StokvelId}|{Cycle}|{MemberUserId}|{MinAmount}|{MaxAmount}|{SortBy}|{Descending}";
+        $"{StokvelId}|{Cycle}|{MemberUserId}|{MinAmount}|{MaxAmount}|{SortBy}|{Descending}|{Instant(From)}|{Instant(To)}";
+
+     private static string Instant(DateTimeOffset? value) =>
+        value is { } v ? v.UtcDateTime.ToString("O", System.Globalization.CultureInfo.InvariantCulture) : "";
      
      //this method returns a switch value
      public static (ContributionSortField Field, bool Desc) ParseSort(string? sort) => sort switch

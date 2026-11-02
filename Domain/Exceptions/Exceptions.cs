@@ -34,8 +34,11 @@ public sealed class InvalidQueryException : TallyVelException
 {
     public string Parameter { get; }
 
-    public InvalidQueryException(string parameter, string message)
-        : base($"invalid-{parameter.ToLowerInvariant()}", message)
+    /// <summary>The code to send when a client needs to tell two failures of the same parameter apart.</summary>
+    public const string PageTokenFilterMismatch = "page-token-filter-mismatch";
+
+    public InvalidQueryException(string parameter, string message, string? code = null)
+        : base(code ?? $"invalid-{parameter.ToLowerInvariant()}", message)
     {
         Parameter = parameter;
     }
