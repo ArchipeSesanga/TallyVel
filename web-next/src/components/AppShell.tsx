@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { History, Landmark } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { signOut } from '@/app/actions'
+import { PinsProvider, useClearPins, usePins } from '@/components/PinsProvider'
 
 type NavItem = { id: string; to?: string; label: string; icon: React.ReactNode }
 
@@ -103,14 +104,63 @@ function initials(fullName: string | undefined): string {
 }
 
 type AppShellProps = {
-  // Only these two strings cross from the server into the browser, never the session object.
+  // Only these strings cross from the server into the browser, never the session object.
   fullName: string
   email: string
+  userId: string
+  /** The ids of the stokvels the member is in right now (from the API), or null if that could not be read. Used only to hide pins for stokvels they left. */
+  memberOf: readonly string[] | null
   children: React.ReactNode
 }
 
-/** The signed-in frame: green sidebar, sticky header and profile menu, with the page in the middle. */
-export function AppShell({ fullName, email, children }: AppShellProps) {
+/** The signed-in frame. It gives everything inside it one pins store (see PinsProvider). */
+export function AppShell(props: AppShellProps) {
+  return (
+    <PinsProvider userId={props.userId}>
+      <Shell {...props} />
+    </PinsProvider>
+  )
+}
+
+/** The pinned stokvels, listed in the sidebar on every signed-in page. */
+function PinnedStokvels({ memberOf }: { memberOf: readonly string[] | null }) {
+  const ready = usePins((s) => s.ready)
+  const pins = usePins((s) => s.pins)
+  const keepOnly = usePins((s) => s.keepOnly)
+
+  // A pin for a stokvel the member has LEFT disappears (it is removed from the saved pins too), instead of
+  // staying as a link that opens a "not found" page. `memberOf` is only compared with the pins here;
+  // it is never stored.
+  useEffect(() => {
+    if (ready && memberOf !== null) keepOnly(memberOf)
+  }, [ready, memberOf, keepOnly])
+
+  const visible = memberOf === null ? pins : pins.filter((p) => memberOf.includes(p.stokvelId))
+  if (visible.length === 0) return null
+
+  return (
+    <nav className="mt-6" aria-label="Pinned stokvels">
+      <p className="px-3 text-xs font-semibold tracking-wide text-white/60 uppercase">Pinned</p>
+      <ul className="mt-2 space-y-1 text-sm text-white font-medium">
+        {visible.map((pin) => (
+          <li key={pin.stokvelId}>
+            <Link
+              href={`/stokvels/${pin.stokvelId}`}
+              className="flex items-center gap-2.5 hover:bg-white/10 rounded-md px-3 py-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              <span className="truncate">{pin.name}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+}
+
+/** The green sidebar, sticky header and profile menu, with the page in the middle. */
+function Shell({ fullName, email, userId, memberOf, children }: AppShellProps) {
+  // Signing out clears the pins in THIS browser first. The sign-out Server Action runs on the server and cannot touch localStorage.
+  const clearPins = useClearPins(userId)
   // Mobile first: the sidebar starts closed (a drawer over the page on a phone).
   // From the lg breakpoint up it is always shown, so this only matters on small screens.
   const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -191,9 +241,12 @@ export function AppShell({ fullName, email, children }: AppShellProps) {
             </nav>
 
             {/* Always visible, so people on a shared phone can find it. It revokes the refresh token at the API. */}
+            <PinnedStokvels memberOf={memberOf} />
+
             <form action={signOut} className="mt-6 text-sm text-white font-medium">
               <button
                 type="submit"
+                onClick={clearPins}
                 className="flex w-full cursor-pointer items-center gap-2.5 hover:bg-white/10 rounded-md px-3 py-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 {PROFILE_MENU.find((item) => item.label === "Logout")?.icon}
@@ -276,7 +329,7 @@ export function AppShell({ fullName, email, children }: AppShellProps) {
                           {item.label === "Logout" ? (
                             // A form posting to the signOut Server Action: it clears the session cookie on the server.
                             <form action={signOut}>
-                              <button type="submit" className={itemClass}>
+                              <button type="submit" onClick={clearPins} className={itemClass}>
                                 {item.icon}
                                 {item.label}
                               </button>

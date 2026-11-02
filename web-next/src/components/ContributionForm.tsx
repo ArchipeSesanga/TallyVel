@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { recordContribution, type ContributionState } from '@/app/actions'
 import { formatCents } from '@/lib/money'
 
@@ -32,6 +33,17 @@ export function ContributionForm({ stokvelId, cycle, youId, members, prefill, fi
   }
   const [state, formAction, pending] = useActionState(recordContribution, initialState)
   const errorsFor = (field: string) => state.fieldErrors[field] ?? []
+
+  // Two caches know about contributions. The SERVER's page one is refreshed by refresh() in the Server Action.
+  // TanStack Query's later pages live in the browser, so the browser clears them: the history and the activity
+  // feed then start from the fresh page one the next time they are shown, with no stale page in between.
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    if (state.confirmation !== null) {
+      queryClient.removeQueries({ queryKey: ['contribution-history'] })
+      queryClient.removeQueries({ queryKey: ['activity'] })
+    }
+  }, [state.confirmation, queryClient])
 
   const nameOf = (userId: string) =>
     userId === youId ? 'you' : (members?.find((m) => m.userId === userId)?.name ?? 'this member')

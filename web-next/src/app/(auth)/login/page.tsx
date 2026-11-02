@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
+import { ClearPinsOnSignIn } from '@/components/PinsProvider'
 import { LoginForm } from './LoginForm'
 
 /**
@@ -44,6 +45,8 @@ function LoginFormSkeleton() {
 export default function LoginPage({ searchParams }: PageProps<'/login'>) {
   return (
     <main className="flex flex-col items-center justify-center bg-background px-4 py-4 text-foreground md:px-8 lg:min-h-screen">
+      {/* Every expired or refused session ends up on this page, so pins saved in this browser are cleared here. */}
+      <ClearPinsOnSignIn />
       <div className="grid max-w-lg items-center gap-12 lg:max-w-6xl lg:grid-cols-2">
         <div>
           <p className="text-3xl font-bold !leading-tight sm:text-4xl lg:text-5xl">

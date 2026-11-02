@@ -9,6 +9,7 @@ import { canRunCycle, roleLabel } from '@/lib/roles'
 import { centsToInput } from '@/lib/moneyInput'
 import { getSession } from '@/lib/session'
 import { ContributionForm } from '@/components/ContributionForm'
+import { PinToggle } from '@/components/PinToggle'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -67,7 +68,10 @@ async function StokvelDetail({ params }: { params: Promise<{ id: string }> }) {
   return (
     <div className="space-y-8">
       <section className="space-y-4">
-        <h1 className="text-2xl font-bold break-words">{name}</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold break-words">{name}</h1>
+          <PinToggle stokvelId={id} name={name} />
+        </div>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
           <dt className="text-muted-foreground">Contribution</dt>
           <dd className="whitespace-nowrap">{formatCents(contributionAmountCents)}</dd>
