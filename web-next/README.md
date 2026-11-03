@@ -193,3 +193,167 @@ Checked in a browser against the running API: "150.505" shows one message under 
 - No replay header on idempotent replays.
 - Idempotency keys are stored in memory in the API, so an API restart forgets them (from Assignment 6.4).
 - All sign-ins now come from the Next.js server's IP, so the per-IP login rate limit is shared by everyone (from 8.1).
+
+## API check (8.3)
+
+What the running API does for this assignment, checked as Lerato against the rebuilt API on :8080 (the seeded Family Stokvel and Work Stokvel). The 8.2 API check above is unchanged.
+
+### 1. What can the contribution list be filtered by, and how does paging work?
+
+`GET /api/v1/stokvels/{id}/contributions` takes `memberUserId`, `from`, `to`, `cycle`, `minAmountCents`, `maxAmountCents` and `sort` (`recordedAt`, `-recordedAt`, `amount`, `-amount`; the `-` means descending). Filtering, sorting and paging all run in the database. `pageSize` defaults to 20 and is capped at 100. A response is `{ items, nextPageToken }`; `nextPageToken` is an opaque string, and it is **`""` (an empty string, not `null`) on the last page**. `pageSize=2&sort=-recordedAt` returned 2 items, newest first, with a 268-character token. `pageSize=100` returned everything with `nextPageToken: ""`.
+
+### 2. What exactly do `from` and `to` take, and how are they compared?
+
+They take UTC instants in ISO 8601 that **end in `Z`** (`2026-10-31T22:00:00Z`, fractional seconds allowed). An offset (`+02:00`), a bare date or a local time is refused, because the API would have to guess the time zone. They are compared with `recordedAt` in the database as a **half-open range: `from` is included, `to` is excluded**, so one range ends exactly where the next begins. Checked on the seeded "midnight" contribution, which was recorded at exactly `2026-10-31T22:30:00Z`:
+
+| Request | Result |
+|---|---|
+| `from=2026-10-31T00:00:00Z&to=2026-10-31T22:30:00Z` (`to` is that instant) | 0 items: excluded |
+| `from=2026-10-31T22:30:00Z&to=2026-11-02T00:00:00Z` (`from` is that instant) | 2 items, the first at `2026-10-31T22:30:00Z`: included |
+
+Tests: `ContributionRangeTests.From_is_included_and_to_is_excluded_so_a_contribution_exactly_at_to_is_left_out` (a row one second before `to` is in, a row exactly at `to` is out, a row exactly at `from` is in).
+
+### 3. What does the activity feed return?
+
+`GET /api/v1/me/activity?pageSize=&pageToken=` returns what happened in **only the stokvels the caller belongs to**, newest first: contributions recorded, payouts made and members joined, as one list that the database orders and pages. Each item has `id` (unique, opaque), `kind` (`ContributionRecorded`, `PayoutMade` or `MemberJoined`), `stokvelId`, `stokvelName`, `occurredAt` (UTC, ends in `Z`), `amountCents` (an integer, or `null` when no money is involved) and `personName` (the member the line is about; `null` once they are no longer in that stokvel). The last page's token is **`""`**, the same as the contribution list. With `pageSize=4` Lerato's 19 events came back in 5 pages with no row repeated and the last token `""`; only Family Stokvel and Work Stokvel appeared. Tests: `ActivityFeedTests` (only my stokvels, newest first, every kind, a payout, paging that neither repeats nor skips, a malformed token, no token).
+
+### 4. What happens when a page token is used with a different filter?
+
+A token remembers the filter and sort it was made under. Used under another one, the API answers **400 problem+json with `code: "page-token-filter-mismatch"`** and tells the client to start again from the first page. A token that is not a token at all gets a different code, `invalid-pagetoken`.
+
+```
+GET /api/v1/stokvels/b12b…/contributions?pageSize=1&sort=-recordedAt&from=2026-10-01T00:00:00Z&pageToken=<token made WITHOUT from>
+
+HTTP 400  {"type":"tag:tallyvel,2026:problem/page-token-filter-mismatch","title":"Invalid Query","status":400,
+           "detail":"This page token was issued for a different filter or sort. Start again from the first page.",
+           "code":"page-token-filter-mismatch","correlationId":"052a194e…"}
+```
+
+Tests: `A_page_token_sent_with_a_different_filter_gets_400_with_the_mismatch_code` and `A_malformed_page_token_gets_400_with_its_own_code_not_the_mismatch_one`.
+
+### 5. What happens with a member who is not in the stokvel, or a malformed date?
+
+Both are **400 problem+json**, the same status as other bad input:
+
+```
+GET …/contributions?memberUserId=00000000-0000-0000-0000-000000000001
+HTTP 400  {"code":"invalid-memberuserid","detail":"That member does not belong to this stokvel.", …}
+
+GET …/contributions?from=2026-02-30
+HTTP 400  {"code":"invalid-from","detail":"'from' must be a UTC time in ISO 8601 ending in Z, for example 2026-10-31T22:00:00Z.", …}
+```
+
+The member message is the same whether that person exists in another stokvel or nowhere, so it never says anything about other stokvels' members (the test checks the other stokvel's member id does not appear in the answer). `from` equal to or after `to` is also a 400. Tests: `A_member_who_is_not_in_this_stokvel_gets_400_even_if_they_exist_in_another_one`, `A_malformed_instant_gets_400`, `From_that_is_not_earlier_than_to_gets_400`.
+
+## Where each piece of state lives
+
+| State | Lives in | Why there |
+|---|---|---|
+| The filters: member, from, to, order | **The URL** (`?member=&from=&to=&sort=`, nuqs) | A reload, a shared link and the Back button must show the same list, and the server needs the filter to render page one. |
+| Page one of the history and of the activity feed | **The server** (a Server Component renders it into the HTML) | It is API data and must be fresh on every visit; it is rendered where the session and the token already are. |
+| Pages after page one | **TanStack Query's cache**, in the browser | It is server data that the browser asks for later, one page at a time, and it needs loading, error and cache handling. The key holds every filter value and the token page one ended with. |
+| "Has the person asked for more yet?" | Component state (`useState`) | It only matters to this one list while it is on screen. |
+| "The server is rendering the new list" | Component state (`useTransition`) | A short-lived flag for one control. |
+| The contribution form: what was typed, the errors, the Idempotency-Key, the confirmation | Component state from `useActionState` | It belongs to one form. The key is written by the server action and carried back in its state. |
+| Pinned stokvels (an id and a name each) | **Zustand**, saved in `localStorage` | It is a small preference of this browser that the API does not know about, shared by the sidebar and the stokvel page, and it must work without a request. |
+| Which stokvels the member is in (used to hide a pin for one they left) | **The server**, passed to the shell as a prop for one render | It is API data. It is compared with the pins and never stored. |
+| Balances, roles, member lists | **The server / the API**, never copied | They change; a copy would go out of date and could be wrong. |
+| The session and the tokens | An encrypted **HttpOnly cookie**, read only on the server | The browser's JavaScript must never be able to read a token. |
+| The sidebar drawer and the profile menu | Component state | Pure interface state. |
+
+## Filters
+
+The filters are written **once**, in `src/lib/historyParams.ts` (built from `nuqs/server`), and used by three places: the page (`loadHistoryParams` on the server), the Route Handler under `/bff/`, and the controls (`useQueryStates` in the browser). One file means one meaning.
+
+- `member` is a strict UUID. On the server it is also checked against **this stokvel's** members; an unknown one means "everyone" with no error.
+- `from` and `to` are strict `YYYY-MM-DD` and must be a real day (`isRealDay` from `saRange.ts`). nuqs's `parseAsIsoDate` is not used: it gives midnight UTC.
+- `sort` is an allow-list of the four sorts the API has; the default is `-recordedAt` (newest first).
+
+Anything else falls back to the default, with no error page and no 400 shown. Checked in the browser on the history page (all answered HTTP 200 and showed the list):
+
+| Address | What the person sees |
+|---|---|
+| `?member=banana&from=2026-02-30&to=yesterday` | the whole list |
+| `?member=00000000-0000-4000-8000-000000000001` (a UUID that is not in this stokvel) | the whole list |
+| `?from=2026-10-20&to=2026-10-10` | the whole list, and the line "“To” is before “from”, so the dates were ignored." |
+| `?sort=;drop` | the default order |
+| `?from=2026-11-03&from=2026-11-04` (twice) | the list, no error |
+
+`clearOnDefault` is on, so the unfiltered page has the clean address `/stokvels/{id}/contributions`.
+
+**Push or replace?** The controls use `history: 'push'`, because they apply on a deliberate change (a pick or a date, not every keystroke), so each filter the person chose is a step Back can return to.
+
+A filter that matches nothing is not an error: the page says "No contributions match these filters." with a "Show everything" link.
+
+## Dates
+
+`src/lib/saRange.ts` is the **only** place a South African calendar day becomes a UTC instant for filtering. `southAfricanDaysToUtcRange(from?, to?)` returns the half-open range the API takes:
+
+- `from` = 00:00 South African time on the `from` day;
+- `to` = 00:00 South African time on the day **after** the `to` day.
+
+Africa/Johannesburg is UTC+2 all year, with no daylight saving since 1944, so a South African midnight is always 22:00 UTC the evening before. The code relies on that and uses only UTC arithmetic (`Date.UTC`), never the machine's time zone. `2026-02-30` is refused; it does not roll over to 2 March.
+
+The rules I chose:
+
+| Input | Result |
+|---|---|
+| `from` only | everything from the start of that day, no upper end |
+| `to` only | everything up to the end of that day, no lower end |
+| the same day twice | that day, exactly 24 hours |
+| `to` before `from` | refused (`to-before-from`); the page shows everything and says so. The days are not swapped, because that would answer a question the person did not ask. |
+| not a real day | refused (`invalid-date`) |
+
+1–31 October is `from = 2026-09-30T22:00:00Z` (included) to `to = 2026-10-31T22:00:00Z` (excluded), so a contribution at 23:30 on 31 October (`21:30Z`) is inside and the first hours of November are not. Lists show South African time again with the existing formatters in `dates.ts` (a 23:30 contribution on 31 October reads as 31 October; this is tested).
+
+`npm run test:tz` runs the date tests under `TZ=UTC` and under `TZ=Africa/Johannesburg`. Both runs (the "Start at" times differ by two hours, which shows the zone really changed):
+
+```
+> TZ=UTC vitest run src/lib/saRange.test.ts src/lib/dates.test.ts
+ Test Files  2 passed (2)
+      Tests  14 passed (14)
+   Start at  23:35:02
+
+> TZ=Africa/Johannesburg vitest run src/lib/saRange.test.ts src/lib/dates.test.ts
+ Test Files  2 passed (2)
+      Tests  14 passed (14)
+   Start at  01:35:03
+```
+
+## Paging
+
+**Page one is the server's. The rest is the browser's, through our own site.** Page one is rendered by a Server Component. Later pages are asked for by `useInfiniteQuery` from `GET /bff/stokvels/{id}/contributions` and `GET /bff/activity`: Route Handlers that read the session cookie (no session means a JSON 401, never an HTML redirect), validate the query with the **same parsers** as the page, call the API with the token, and return JSON. The browser never calls the API's port and never sees a token. `proxy.ts` also answers `/bff/` requests without a session with a JSON 401.
+
+- `initialPageParam` is the token page one ended with. `getNextPageParam` returns `undefined` for an empty (`""`) or `null` token, which means "no more".
+- **Every filter value is in the query key**, and so is the token page one ended with. A different filter, or a page one that changed (a new contribution), is a different key, so it starts again and a page from one list can never show under another. The history list also has a `key` of its filter, so it remounts for each filter.
+- An `IntersectionObserver` on the end of the list loads the next page, **and** a real "Load more" button does the same for keyboards (checked: focus the button, press Enter). Nothing extra is fetched until the end is on screen or the button is pressed. On a short list the end is already on screen, so the next page loads straight away.
+- A `role="status"` line says "Showing 20 contributions. There are more." and says "That's everything: 24 contributions." **only after** the API's token was empty. While a page loads it says "Loading more…", and the button stays (disabled) instead of disappearing. After an error the observer stops by itself and the button says "Try again".
+
+**Two caches, and how each one learns about a new contribution.** The server's page one is not kept in the browser: after the contribution Server Action succeeds it calls `refresh()` (from `next/cache`), so the page the person is on is rendered again. TanStack's later pages live in the browser, so the form also clears them there (`removeQueries` for the history and the activity feed) when its confirmation appears. The next time a list is shown it starts from the fresh page one, with no stale page behind it.
+
+**Proof that the app never sends a token under the wrong filter.** The request that *would* be wrong is the one in "API check (8.3), question 4": a token made under one filter, sent with another. The API refuses it with a 400 and `page-token-filter-mismatch`. The app cannot make that request because (1) the token in a request always comes from the page one (or the later page) of **the same filter**: the list gets its filter and its first token from the same server render and builds every URL from that one filter; (2) the query key holds the filter and the first token, so another filter is another cache entry; and (3) the list remounts when the filter changes. I checked it in the browser: 3 `/bff/` requests that carried a page token were decoded, and in every one the sort and the "from" in the token's filter matched the request (0 mismatches), including after changing the order with a list already loaded.
+
+## Pinned stokvels
+
+A pin is a stokvel's id and name, and nothing else (no balance, role or member list). The store is in `src/lib/pinsStore.ts`:
+
+- It follows Zustand's rules for Next.js: a **store factory** (`createStore` from `zustand/vanilla`), **one store per provider** (`useState(() => createPinsStore(userId))` in `PinsProvider`), a hook that reads it from context, and no store at the top of a module. Server Components never read or write it.
+- It is saved with `persist` and `skipHydration: true`, and read with `rehydrate()` in an effect after the first render. The server's HTML and the first client render both have no pins, so they match (no hydration warning); the saved pins appear a moment later. The saved data is checked on the way in (a hand-edited value is dropped), and every access to `localStorage` is wrapped so a private window cannot crash the app.
+- Pins are saved **per person** (`ronditrack-pins:<user id>`), so the next person on the same browser never finds them.
+- A "Pin" / "Unpin" button is on `/stokvels/[id]`; pinned stokvels are listed under "Pinned" in the sidebar on every signed-in page.
+
+**Sign-out and expired sessions.** The sign-out Server Action runs on the server and cannot touch `localStorage`, so the **Sign out buttons (the sidebar's and the profile menu's) clear the store and its storage in the browser first, then submit the action.** A session that **expired or was refused** never presses that button, but it always ends on the sign-in page, so **the sign-in page clears every saved pin when it opens** (`ClearPinsOnSignIn`). Together they cover both ways a session ends. Checked in the browser: after Sign out the keys were gone, and pins saved by hand were removed as soon as `/login` opened.
+
+**A pin for a stokvel the member has left disappears.** The signed-in layout reads which stokvels the member is in now (`/me/home`) and passes only their ids to the sidebar; pins for any other stokvel are hidden and removed from the saved pins. I chose this over leaving a link that opens a "not found" page, because a dead link in the sidebar on every page is worse than one missing pin, and the member can pin it again if they rejoin. Checked: a chairperson removed a member, and on the next page load the pin was gone from the sidebar and from storage. If the API cannot be read, nothing is hidden. A pinned stokvel that is renamed gets its new name when its page is opened.
+
+## Known gaps (8.3)
+
+- `npm audit` does not report 0. There are 23 advisories (2 low, 21 moderate, 0 high), all in **development tooling** that is not shipped: a `minimatch` denial-of-service advisory reached through ESLint, `shadcn` and `openapi-typescript`, and a `deepmerge` prototype-pollution advisory in the `shadcn` CLI. The `minimatch` fix (11.0.1 or later) was released less than two weeks ago, and `deepmerge` has no patched release yet. npm's suggested "fixes" are downgrades to ESLint 4 and `eslint-config-next` 12, which I did not make. The one high advisory (`zod`) is fixed by updating it to 4.6.7.
+- Pins are per browser. They do not follow the person to another device.
+- If someone signs out in one browser tab, another tab that is already open still has the pins in memory until it reloads, and pinning there would save them again. The sign-in page clears them the next time it opens.
+- The signed-in layout asks the API for the member's stokvels once per full page load, to hide pins for stokvels they left. The cost is one small request; a change of membership shows after the next full load.
+- The lists keep every loaded item in the page (no windowing), so a very long feed makes a long page.
+- The activity feed shows a person's name only while they are still in that stokvel; after that the line says "A member".
+- `ContributionRangeTests` and `ActivityFeedTests` run against a real database, but `dotnet test` still fails to start on its own since 1 November 2026: the development seeder gives one member two contributions in the 2026-11 cycle. (Not changed here; I ran the suite with a temporary seeder patch that I reverted.)
+- The two `Seed` tests that check the "midnight" row fail while that patch is applied; they are the only failures.
+- Screenshots and a browser recording: **TODO (yours):** see the checklist in my report. The run described above was done with a scripted Chrome, not by hand.

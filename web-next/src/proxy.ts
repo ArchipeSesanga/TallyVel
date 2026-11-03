@@ -26,8 +26,6 @@ export async function proxy(request: NextRequest) {
   const cookieValue = request.cookies.get(SESSION_COOKIE)?.value
   const session = cookieValue ? await decryptSession(cookieValue) : null
   if (session === null) {
-    // Say WHY (no token, no personal data), so "I was logged out" can be traced to a cause.
-    console.log(`[proxy] ${request.method} ${url.pathname} -> /login: ${cookieValue ? 'session cookie could not be read (changed key or old format)' : 'no session cookie'}`)
     // A fetch() from the browser to /bff/... can't follow a redirect to a page: it gets a JSON 401 it can act on.
     if (isBffPath) return NextResponse.json({ error: 'unauthenticated', message: 'Your session has ended. Please sign in again.' }, { status: 401 })
     const login = new URL('/login', request.url)
@@ -41,7 +39,6 @@ export async function proxy(request: NextRequest) {
     const result = await refreshSession(session)
 
     if (result.kind === 'refused') {
-      console.log(`[proxy] ${request.method} ${url.pathname} -> /login?expired=1: the API refused the refresh`)
       const response = isBffPath
         ? NextResponse.json({ error: 'unauthenticated', message: 'Your session has ended. Please sign in again.' }, { status: 401 })
         : NextResponse.redirect(new URL('/login?expired=1', request.url))

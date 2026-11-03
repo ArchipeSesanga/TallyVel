@@ -44,10 +44,7 @@ async function callApi(session: Session): Promise<RefreshResult> {
   } catch {
     return { kind: 'unreachable' } // the API is down: never sign anyone out for that
   }
-  if (!response.ok) {
-    console.log(`[refresh] the API refused the refresh with HTTP ${response.status}`)
-    return { kind: 'refused' }
-  }
+  if (!response.ok) return { kind: 'refused' }
 
   const body = (await response.json()) as AccessTokenResponse
   const refreshToken = refreshTokenFrom(response)
