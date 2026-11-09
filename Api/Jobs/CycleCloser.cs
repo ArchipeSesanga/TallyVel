@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Api.Application.Services;
 using Api.Observability;
 using Domain;
 using Infrastructure.Data;
@@ -88,70 +89,19 @@ public sealed class CycleCloser(
 
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<TallyVelDbContext>();
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-        var now = clock.GetUtcNow();
 
-        // CLAIM: only one caller can flip ClosedAt from NULL; the row count decides.
-        var claimed = await db.ContributionCycles
-            .Where(c => c.Id == cycleId && c.ClosedAt == null)
-            .ExecuteUpdateAsync(s => s.SetProperty(c => c.ClosedAt, now), ct);
-        if (claimed == 0)
+        // The arrears and the exactly-once claim live in CycleClosing, shared with the treasurer's preview and close.
+        var outcome = await CycleClosing.CloseAsync(db, cycleId, clock.GetUtcNow(), expectedVersion: null, ct);
+        if (outcome.Status != CloseStatus.Closed)
         {
             activity?.SetTag("tallyvel.cycle.outcome", "skipped");
             return (Outcome.Skipped, 0);
         }
 
-        var cycle = await db.ContributionCycles.AsNoTracking().SingleAsync(c => c.Id == cycleId, ct);
-        var stokvel = await db.Stokvels.AsNoTracking()
-            .Where(s => s.Id == cycle.StokvelId)
-            .Select(s => new { s.ContributionAmount, s.Cycle })
-            .SingleAsync(ct);
-
-        var endsOn = cycle.EndsOn!.Value;
-        var closesAt = StokvelCalendar.ClosesAt(endsOn);
-        var label = cycle.Label;
-        var stokvelId = cycle.StokvelId;
-
-        // Members who had joined before the cycle ended, with what each paid, in one query.
-        var members = await db.StokvelMembers
-            .AsNoTracking()
-            .Where(m => m.StokvelId == stokvelId && m.JoinedAt < closesAt)
-            .Select(m => new
-            {
-                m.UserId,
-                Paid = db.Contributions
-                    .Where(ContributionRules.Counts)
-                    .Where(c => c.StokvelId == stokvelId && c.MemberUserId == m.UserId && c.Cycle == label)
-                    .Sum(c => (decimal?)c.Amount) ?? 0m,
-            })
-            .ToListAsync(ct);
-
-        var dueCents = Money.ToCents(stokvel.ContributionAmount);
-        var arrears = new List<Arrear>();
-        foreach (var m in members)
-        {
-            var shortfall = dueCents - Money.ToCents(m.Paid);
-            if (shortfall > 0)
-                arrears.Add(new Arrear(stokvelId, cycleId, m.UserId, shortfall, now));
-        }
-        db.Arrears.AddRange(arrears);
-
-        // Open the next cycle unless one already covers it.
-        var nextStart = endsOn.AddDays(1);
-        var nextLabel = StokvelCalendar.LabelFor(nextStart, stokvel.Cycle);
-        var nextExists = await db.ContributionCycles.AnyAsync(c =>
-            c.StokvelId == stokvelId && (c.StartsOn >= nextStart || c.Label == nextLabel), ct);
-        if (!nextExists)
-            db.ContributionCycles.Add(new ContributionCycle(
-                stokvelId, nextLabel, nextStart, StokvelCalendar.EndOfCycle(nextStart, stokvel.Cycle)));
-
-        await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
-
-        metrics.CycleClosed(arrears.Count);
-        logger.LogInformation("Closed cycle {CycleId} of stokvel {StokvelId} with {ArrearsCount} arrears",
-            cycleId, stokvelId, arrears.Count);
+        var arrears = outcome.Calculation!.Arrears.Count;
+        metrics.CycleClosed(arrears);
+        logger.LogInformation("Closed cycle {CycleId} with {ArrearsCount} arrears", cycleId, arrears);
         activity?.SetTag("tallyvel.cycle.outcome", "closed");
-        return (Outcome.Closed, arrears.Count);
+        return (Outcome.Closed, arrears);
     }
 }

@@ -143,6 +143,7 @@ builder.Services.AddScoped<ActivityService>();
 builder.Services.AddScoped<IdempotentExecutor>();
 builder.Services.AddScoped<InviteService>();
 builder.Services.AddScoped<ProofService>();
+builder.Services.AddScoped<CycleCloseService>();
 // Saves changes made to tracked entities (e.g. stokvel memberships) at the
 // end of each successful request.
 // Enums travel as names ("Chairperson", "Monthly"). Numbers are still
