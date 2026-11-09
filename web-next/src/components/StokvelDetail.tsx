@@ -46,7 +46,7 @@ export function StokvelDetail({
   const showSetup = cycle === null || memberCount === 1
 
   return (
-    <div className="flex w-full max-w-[960px] flex-col gap-6 bg-background px-12 pt-10 pb-12 font-[family-name:var(--font-figtree)] max-sm:px-4 max-sm:pt-6 max-sm:pb-8">
+    <div className="flex w-full max-w-[960px] flex-col gap-6 bg-background px-12 pt-10 pb-12 max-sm:px-4 max-sm:pt-6 max-sm:pb-8">
       {flash}
 
       <Link href="/stokvels" className={`inline-flex items-center gap-1 self-start py-1.5 text-sm ${LINK}`}>

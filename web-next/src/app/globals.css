@@ -96,7 +96,8 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-destructive-soft: var(--destructive-soft);
   --font-heading: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
+  /* No separate monospace face: codes and references use Figtree too, for one uniform look. */
+  --font-mono: var(--font-figtree), sans-serif;
   --font-sans: var(--font-figtree), sans-serif; /* Figtree, loaded by next/font in layout.tsx: the only sans family */
   --color-divider: var(--divider);
   --color-success: var(--success);

@@ -22,7 +22,7 @@ type Props = {
 export function GroupOverview({ groups, today, onRecordPayout, hrefFor }: Props) {
   const payingToday = groupPayingToday(groups, today)
   return (
-    <div className="flex max-w-[960px] flex-col gap-5 bg-page p-12 font-[family-name:var(--font-figtree)] text-ink max-sm:p-4">
+    <div className="flex max-w-[960px] flex-col gap-5 bg-page p-12 text-ink max-sm:p-4">
       {payingToday !== null && <PayoutBanner group={payingToday} today={today} onRecordPayout={onRecordPayout} />}
 
       <section className="overflow-hidden rounded-2xl border border-line bg-white">

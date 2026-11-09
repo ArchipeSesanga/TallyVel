@@ -40,7 +40,7 @@ export function StokvelsHeader({ groups, onJoin }: Props) {
   // On wider screens the error is positioned under the field without taking part in the layout, so the buttons
   // beside it do not jump when it appears; the header makes room for it instead (sm:pb-12).
   return (
-    <header className={`flex flex-wrap items-end justify-between gap-4 pb-2 font-[family-name:var(--font-figtree)] ${error !== null ? 'sm:pb-12' : ''}`}>
+    <header className={`flex flex-wrap items-end justify-between gap-4 pb-2 ${error !== null ? 'sm:pb-12' : ''}`}>
       <div className="flex flex-col gap-1">
         <h1 className="text-[32px] font-bold tracking-[-0.02em] text-ink">My stokvels</h1>
         <p className="text-[15px] text-ink-muted">{groups.length === 0 ? "You're not in any stokvels yet" : summaryOf(groups)}</p>
