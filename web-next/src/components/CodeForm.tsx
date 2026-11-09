@@ -33,9 +33,17 @@ export function CodeForm({ code: codeFromServer }: { code: string | null }) {
       <div>
         <label htmlFor="code" className="block text-sm font-medium">Invite code</label>
         {/* No pattern= and no maxLength: a pasted link is longer than a code and is turned into the code on paste
-            and on submit. The page and the API judge the code itself. */}
+            and again on submit. The page and the API judge the code itself. */}
         <Input id="code" name="code" defaultValue={code ?? ''} required autoComplete="off" spellCheck={false}
-          onChange={(e) => { const c = extractCode(e.currentTarget.value); if (c !== e.currentTarget.value) e.currentTarget.value = c }}
+          onPaste={(e) => {
+            // Pasting a whole link puts just its code in the box. Typing is left alone.
+            const pasted = e.clipboardData.getData('text')
+            const code = extractCode(pasted)
+            if (code !== pasted.trim()) {
+              e.preventDefault()
+              e.currentTarget.value = code
+            }
+          }}
           className="mt-1 font-mono" />
         <p className="mt-1 text-sm text-muted-foreground">You can paste the whole invite link here.</p>
       </div>
