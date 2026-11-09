@@ -571,3 +571,12 @@ The stokvel page lists its members and their roles. A **Chairperson** sees a rol
 - **The summary reuses `summaryOf`** (the same words as the dashboard's list: "1 of 3 groups has money due"), so the wording agrees across pages.
 - **The page keeps its existing cards** below the header; the payout banner lives on the dashboard.
 - On desktop the error sits under the field without moving the buttons beside it. Tokens `label` and `field-border` are new; the spec's `muted` is `ink-muted` (see the dashboard section).
+
+## Stokvel page redesign and the TallyVel style
+
+The theme in `globals.css` now carries the TallyVel palette on the shadcn variables (`--background` #EEF1F4, `--primary` forest #17322A, `--ring` #0E6B53 and so on, plus `--divider`, `--success`, `--success-soft`, `--warning`, `--avatar-alt-*`), Figtree is the only sans family, radii are fixed (10 / 12 / 16 px) and buttons are 44px (40px compact) with the primary, outline and secondary looks. This applies to the whole app, not just this page. The stokvel page ([page.tsx](src/app/(app)/stokvels/%5Bid%5D/page.tsx), [StokvelParts.tsx](src/components/StokvelParts.tsx)) keeps every action, form field and hidden input; what changed is layout and copy.
+- **Setup card** (no open cycle, or one member): "Invite members" reuses the invite-link action. **"Open a cycle" is a disabled button with a TODO**: the API has `POST /stokvels/{id}/cycles`, but the app has no action for it yet, and the card says so.
+- **The facts strip shows the payout date** from `/me/home` (`nextPayoutDate`), with "collected of" under it; if no date is set it shows the cycle label.
+- **Kept although the spec did not draw them:** "Record a contribution" and "Close the cycle" (as cards), and the proof upload/download controls under each recent contribution. Contribution rows also show the status and cycle next to the date.
+- Treasurer controls show for Treasurer or Chairperson; role pickers only for a Chairperson. The only Chairperson's role box and "Leave stokvel" are disabled, each pointing at its reason with `aria-describedby`.
+- Checked at 1280px and 375px with no horizontal scroll.

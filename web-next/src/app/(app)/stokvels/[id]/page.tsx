@@ -1,20 +1,20 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
+import { ChevronLeft, CreditCard } from 'lucide-react'
 import { notFound } from 'next/navigation'
 import { api, readOrFail } from '@/lib/api'
 import { ApiErrorView } from '@/components/ApiErrorView'
 import { formatCents } from '@/lib/money'
-import { formatDate, formatDateTime } from '@/lib/dates'
-import { canRunCycle, roleLabel, roleWord } from '@/lib/roles'
+import { formatDateTime } from '@/lib/dates'
+import { canRunCycle, roleLabel } from '@/lib/roles'
 import { centsToInput } from '@/lib/moneyInput'
 import { getSession } from '@/lib/session'
 import { ContributionForm } from '@/components/ContributionForm'
 import { PinToggle } from '@/components/PinToggle'
-import { CreateInviteLink } from '@/components/CreateInviteLink'
 import { ProofControls } from '@/components/ProofControls'
 import { CloseCycleDialog } from '@/components/CloseCycleDialog'
 import { FlashToast } from '@/components/FlashToast'
-import { MemberRoleForm } from '@/components/MemberRoleForm'
+import { Avatar, CARD, FactsStrip, MembersCard, SetupCard } from '@/components/StokvelParts'
 import { LeaveStokvelDialog } from '@/components/LeaveStokvelDialog'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -72,130 +72,116 @@ async function StokvelDetail({ params, searchParams }: { params: Promise<{ id: s
   const session = await getSession() // the page is inside <Suspense>, so reading the cookie is fine
   if (session === null) notFound() // readOrFail has already sent a signed-out person to /login; this only narrows the type
 
+  const isChair = entry.role === 'Chairperson'
+  const canRun = canRunCycle(entry.role) // Treasurer or Chairperson, from the API (the API checks again)
+  const openCycle = currentCycle !== null && currentCycle.status === 'Open' ? currentCycle : null
+  const onlyChair = isChair && members.filter((m) => m.role === 'Chairperson').length === 1
+  const showSetup = openCycle === null || memberCount === 1
+
   return (
-    <div className="space-y-8">
+    <div className="flex w-full max-w-[960px] flex-col gap-6 px-12 pt-10 pb-12 max-sm:px-4 max-sm:pt-6 max-sm:pb-8">
       {flags.joined === '1' && <FlashToast message={`You joined ${name}.`} />}
       {flags.created === '1' && <FlashToast message={`Created ${name}. You are its Chairperson.`} />}
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 id="stokvel-heading" tabIndex={-1} className="text-2xl font-bold break-words outline-none">{name}</h1>
-          <PinToggle stokvelId={id} name={name} />
+
+      <Link href="/stokvels" className="inline-flex items-center gap-1 self-start rounded-lg py-1.5 text-sm font-semibold text-success focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none">
+        <ChevronLeft className="size-4" aria-hidden="true" />
+        My stokvels
+      </Link>
+
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-4">
+          <Avatar name={name} tone="alt" large />
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <h1 id="stokvel-heading" tabIndex={-1} className="text-[32px] leading-tight font-bold tracking-[-0.02em] break-words outline-none">{name}</h1>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="rounded-full bg-success-soft px-2.5 py-0.5 text-[13px] font-semibold text-success">{roleLabel(entry.role)}</span>
+              <span className="text-sm text-muted-foreground tabular-nums">{memberCount === 1 ? '1 member' : `${memberCount} members`}</span>
+            </div>
+          </div>
         </div>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
-          <dt className="text-muted-foreground">Contribution</dt>
-          <dd className="whitespace-nowrap">{formatCents(contributionAmountCents)}</dd>
+        <PinToggle stokvelId={id} name={name} />
+      </header>
 
-          <dt className="text-muted-foreground">Your role</dt>
-          <dd>{roleLabel(entry.role)}</dd>
+      <FactsStrip
+        contributionCents={contributionAmountCents}
+        memberCount={memberCount}
+        cycle={openCycle}
+        payoutDate={entry.nextPayoutDate}
+      />
 
-          {/* The API already counted the members; the page never counts or adds anything up. */}
-          <dt className="text-muted-foreground">Members</dt>
-          <dd>{memberCount}</dd>
-
-          <dt className="text-muted-foreground">Current cycle</dt>
-          <dd>
-            {currentCycle === null ? (
-              'No open cycle'
-            ) : (
-              <>
-                {currentCycle.label}: {formatCents(currentCycle.collectedCents)} collected of{' '}
-                {formatCents(currentCycle.dueCents)}
-                {currentCycle.endsOn !== null && <> (due {formatDate(currentCycle.endsOn)})</>}
-              </>
-            )}
-          </dd>
-        </dl>
-      </section>
+      {showSetup && (
+        <SetupCard
+          stokvelId={id}
+          name={name}
+          contributionCents={contributionAmountCents}
+          memberCount={memberCount}
+          openCycleLabel={openCycle?.label ?? null}
+          canRun={canRun}
+        />
+      )}
 
       {/* Only while the cycle is open. THIS stokvel's role comes from the API (/me/home), never from the session. */}
-      {currentCycle !== null && currentCycle.status === 'Open' && (
-        <section className="space-y-3">
-          <h2 className="text-xl font-semibold">Record a contribution</h2>
+      {openCycle !== null && (
+        <section aria-labelledby="record-heading" className={`${CARD} flex flex-col gap-3.5 px-6 py-[22px]`}>
+          <h2 id="record-heading" className="text-xl font-semibold">Record a contribution</h2>
           <ContributionForm
             stokvelId={id}
-            cycle={currentCycle.label}
+            cycle={openCycle.label}
             youId={session.user.id}
-            members={
-              canRunCycle(entry.role)
-                ? members.map((m) => ({ userId: m.userId, name: m.fullName ?? 'A member' }))
-                : null
-            }
+            members={canRun ? members.map((m) => ({ userId: m.userId, name: m.fullName ?? 'A member' })) : null}
             prefill={entry.owedThisCycleCents > 0 ? centsToInput(entry.owedThisCycleCents) : ''}
             firstKey={crypto.randomUUID()}
           />
         </section>
       )}
 
-      {/* Members and their roles. Everyone in the stokvel sees who is what; only the Chairperson can change it. */}
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Members</h2>
-        <ul className="divide-y divide-border rounded-lg border border-border">
-          {members.map((m) => (
-            <li key={m.userId} className="flex flex-wrap items-center justify-between gap-2 p-3">
-              <span className="break-words">{m.fullName ?? 'A member'}{m.userId === session.user.id && ' (you)'}</span>
-              {entry.role === 'Chairperson' ? (
-                <MemberRoleForm stokvelId={id} userId={m.userId} name={m.fullName ?? 'This member'} role={m.role} />
-              ) : (
-                <span className="text-sm text-muted-foreground">{roleWord(m.role)}</span>
-              )}
-            </li>
-          ))}
-        </ul>
-        {entry.role === 'Chairperson' && (
-          <p className="text-sm text-muted-foreground">As Chairperson you choose the Treasurer. A stokvel always keeps at least one Chairperson.</p>
-        )}
-      </section>
-
-      {/* Leave: any member. The only Chairperson can't (the API refuses), so we say why instead of offering a button that fails. */}
-      <section className="space-y-2">
-        {entry.role === 'Chairperson' && members.filter((m) => m.role === 'Chairperson').length === 1 ? (
-          <p className="text-sm text-muted-foreground">
-            You are the only Chairperson, so you can&apos;t leave yet. Make another member Chairperson in the Members list first.
-          </p>
-        ) : (
-          <LeaveStokvelDialog stokvelId={id} stokvelName={name} />
-        )}
-      </section>
-
       {/* Close the cycle: whoever runs THIS stokvel's cycles, and only while it is open. */}
-      {canRunCycle(entry.role) && currentCycle !== null && currentCycle.status === 'Open' && (
-        <section className="space-y-3">
-          <h2 className="text-xl font-semibold">Close the cycle</h2>
-          <CloseCycleDialog stokvelId={id} cycleId={currentCycle.id} cycleLabel={currentCycle.label} firstKey={crypto.randomUUID()} />
+      {canRun && openCycle !== null && (
+        <section aria-labelledby="close-heading" className={`${CARD} flex flex-wrap items-center justify-between gap-4 px-6 py-5`}>
+          <h2 id="close-heading" className="text-base font-semibold">Close the cycle</h2>
+          <CloseCycleDialog stokvelId={id} cycleId={openCycle.id} cycleLabel={openCycle.label} firstKey={crypto.randomUUID()} />
         </section>
       )}
 
-      {/* Whoever may run the cycle in THIS stokvel (Treasurer or Chairperson, from the API). The API checks again. */}
-      {canRunCycle(entry.role) && (
-        <section className="space-y-3">
-          <h2 className="text-xl font-semibold">Invite someone</h2>
-          <CreateInviteLink stokvelId={id} />
-        </section>
-      )}
+      <div className="grid grid-cols-[1.15fr_1fr] items-start gap-5 max-md:grid-cols-1">
+        <MembersCard stokvelId={id} members={members} youId={session.user.id} isChair={isChair} showInvite={canRun && !showSetup} />
 
-      {/* NEW: its own boundary, so the top of the page never waits for this list. */}
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-xl font-semibold">Recent contributions</h2>
-          <Link href={`/stokvels/${id}/contributions`} className="text-sm underline">See the full history</Link>
+        <section aria-labelledby="recent-heading" className={`${CARD} flex flex-col gap-[18px] px-6 py-[22px]`}>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="recent-heading" className="text-xl font-semibold">Recent contributions</h2>
+            <Link href={`/stokvels/${id}/contributions`} className="rounded-lg text-sm font-semibold text-success focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none">Full history</Link>
+          </div>
+          <Suspense fallback={<RecentSkeleton />}>
+            <RecentContributions
+              recentPromise={recentPromise}
+              stokvelId={id}
+              youId={session.user.id}
+              // Whoever runs the cycle (Treasurer or Chairperson, as the API allows).
+              isTreasurer={canRun}
+              openCycleLabel={openCycle?.label ?? null}
+              names={Object.fromEntries(members.map((m) => [m.userId, m.fullName ?? 'A member']))}
+            />
+          </Suspense>
+        </section>
+      </div>
+
+      {/* Leave: any member. The only Chairperson can't (the API refuses), so the button is disabled and the reason is written out. */}
+      <section aria-labelledby="leave-heading" className={`${CARD} flex flex-wrap items-center justify-between gap-4 px-6 py-5`}>
+        <div className="flex flex-col gap-1">
+          <h2 id="leave-heading" className="text-base font-semibold">Leave {name}</h2>
+          <p id="leave-reason" className="max-w-[560px] text-sm text-muted-foreground">
+            {onlyChair
+              ? "You're the only Chairperson, so you can't leave yet. Make another member Chairperson first."
+              : "You'll stop seeing this stokvel and its contributions."}
+          </p>
         </div>
-        <Suspense fallback={<RecentSkeleton />}>
-          <RecentContributions
-            recentPromise={recentPromise}
-            stokvelId={id}
-            youId={session.user.id}
-            // Whoever runs the cycle (Treasurer or Chairperson, as the API allows).
-            isTreasurer={canRunCycle(entry.role)}
-            openCycleLabel={currentCycle !== null && currentCycle.status === 'Open' ? currentCycle.label : null}
-            names={Object.fromEntries(members.map((m) => [m.userId, m.fullName ?? 'A member']))}
-          />
-        </Suspense>
+        <LeaveStokvelDialog stokvelId={id} stokvelName={name} blocked={onlyChair} />
       </section>
     </div>
   )
 }
 
-// NEW: awaits the request that was ALREADY started above, so it has been running all along.
+// Awaits the request that was ALREADY started above, so it has been running all along.
 async function RecentContributions({
   recentPromise, stokvelId, youId, isTreasurer, openCycleLabel, names,
 }: {
@@ -210,40 +196,56 @@ async function RecentContributions({
   if (!recent.ok) return <ApiErrorView {...recent.problem} />
 
   if (recent.data.items.length === 0) {
-    return <p className="text-muted-foreground">No contributions yet. They&apos;ll appear here as members pay.</p>
+    return (
+      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-input px-4 py-7 text-center">
+        <CreditCard className="size-7 text-muted-foreground" aria-hidden="true" />
+        <p className="text-[15px] font-semibold">No contributions yet</p>
+        <p className="max-w-[260px] text-sm text-muted-foreground">Payments show up here once a cycle is open and members start paying in.</p>
+      </div>
+    )
   }
 
   return (
-    <ul className="divide-y divide-border rounded-lg border border-border">
-      {recent.data.items.map((c) => (
-        // Amount, status, when, which cycle, whose. The id itself is never shown.
-        <li key={c.id} className="p-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <span className="font-medium whitespace-nowrap">{formatCents(c.amountCents)}</span>
-            <span>{c.status}</span>
-            <span className="text-sm text-muted-foreground">
-              {c.memberUserId === youId ? 'You' : (names[c.memberUserId] ?? 'A member')} · {formatDateTime(c.recordedAt)} · cycle {c.cycle}
-            </span>
-          </div>
-          <ProofControls
-            stokvelId={stokvelId}
-            contributionId={c.id}
-            hasProof={c.hasProof}
-            canDownload={c.canDownloadProof}
-            // Your own payment, or any payment where you are the Treasurer; only while its cycle is open.
-            canChange={(c.memberUserId === youId || isTreasurer) && c.cycle === openCycleLabel}
-          />
-        </li>
-      ))}
+    <ul className="divide-y divide-divider">
+      {recent.data.items.map((c) => {
+        const you = c.memberUserId === youId
+        const who = you ? 'You' : (names[c.memberUserId] ?? 'A member')
+        return (
+          // Avatar, name, date and amount. The id itself is never shown.
+          <li key={c.id} className="py-3.5 first:pt-0 last:pb-0">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <Avatar name={who} tone={you ? 'you' : 'alt'} round />
+                <div className="flex min-w-0 flex-col">
+                  <span className="text-base font-semibold break-words">{who}</span>
+                  <span className="text-[13px] text-muted-foreground tabular-nums">
+                    {formatDateTime(c.recordedAt)} · {c.status} · cycle {c.cycle}
+                  </span>
+                </div>
+              </div>
+              <span className="text-base font-semibold whitespace-nowrap tabular-nums">{formatCents(c.amountCents)}</span>
+            </div>
+            <ProofControls
+              stokvelId={stokvelId}
+              contributionId={c.id}
+              hasProof={c.hasProof}
+              canDownload={c.canDownloadProof}
+              // Your own payment, or any payment where you run the cycle; only while its cycle is open.
+              canChange={(you || isTreasurer) && c.cycle === openCycleLabel}
+            />
+          </li>
+        )
+      })}
     </ul>
   )
 }
 
 function HeaderSkeleton() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="Loading the stokvel">
-      <div className="h-8 w-2/3 animate-pulse rounded bg-muted" />
-      <div className="h-24 animate-pulse rounded bg-muted" />
+    <div className="flex w-full max-w-[960px] flex-col gap-6 px-12 pt-10 pb-12 max-sm:px-4" aria-busy="true" aria-label="Loading the stokvel">
+      <div className="h-8 w-32 animate-pulse rounded-lg bg-muted" />
+      <div className="h-16 w-2/3 animate-pulse rounded-2xl bg-muted" />
+      <div className="h-28 animate-pulse rounded-2xl bg-muted" />
     </div>
   )
 }
@@ -251,12 +253,11 @@ function HeaderSkeleton() {
 // Shaped like the real rows, so nothing jumps when they arrive.
 function RecentSkeleton() {
   return (
-    <ul className="divide-y divide-border rounded-lg border border-border" aria-busy="true" aria-label="Loading recent contributions">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <li key={n} className="flex justify-between gap-2 p-3">
-          <span className="h-5 w-20 animate-pulse rounded bg-muted" />
+    <ul className="divide-y divide-divider" aria-busy="true" aria-label="Loading recent contributions">
+      {[1, 2, 3].map((n) => (
+        <li key={n} className="flex items-center justify-between gap-3 py-3.5">
+          <span className="h-10 w-40 animate-pulse rounded-xl bg-muted" />
           <span className="h-5 w-16 animate-pulse rounded bg-muted" />
-          <span className="h-5 w-32 animate-pulse rounded bg-muted" />
         </li>
       ))}
     </ul>

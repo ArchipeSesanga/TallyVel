@@ -1,5 +1,6 @@
 'use client'
 
+import { Link as LinkIcon } from 'lucide-react'
 import { useActionState, useState } from 'react'
 import { createInvite, type CreateInviteState } from '@/app/inviteActions'
 import { Button } from '@/components/ui/button'
@@ -9,7 +10,9 @@ import { inviteLink } from '@/lib/joinFlow'
 const INITIAL: CreateInviteState = { code: null, expiresAt: null, message: null, reference: null }
 
 /** A treasurer's "Create invite link": shows the full /join link and a copy button. The server decides who may create one. */
-export function CreateInviteLink({ stokvelId }: { stokvelId: string }) {
+export function CreateInviteLink({
+  stokvelId, variant = 'default', label = 'Create invite link',
+}: { stokvelId: string; variant?: 'default' | 'outline'; label?: string }) {
   const [state, formAction, pending] = useActionState(createInvite, INITIAL)
   const [copied, setCopied] = useState<'yes' | 'no' | null>(null)
 
@@ -30,8 +33,9 @@ export function CreateInviteLink({ stokvelId }: { stokvelId: string }) {
     <div className="space-y-3">
       <form action={formAction} onSubmit={() => setCopied(null)}>
         <input type="hidden" name="stokvelId" value={stokvelId} />
-        <Button type="submit" variant="outline" disabled={pending}>
-          {pending ? 'Creating…' : 'Create invite link'}
+        <Button type="submit" variant={variant} disabled={pending}>
+          <LinkIcon aria-hidden="true" />
+          {pending ? 'Creating…' : label}
         </Button>
       </form>
 
@@ -54,7 +58,7 @@ export function CreateInviteLink({ stokvelId }: { stokvelId: string }) {
               readOnly
               value={link}
               onFocus={(e) => e.currentTarget.select()}
-              className="h-8 min-w-0 flex-1 rounded-lg border border-input bg-transparent px-2.5 font-mono text-sm"
+              className="min-h-11 min-w-0 flex-1 rounded-xl border border-input bg-card px-3 font-mono text-sm"
             />
             <Button type="button" onClick={copy}>Copy link</Button>
           </div>
