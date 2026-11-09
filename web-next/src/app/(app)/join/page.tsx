@@ -1,11 +1,9 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import Form from 'next/form'
 import { redirect } from 'next/navigation'
+import { CodeForm } from '@/components/CodeForm'
 import { JoinForm } from '@/components/JoinForm'
 import { StepHeading } from '@/components/StepHeading'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { formatCents } from '@/lib/money'
 import { formatDateTime } from '@/lib/dates'
 import { fetchInvitePreview, kindOf, ownStokvelIdNamed, type PreviewOutcome } from '@/lib/invites'
@@ -71,20 +69,11 @@ async function Join({ searchParams }: { searchParams: SearchParams }) {
 }
 
 /** Step 1: a plain GET form. Submitting goes to ?step=rules; the page then asks the API and redirects back here if the code is no good. */
-async function CodeStep({ code, problem }: { code: string | null; problem: PreviewOutcome | null }) {
+function CodeStep({ code, problem }: { code: string | null; problem: PreviewOutcome | null }) {
   return (
     <div className="space-y-4">
       <Problem outcome={problem} />
-      {/* key = the code, so Back to this step shows the code again even if the input was already on screen. */}
-      <Form action="/join" key={code ?? ''} className="space-y-3">
-        <input type="hidden" name="step" value="rules" />
-        <div>
-          <label htmlFor="code" className="block text-sm font-medium">Invite code</label>
-          <Input id="code" name="code" defaultValue={code ?? ''} required maxLength={64} autoComplete="off" spellCheck={false}
-            pattern="[A-Za-z0-9_\-]{1,64}" title="Letters, numbers, - and _ only" className="mt-1 font-mono" />
-        </div>
-        <Button type="submit" size="lg">Continue</Button>
-      </Form>
+      <CodeForm code={code} />
     </div>
   )
 }
