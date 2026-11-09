@@ -5,7 +5,7 @@ import { api, readOrFail } from '@/lib/api'
 import { ApiErrorView } from '@/components/ApiErrorView'
 import { formatCents } from '@/lib/money'
 import { formatDate, formatDateTime } from '@/lib/dates'
-import { canRunCycle, roleLabel } from '@/lib/roles'
+import { canRunCycle, roleLabel, roleWord } from '@/lib/roles'
 import { centsToInput } from '@/lib/moneyInput'
 import { getSession } from '@/lib/session'
 import { ContributionForm } from '@/components/ContributionForm'
@@ -14,6 +14,7 @@ import { CreateInviteLink } from '@/components/CreateInviteLink'
 import { ProofControls } from '@/components/ProofControls'
 import { CloseCycleDialog } from '@/components/CloseCycleDialog'
 import { FlashToast } from '@/components/FlashToast'
+import { MemberRoleForm } from '@/components/MemberRoleForm'
 import { LeaveStokvelDialog } from '@/components/LeaveStokvelDialog'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -125,27 +126,47 @@ async function StokvelDetail({ params, searchParams }: { params: Promise<{ id: s
         </section>
       )}
 
+      {/* Members and their roles. Everyone in the stokvel sees who is what; only the Chairperson can change it. */}
+      <section className="space-y-3">
+        <h2 className="text-xl font-semibold">Members</h2>
+        <ul className="divide-y divide-border rounded-lg border border-border">
+          {members.map((m) => (
+            <li key={m.userId} className="flex flex-wrap items-center justify-between gap-2 p-3">
+              <span className="break-words">{m.fullName ?? 'A member'}{m.userId === session.user.id && ' (you)'}</span>
+              {entry.role === 'Chairperson' ? (
+                <MemberRoleForm stokvelId={id} userId={m.userId} name={m.fullName ?? 'This member'} role={m.role} />
+              ) : (
+                <span className="text-sm text-muted-foreground">{roleWord(m.role)}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+        {entry.role === 'Chairperson' && (
+          <p className="text-sm text-muted-foreground">As Chairperson you choose the Treasurer. A stokvel always keeps at least one Chairperson.</p>
+        )}
+      </section>
+
       {/* Leave: any member. The only Chairperson can't (the API refuses), so we say why instead of offering a button that fails. */}
       <section className="space-y-2">
         {entry.role === 'Chairperson' && members.filter((m) => m.role === 'Chairperson').length === 1 ? (
           <p className="text-sm text-muted-foreground">
-            You are the only Chairperson, so you can&apos;t leave yet. Another member must be made Chairperson first.
+            You are the only Chairperson, so you can&apos;t leave yet. Make another member Chairperson in the Members list first.
           </p>
         ) : (
           <LeaveStokvelDialog stokvelId={id} stokvelName={name} />
         )}
       </section>
 
-      {/* Close the cycle: THIS stokvel's Treasurer only, and only while the cycle is open. */}
-      {entry.role === 'Treasurer' && currentCycle !== null && currentCycle.status === 'Open' && (
+      {/* Close the cycle: whoever runs THIS stokvel's cycles, and only while it is open. */}
+      {canRunCycle(entry.role) && currentCycle !== null && currentCycle.status === 'Open' && (
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">Close the cycle</h2>
           <CloseCycleDialog stokvelId={id} cycleId={currentCycle.id} cycleLabel={currentCycle.label} firstKey={crypto.randomUUID()} />
         </section>
       )}
 
-      {/* Treasurer-only on purpose (the API also lets a Chairperson do this; the UI is stricter). THIS stokvel's role, from the API. */}
-      {entry.role === 'Treasurer' && (
+      {/* Whoever may run the cycle in THIS stokvel (Treasurer or Chairperson, from the API). The API checks again. */}
+      {canRunCycle(entry.role) && (
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">Invite someone</h2>
           <CreateInviteLink stokvelId={id} />
@@ -163,8 +184,8 @@ async function StokvelDetail({ params, searchParams }: { params: Promise<{ id: s
             recentPromise={recentPromise}
             stokvelId={id}
             youId={session.user.id}
-            // Treasurer only, like the other controls here (the API would also allow a Chairperson).
-            isTreasurer={entry.role === 'Treasurer'}
+            // Whoever runs the cycle (Treasurer or Chairperson, as the API allows).
+            isTreasurer={canRunCycle(entry.role)}
             openCycleLabel={currentCycle !== null && currentCycle.status === 'Open' ? currentCycle.label : null}
             names={Object.fromEntries(members.map((m) => [m.userId, m.fullName ?? 'A member']))}
           />

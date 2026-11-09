@@ -23,3 +23,14 @@ const roleLabels: Record<MemberRole, string> = {
 export function roleLabel(role: MemberRole): string {
   return roleLabels[role]
 }
+
+/** The roles in the order a Chairperson picks from, with the words people see. */
+export const ROLE_CHOICES: { value: MemberRole; label: string }[] = [
+  { value: 'Member', label: 'Member' },
+  { value: 'Treasurer', label: 'Treasurer' },
+  { value: 'Chairperson', label: 'Chairperson' },
+]
+
+export function roleWord(role: MemberRole): string {
+  return ROLE_CHOICES.find((r) => r.value === role)?.label ?? role
+}

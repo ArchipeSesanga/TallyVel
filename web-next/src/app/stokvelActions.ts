@@ -127,3 +127,49 @@ export async function leaveStokvel(_previous: LeaveState, formData: FormData): P
   if (status >= 500) return { message: "We couldn't confirm that you left. Press the button again: trying again is safe.", reference }
   return { message: detail ?? describeApiError(status, null), reference }
 }
+
+export type RoleState = { message: string | null; reference: string | null; done: boolean }
+
+const ROLES = ['Member', 'Treasurer', 'Chairperson'] as const
+
+/**
+ * A Chairperson changes a member's role (this is how a Treasurer is chosen). The API decides who may (Chairperson
+ * of THIS stokvel only) and refuses a change that would leave the stokvel without a Chairperson (422).
+ */
+export async function changeMemberRole(_previous: RoleState, formData: FormData): Promise<RoleState> {
+  const session = await getSession()
+  if (session === null) redirect(await loginPath())
+
+  const stokvelId = String(formData.get('stokvelId') ?? '')
+  const userId = String(formData.get('userId') ?? '')
+  const role = ROLES.find((r) => r === String(formData.get('role') ?? ''))
+  const refused = (message: string, reference: string | null = null): RoleState => ({ message, reference, done: false })
+  if (!isUuid(stokvelId) || !isUuid(userId) || role === undefined) return refused("We couldn't change that role.")
+
+  const result = await api
+    .PUT('/api/v1/stokvels/{id}/members/{userId}/role', {
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+      params: { path: { id: stokvelId, userId } },
+      body: { role },
+    })
+    .catch((error: unknown) => {
+      console.error('changeMemberRole: the API could not be reached', error)
+      return null
+    })
+
+  if (result === null) return refused("Can't reach RondiTrack. Check your connection and try again.", localReference())
+
+  const { data, error, response } = result
+  const status = response.status
+  if (status === 401) redirect(await loginPath({ expired: true }))
+  if (data !== undefined) {
+    revalidatePath('/', 'layout') // the shell and the page read roles from the API
+    return { message: null, reference: null, done: true }
+  }
+
+  const detail = typeof (error as { detail?: unknown } | undefined)?.detail === 'string' ? (error as { detail: string }).detail : null
+  const reference = correlationIdOf(error)
+  if (status === 422) return refused(detail ?? 'A stokvel must always keep a Chairperson.', reference)
+  if (status === 429) return refused(tryAgainIn(response.headers.get('Retry-After')), reference)
+  return refused(detail ?? describeApiError(status, null), reference)
+}
