@@ -8,7 +8,10 @@ import { StokvelCard } from '@/components/StokvelCard'
 export default function StokvelsPage() {
   return (
     <section className="space-y-4">
-      <h1 className="text-2xl font-bold">My stokvels</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">My stokvels</h1>
+        <Link href="/join" className="text-sm underline">Join with an invite code</Link>
+      </div>
       <Suspense fallback={<StokvelCardsSkeleton />}>
         <StokvelList />
       </Suspense>
@@ -22,7 +25,7 @@ async function StokvelList() {
   if (!home.ok) return <ApiErrorView {...home.problem} />
 
   const stokvels = home.data.stokvels
-  if (stokvels.length === 0) return <p>You&apos;re not in any stokvel yet. Ask a treasurer to add you.</p>
+  if (stokvels.length === 0) return <p>You&apos;re not in any stokvel yet. Ask a treasurer for an invite link, or <Link href="/join" className="underline">enter an invite code</Link>.</p>
 
   return (
     <ul className="grid gap-4 md:grid-cols-2">

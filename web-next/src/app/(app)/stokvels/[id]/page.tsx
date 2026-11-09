@@ -10,15 +10,17 @@ import { centsToInput } from '@/lib/moneyInput'
 import { getSession } from '@/lib/session'
 import { ContributionForm } from '@/components/ContributionForm'
 import { PinToggle } from '@/components/PinToggle'
+import { CreateInviteLink } from '@/components/CreateInviteLink'
+import { JustJoined } from '@/components/JustJoined'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // NEW: the page is no longer async. It returns a <Suspense> straight away, so a click
 // on a stokvel shows the skeleton instantly instead of waiting for the API.
-export default function StokvelDetailPage({ params }: PageProps<'/stokvels/[id]'>) {
+export default function StokvelDetailPage({ params, searchParams }: PageProps<'/stokvels/[id]'>) {
   return (
     <Suspense fallback={<HeaderSkeleton />}>
-      <StokvelDetail params={params} />
+      <StokvelDetail params={params} searchParams={searchParams} />
     </Suspense>
   )
 }
@@ -33,7 +35,8 @@ function readRecent(id: string) {
   )
 }
 
-async function StokvelDetail({ params }: { params: Promise<{ id: string }> }) {
+async function StokvelDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const justJoined = (await searchParams).joined === '1'
   // params is a Promise in Next.js 16, so it has to be awaited.
   const { id } = await params
 
@@ -67,6 +70,7 @@ async function StokvelDetail({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <div className="space-y-8">
+      {justJoined && <JustJoined name={name} />}
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold break-words">{name}</h1>
@@ -114,6 +118,14 @@ async function StokvelDetail({ params }: { params: Promise<{ id: string }> }) {
             prefill={entry.owedThisCycleCents > 0 ? centsToInput(entry.owedThisCycleCents) : ''}
             firstKey={crypto.randomUUID()}
           />
+        </section>
+      )}
+
+      {/* Treasurer-only on purpose (the API also lets a Chairperson do this; the UI is stricter). THIS stokvel's role, from the API. */}
+      {entry.role === 'Treasurer' && (
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold">Invite someone</h2>
+          <CreateInviteLink stokvelId={id} />
         </section>
       )}
 
