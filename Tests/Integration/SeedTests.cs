@@ -20,7 +20,7 @@ public class SeedTests(PostgresApiFactory factory)
     private static readonly string[] DemoEmails =
     [
         "lerato@tallyvel.test", "thabo@tallyvel.test", "lindiwe@tallyvel.test",
-        "sipho@tallyvel.test", "nomsa@tallyvel.test", "nandi@tallyvel.test",
+        "sipho@tallyvel.test", "nomsa@tallyvel.test", "nandi@tallyvel.test", "thandi@tallyvel.test",
     ];
 
     private async Task<string> LoginAsync(string email)

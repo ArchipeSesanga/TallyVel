@@ -68,7 +68,7 @@ public class OpenApiDocumentTests(PostgresApiFactory factory)
     }
 
     [Fact]
-    public async Task Only_the_record_contribution_operation_declares_the_Idempotency_Key_header()
+    public async Task Only_the_operations_that_need_an_Idempotency_Key_declare_the_header()
     {
         var doc = await DocumentAsync();
 
@@ -76,9 +76,17 @@ public class OpenApiDocumentTests(PostgresApiFactory factory)
             .SelectMany(path => path.Value!.AsObject().Select(op => (Path: path.Key, Method: op.Key, Op: op.Value!)))
             .Where(x => x.Op["parameters"]?.AsArray().Any(p => p!["name"]!.GetValue<string>() == "Idempotency-Key") == true)
             .Select(x => $"{x.Method.ToUpperInvariant()} {x.Path}")
+            .Order()
             .ToList();
 
-        Assert.Equal(["POST /api/v1/stokvels/{stokvelId}/contributions"], withHeader);
+        // Recording a contribution, joining with an invite, and closing a cycle: the three that must not run twice.
+        Assert.Equal(
+            [
+                "POST /api/v1/invites/{code}/join",
+                "POST /api/v1/stokvels/{stokvelId}/contributions",
+                "POST /api/v1/stokvels/{stokvelId}/cycles/{cycleId}/close",
+            ],
+            withHeader);
     }
 
     [Theory]
