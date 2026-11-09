@@ -11,7 +11,10 @@ namespace Api.Application.Contracts;
 /// </summary>
 public sealed record RecordContributionRequest(Guid MemberUserId, string Cycle, long AmountCents);
 
-/// <summary>A contribution. Money is integer cents; RecordedAt is UTC and ends in Z.</summary>
+/// <summary>
+/// A contribution. Money is integer cents; RecordedAt is UTC and ends in Z. HasProof says whether a proof of payment is attached;
+/// CanDownloadProof says whether THE CALLER may download it (the same rule as the download itself).
+/// </summary>
 public sealed record ContributionResponse(
     Guid Id,
     Guid StokvelId,
@@ -19,7 +22,9 @@ public sealed record ContributionResponse(
     string Cycle,
     long AmountCents,
     ContributionStatus Status,
-    DateTimeOffset RecordedAt)
+    DateTimeOffset RecordedAt,
+    bool HasProof = false,
+    bool CanDownloadProof = false)
 {
     public static ContributionResponse FromDomain(Contribution contribution) =>
         new(

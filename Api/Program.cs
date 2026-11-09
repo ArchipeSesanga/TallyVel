@@ -142,6 +142,7 @@ builder.Services.AddScoped<StokvelSummaryService>();
 builder.Services.AddScoped<ActivityService>();
 builder.Services.AddScoped<IdempotentExecutor>();
 builder.Services.AddScoped<InviteService>();
+builder.Services.AddScoped<ProofService>();
 // Saves changes made to tracked entities (e.g. stokvel memberships) at the
 // end of each successful request.
 // Enums travel as names ("Chairperson", "Monthly"). Numbers are still
@@ -277,6 +278,11 @@ var openTelemetry = builder.Services.AddOpenTelemetry()
 // Tests and CI never set this, so they never try to reach a dashboard.
 if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
     openTelemetry.UseOtlpExporter();
+
+// Nothing in this API takes a body bigger than a proof of payment plus its multipart wrapping. The upload
+// endpoint says the same number in its own attributes, so Kestrel and the endpoint agree.
+builder.WebHost.ConfigureKestrel(kestrel =>
+    kestrel.Limits.MaxRequestBodySize = Api.Presentation.Controllers.ContributionProofsController.MaxRequestBytes);
 
 var app = builder.Build();
 if (args.Contains("--seed-volume"))

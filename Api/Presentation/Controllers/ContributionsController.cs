@@ -4,6 +4,7 @@ using Api.Common;
 using Microsoft.AspNetCore.RateLimiting;
 using Api.Application.Contracts;
 using Api.Application.Interfaces;
+using Api.Application.Services;
 using Api.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Domain;
@@ -19,17 +20,20 @@ public class ContributionsController : StokvelControllerBase
     private readonly IContributionRepository _contributionRepository;
     private readonly IContributionService _contributionService;
     private readonly IStokvelRepository _stokvelRepository;
+    private readonly ProofService _proofs;
     private readonly IValidator<RecordContributionRequest> _validator;
 
     public ContributionsController(
         IContributionRepository contributionRepository,
         IContributionService contributionService,
         IStokvelRepository stokvelRepository,
+        ProofService proofs,
         IValidator<RecordContributionRequest> validator)
     {
         _contributionRepository = contributionRepository;
         _contributionService = contributionService;
         _stokvelRepository = stokvelRepository;
+        _proofs = proofs;
         _validator = validator;
     }
 
@@ -86,16 +90,23 @@ public class ContributionsController : StokvelControllerBase
 
         var (items, nextPageToken) = await _contributionRepository.GetPageAsync(query, ct);
 
+        var flags = await _proofs.FlagsAsync(stokvelId, CallerId, items, ct);
         return Ok(new PagedResponse<ContributionResponse>(
-            items.Select(ContributionResponse.FromDomain).ToList(), nextPageToken));
+            items.Select(c => WithProofFlags(c, flags)).ToList(), nextPageToken));
     }
+
+    private static ContributionResponse WithProofFlags(
+        Contribution contribution, IReadOnlyDictionary<Guid, (bool HasProof, bool CanDownload)> flags) =>
+        flags.TryGetValue(contribution.Id, out var f)
+            ? ContributionResponse.FromDomain(contribution) with { HasProof = f.HasProof, CanDownloadProof = f.CanDownload }
+            : ContributionResponse.FromDomain(contribution);
 
     [HttpGet("{id:guid}")]
     [EndpointSummary("Get a contribution by id")]
     [EndpointDescription("Returns a single contribution, scoped to this stokvel.")]
     [ProducesResponseType<ContributionResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
-    public async Task<IActionResult> GetById(Guid stokvelId, Guid id)
+    public async Task<IActionResult> GetById(Guid stokvelId, Guid id, CancellationToken ct)
     {
         if (await AuthorizeStokvelAsync(stokvelId, StokvelPolicies.Member) is { } denied) return denied;
 
@@ -103,7 +114,8 @@ public class ContributionsController : StokvelControllerBase
         if (contribution is null || contribution.StokvelId != stokvelId)
             throw new NotFoundException("contribution", id);
 
-        return Ok(ContributionResponse.FromDomain(contribution));
+        var flags = await _proofs.FlagsAsync(stokvelId, CallerId, [contribution], ct);
+        return Ok(WithProofFlags(contribution, flags));
     }
 
     [HttpPost]
