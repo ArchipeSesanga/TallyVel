@@ -5,11 +5,15 @@ on:
     branches: [main]
   pull_request:
 
+# Nothing here writes to the repository, so the token is read-only.
 permissions:
   contents: read
 
 jobs:
+  # ---------- fast checks (a few minutes) ----------
+
   build-test:
+    name: Backend tests
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -29,8 +33,42 @@ jobs:
           name: test-results
           path: TestResults
 
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: web-next
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web-next/package-lock.json
+      - name: Install (exactly what package-lock.json says)
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      # `next typegen` writes the route types (PageProps and friends) that the pages use; tsc needs them.
+      - name: Type check
+        run: npx next typegen && npx tsc --noEmit
+      # The same tests twice, in two time zones: a test that is only right in UTC (or only on a South African laptop)
+      # fails one of these. A date bug that hides in one zone cannot get past both.
+      - name: Unit and component tests (TZ=UTC)
+        run: npx vitest run
+        env:
+          TZ: UTC
+      - name: Unit and component tests (TZ=Africa/Johannesburg)
+        run: npx vitest run
+        env:
+          TZ: Africa/Johannesburg
+      - name: Audit (production dependencies)
+        run: npm audit --omit=dev
+
   image:
-    needs: build-test          # only runs if every test passed
+    name: API image builds
+    needs: build-test # only runs if every test passed
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -41,3 +79,90 @@ jobs:
           context: .
           push: false
           tags: tallyvel-api:ci
+
+  # ---------- end to end (slower: the whole stack) ----------
+
+  # Runs ONLY when both the backend tests and the frontend checks passed, so a typo is reported in minutes by the fast
+  # jobs and nobody waits for a browser to find it.
+  e2e:
+    name: End-to-end (Playwright)
+    needs: [build-test, frontend]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      # Test-only values. Nothing in this file is a real secret.
+      LOGIN_RATE_LIMIT: '1000' # the API's sign-in limit is 5 a minute; the suite signs in a few times per run
+      API_BASE_URL: http://localhost:8080
+      ASPNETCORE_ENVIRONMENT: Development # this is what loads the demo seed (Sipho, Lerato, Thandi, ...)
+    steps:
+      - uses: actions/checkout@v5
+
+      # A brand-new set of throwaway secrets for THIS run. They are masked in the log, kept in the job's environment
+      # only, and gone when the run ends. (The compose file refuses to start without all of them.)
+      - name: Make throwaway secrets for this run
+        run: |
+          postgres_password="$(openssl rand -hex 24)"
+          jwt_signing_key="$(openssl rand -base64 48 | tr -d '\n')"
+          seed_demo_password="$(openssl rand -hex 16)"
+          session_secret="$(openssl rand -base64 32 | tr -d '\n')"
+          for value in "$postgres_password" "$jwt_signing_key" "$seed_demo_password" "$session_secret"; do
+            echo "::add-mask::$value"
+          done
+          {
+            echo "POSTGRES_PASSWORD=$postgres_password"
+            echo "JWT_SIGNING_KEY=$jwt_signing_key"
+            echo "SEED_DEMO_PASSWORD=$seed_demo_password"
+            echo "SESSION_SECRET=$session_secret"
+          } >> "$GITHUB_ENV"
+
+      # The runner is new, so there is no old volume; this makes "fresh database" true on any runner.
+      - name: Start the API and a fresh database
+        run: |
+          docker compose down --volumes --remove-orphans
+          docker compose up --detach --build
+          curl --silent --show-error --fail --retry 60 --retry-delay 2 --retry-connrefused --retry-all-errors \
+            http://localhost:8080/health/ready
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web-next/package-lock.json
+
+      - name: Install
+        working-directory: web-next
+        run: npm ci
+
+      - name: Install the browser (Chromium, with the system libraries it needs)
+        working-directory: web-next
+        run: npx playwright install --with-deps chromium
+
+      # The end-to-end tests run against the PRODUCTION build (`next start`), never `next dev`.
+      - name: Build the app
+        working-directory: web-next
+        run: npm run build
+
+      - name: Run Playwright
+        working-directory: web-next
+        run: npx playwright test
+        env:
+          CI: 'true'
+          E2E_DEMO_PASSWORD: ${{ env.SEED_DEMO_PASSWORD }}
+
+      - name: Upload the Playwright report (only when something failed)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            web-next/playwright-report
+            web-next/test-results
+          retention-days: 7
+
+      - name: API logs (only when something failed)
+        if: failure()
+        run: docker compose logs api --no-color --tail 200
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose down --volumes
