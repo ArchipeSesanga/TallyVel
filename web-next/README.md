@@ -580,3 +580,4 @@ The theme in `globals.css` now carries the TallyVel palette on the shadcn variab
 - **Kept although the spec did not draw them:** "Record a contribution" and "Close the cycle" (as cards), and the proof upload/download controls under each recent contribution. Contribution rows also show the status and cycle next to the date.
 - Treasurer controls show for Treasurer or Chairperson; role pickers only for a Chairperson. The only Chairperson's role box and "Leave stokvel" are disabled, each pointing at its reason with `aria-describedby`.
 - Checked at 1280px and 375px with no horizontal scroll.
+- The layout lives in [StokvelDetail.tsx](src/components/StokvelDetail.tsx), which only arranges things: the page passes in the data and the existing forms and actions (record, close, invite, roles, leave, pin). Stacking happens below 768px. Measured against the spec on the real page: sizes, radii, paddings, gaps, colours and icon sizes all match.

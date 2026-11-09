@@ -19,22 +19,22 @@ export function Avatar({ name, tone, large = false, round = false }: { name: str
   return (
     <span
       aria-hidden="true"
-      className={`flex shrink-0 items-center justify-center font-bold ${TONE[tone]} ${large ? 'size-16 rounded-2xl text-[22px]' : 'size-10 text-sm'} ${round ? 'rounded-full' : 'rounded-xl'}`}
+      className={`flex shrink-0 items-center justify-center font-bold ${TONE[tone]} ${large ? 'size-16 rounded-2xl text-[22px]' : `size-10 text-sm ${round ? 'rounded-full' : 'rounded-xl'}`}`}
     >
       {initials(name)}
     </span>
   )
 }
 
-type OpenCycle = { label: string; collectedCents: number; dueCents: number } | null
+export type OpenCycle = { label: string; collectedCents: number; dueCents: number } | null
 
 /** Contribution, member count and the open cycle, in one card of three cells (stacked on a phone). */
 export function FactsStrip({
   contributionCents, memberCount, cycle, payoutDate,
 }: { contributionCents: number; memberCount: number; cycle: OpenCycle; payoutDate: string | null }) {
-  const cell = 'flex flex-col gap-1.5 border-r border-divider px-6 py-5 last:border-r-0 max-sm:border-r-0 max-sm:border-b max-sm:last:border-b-0'
+  const cell = 'flex flex-col gap-1.5 border-r border-divider px-6 py-5 last:border-r-0 max-md:border-r-0 max-md:border-b max-md:last:border-b-0'
   return (
-    <dl className={`grid grid-cols-3 max-sm:grid-cols-1 ${CARD}`}>
+    <dl className={`grid grid-cols-3 max-md:grid-cols-1 ${CARD}`}>
       <div className={cell}>
         <dt className="text-sm text-muted-foreground">Contribution per cycle</dt>
         <dd className="text-[26px] leading-tight font-bold whitespace-nowrap tabular-nums">{formatCents(contributionCents)}</dd>
@@ -67,7 +67,7 @@ function Step({
   n, state, title, description, children,
 }: { n: number; state: StepState; title: string; description: string; children: React.ReactNode }) {
   const circle =
-    state === 'later' ? 'bg-background text-muted-foreground' : 'bg-success-soft text-success' // current and done are green
+    state === 'later' ? 'bg-background text-label' : 'bg-success-soft text-success' // current and done are green
   return (
     <li className="flex flex-col gap-3.5 rounded-xl bg-card px-5 py-[18px] text-foreground">
       <div className="flex gap-3">
@@ -98,7 +98,7 @@ export function SetupCard({
         <h2 id="setup-heading" className="text-[22px] font-bold">Get {name} going</h2>
         <p className="text-[15px] text-forest-text">Two steps before anyone can start paying in.</p>
       </div>
-      <ol className="grid list-none grid-cols-2 gap-3.5 max-sm:grid-cols-1">
+      <ol className="grid list-none grid-cols-2 gap-3.5 max-md:grid-cols-1">
         <Step n={1} state={state1} title="Invite members"
           description={invited ? `${memberCount} members so far` : 'Share a link on WhatsApp or SMS. Anyone with it can join.'}>
           {canRun ? <CreateInviteLink stokvelId={stokvelId} variant={invited ? 'outline' : 'default'} /> : <p className="text-sm font-medium text-muted-foreground">{invited ? 'Done' : 'Not done yet'}</p>}
@@ -133,7 +133,7 @@ export function MembersCard({
   const count = members.length === 1 ? 'Only you so far' : `${members.length} members`
   return (
     <section aria-labelledby="members-heading" className={CARD}>
-      <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-[22px] pb-3.5">
+      <div className={`flex flex-wrap justify-between gap-3 px-6 pt-[22px] pb-3.5 ${showInvite ? 'items-center' : 'items-baseline'}`}>
         <h2 id="members-heading" className="text-xl font-semibold">Members</h2>
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm text-muted-foreground tabular-nums">{count}</span>

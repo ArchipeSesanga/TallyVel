@@ -22,6 +22,7 @@ export function PinToggle({ stokvelId, name }: { stokvelId: string; name: string
     <Button
       type="button"
       variant="outline"
+      className="px-4"
       // Until the saved pins are read we don't know the answer, so the button waits (disabled) instead of guessing.
       disabled={!ready}
       aria-pressed={isPinned}

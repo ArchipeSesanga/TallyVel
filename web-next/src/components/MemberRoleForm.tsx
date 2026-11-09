@@ -33,7 +33,7 @@ export function MemberRoleForm({
         className="min-h-10 rounded-[10px] border border-input bg-card px-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
         {ROLE_CHOICES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
       </select>
-      <Button type="submit" variant="secondary" size="sm" disabled={pending || lockedByRuleId !== undefined}>{pending ? 'Saving…' : 'Save'}</Button>
+      <Button type="submit" variant="secondary" size="sm" className="rounded-[10px] px-3 text-sm" disabled={pending || lockedByRuleId !== undefined}>{pending ? 'Saving…' : 'Save'}</Button>
       {state.message !== null && (
         <p role="alert" className="basis-full text-sm font-medium text-destructive">
           {state.message}{state.reference !== null && <> Reference: <code className="font-mono">{state.reference}</code></>}
