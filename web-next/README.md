@@ -696,3 +696,116 @@ git revert --no-edit HEAD && git push
 - The seeded stokvels are not safe to depend on: people change them (for example closing Family Stokvel's cycle), so every test that needs a stokvel creates its own.
 - ~~The stokvel cards on "My stokvels" are one big link around an `article`, so the link has no accessible name.~~ Fixed in Part B (the link now has an `aria-label`: "Work Stokvel, Treasurer"; see the Accessibility table).
 - The 40-member performance stokvel is added by the Development seed on every start if it is missing, so a long-lived local database gains it; it is made of invented people and touches no demo account.
+
+---
+
+# Assignment 9.2, part B: accessibility, performance and metadata
+
+## Accessibility
+
+**Target: WCAG 2.2 AA.** Three kinds of check were used, and the table says which found each problem:
+
+- **axe**: [accessibility.spec.ts](e2e/accessibility.spec.ts) runs `@axe-core/playwright` with the tags `wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa` on the sign-in page, the home screen, a stokvel page, the contribution form *while it shows an error*, the open Close Cycle dialog and the signed-out invite page. Any **serious or critical** violation fails the test (the message lists the rule and the element). **No rule is switched off anywhere.** If one ever has to be, it is done in the one helper, [support/axe.ts](e2e/support/axe.ts), with the reason next to it. Lesser findings are attached to the report, not hidden.
+- **Keyboard and layout tests**, in a real browser at a phone size (375 × 667): [keyboard.spec.ts](e2e/keyboard.spec.ts) tabs through the 40-member stokvel's long contribution list, forwards and back, and measures where the focused element is; [inputs-and-announcements.spec.ts](e2e/inputs-and-announcements.spec.ts) pastes with a real clipboard, goes Back through the join flow and reads the live regions.
+- **Review**: reading the code against the criteria.
+
+Automated checks find only a part of the problems (about a third of WCAG's), which is why the rows below that axe did *not* find matter. **I did not use a screen reader and I do not claim to have: that column is for you.**
+
+| # | Criterion | Flow | What failed | Fix | Found by / checked by | Screen reader |
+|---|---|---|---|---|---|---|
+| 1 | 1.4.3 Contrast (minimum) | Close Cycle dialog, the red "Close …" button | Red text `#E7000B` on its own 10% tint was **3.86 : 1** (needs 4.5 : 1) | `--destructive` is now `#B42318` (6.5 : 1 on white, 5.5 : 1 on the tint) in [globals.css](src/app/globals.css) | **axe** (the open-dialog test); passes after | TODO (yours) |
+| 2 | 2.4.7 Focus visible, 2.4.11 Focus not obscured | Any page, **phone**, keyboard | The closed menu drawer was only slid off-screen: its 9 links and the search box were still in the Tab order, so focus **disappeared off the left edge** ten times before reaching the page | The closed drawer is `invisible` below the `lg` breakpoint ([AppShell.tsx](src/components/AppShell.tsx)), which removes it from the Tab order; it is still always shown from `lg` up. (`aria-controls="sidebar"` also pointed at nothing; the drawer now has `id="sidebar"`.) | **Keyboard test** (the "off the side of the screen" check). axe could not see it | TODO (yours) |
+| 3 | 2.4.11 Focus not obscured (minimum) | Contribution history, phone: the date filters | Tabbing to a date field left it **under the 68 px sticky header** (its top at 46 px) | `scroll-padding-top` and `scroll-padding-bottom` of 6 rem on `html`: the browser then leaves room when it scrolls a focused control into view, so the header and the bottom-right toasts never cover it | **Keyboard test** (tab down 60 stops, shift+tab back 20); passes after | TODO (yours) |
+| 4 | 2.4.7 Focus visible | Contribution history: the date fields and their calendar buttons | The date inputs had no focus ring at all, and the browser's built-in calendar button (its own Tab stop) none either | One default for every control, `:focus-visible { outline: 2px solid var(--ring) }`, and the same for the calendar button; components that draw their own ring keep it. **No `outline: none` is left without a visible replacement** | **Keyboard test** (every control tabbed to must draw an outline or ring) | TODO (yours) |
+| 5 | 2.5.8 Target size (minimum) | Header and sidebar, contribution list, stokvel page, phone | Menu button **18 × 18**, notification bell **20 × 20**, sidebar search box 20 tall, "Full history" link 20 tall | Menu button and bell are 36 × 36 (the icons are unchanged); search box and "Full history" at least 24 tall | **Layout test** (every button, field and non-inline link on three pages must be at least 24 × 24); passes after. axe's target-size rule did not report them | TODO (yours) |
+| 6 | 3.3.8 Accessible authentication | Sign-in | The email field said `autocomplete="email"`, so password managers did not treat it as the **username** half of a login | `autocomplete="username"` (and `current-password` on the password, already right) | **Review**; then a **Playwright test** that pastes into both fields with a real Ctrl/Cmd+V and signs in, and one that checks nothing cancels a paste | TODO (yours) |
+| 7 | 3.3.1 Error identification, 4.1.3 Status messages | Contribution form | The message under a field appeared in an ordinary paragraph: a screen reader user who stayed on the button would not hear it | The two field messages are always-present `aria-live="polite"` regions, tied to the field with `aria-describedby` and `aria-invalid` ([ContributionForm.tsx](src/components/ContributionForm.tsx)); the whole-payment message stays `role="alert"` | **Review**; then a **Playwright test** reads the attributes and the text after an error | TODO (yours) |
+| 8 | 4.1.2 Name, role, value | "My stokvels" | Each card is one big link around many lines of text, so it had **no useful accessible name** (noted in Part A) | `aria-label` "Work Stokvel, Treasurer" on the link | Found in **Part A while writing the journey test**. **Not yet re-run in a browser** (see below) | TODO (yours) |
+| 9 | 2.4.2 Page titled | Every page | Every page had the same title, "RondiTrack" | Each page names itself ("My stokvels · RondiTrack"); the invite page and sign-in page have their own | **Review**; a Playwright test asserts one title | TODO (yours) |
+
+**Checked and found fine** (nothing to fix, so no row): **2.5.7 Dragging movements**: nothing in the app is dragged and there is **no payout rotation screen** (the sidebar's "Payouts" has no page and the API has no rotation order), so no "Move up / Move down" buttons or position announcements were needed and none was invented. **3.3.7 Redundant entry**: Back from the join rules returns to step 1 *with the code in the box*, the browser's own Back does the same, step 3 shows the stokvel again from what step 2 learned, and a refused contribution keeps the typed amount and the chosen member (Playwright, plus the Part A component tests). **Each join step heading takes focus** when the step appears, and **toasts** are inside sonner's polite live region (Playwright reads both).
+
+**Screen-reader pass. TODO (yours).** Use NVDA (Windows) or VoiceOver (macOS/iOS) and fill in the last column above, and these:
+
+| Check | What to listen for | Result |
+|---|---|---|
+| Sign in with the password manager | Both fields announced as "Email" and "Password", the error read out when the password is wrong | TODO |
+| Record a contribution, make it fail (type `10,555`) | The message is read out *without* moving to it; the field is announced as invalid | TODO |
+| Join flow, step 1 → 2 → Back | Each step's heading is read when it appears ("Step 2 of 3: Check the rules") | TODO |
+| Close Cycle dialog | The title and description are read on opening, focus is on Cancel, Esc closes | TODO |
+| A toast ("Recorded …", "You joined …") | It is read out although focus did not move | TODO |
+| **What the screen reader says for one amount** (for example the "R 150,50" on a contribution card) | Is it "R one hundred and fifty comma fifty" or "R 150 comma 50"? Is the no-break space read as a pause? | TODO: write what it says |
+| **What the screen reader says for one date** (for example "9 Nov 2026" on the same card) | Day, month name, year, in that order? | TODO: write what it says |
+| "My stokvels" cards | Each link is read as "<name>, <role>" | TODO |
+
+## Performance
+
+**Measure, then fix only what was measured.** I measured two things myself (bundle contents and the JavaScript each route sends) and wrote one browser test for layout shifts. **The Lighthouse and INP numbers are yours** (the table below).
+
+**Bundle analysis** (`npx next experimental-analyze --output`, then reading the chunks): the shared floor is React DOM (about 72 KB gzipped) and Next's client runtime (about 44 KB). Beyond that, two things stood out, and both were fixed:
+
+| Finding | Evidence | Fix |
+|---|---|---|
+| **All of zod (about 32 KB gzipped) was sent to `/stokvels/new`** | A 112 KB chunk full of zod, referenced only by that route's client manifest. The create form imported four constants from the file that also builds the zod schema | The constants moved to [stokvelFields.ts](src/lib/stokvelFields.ts), which imports nothing; the schema re-exports them for the server and the tests |
+| **The stokvel page sent about 45 KB gzipped of dialog code nobody needs until they click** | JavaScript transferred per route (Chrome, production build): login 155 KB, home 180 KB, **stokvel 222 KB**, create 225 KB, join 195 KB, history 187 KB. The stokvel page is 42 KB above the home screen; two chunks are Base UI's dialog | `next/dynamic`: [LazyCloseCycleDialog](src/components/LazyCloseCycleDialog.tsx) and [LazyLeaveStokvelDialog](src/components/LazyLeaveStokvelDialog.tsx) show the same button, and fetch the dialog's code when the pointer reaches it, it is tabbed to, or it is pressed (then it opens on arrival). The "only Chairperson cannot leave" button never loads a dialog at all |
+
+**After the change: TODO (measure).** The code is in and builds; I could not re-measure the routes before my machine's disk filled (see the report), so the before numbers above stand and the after numbers are **not claimed**.
+
+**The rest of the brief, and where it applies:**
+
+- **`next/font`: already used** (Figtree, self-hosted and preloaded in [layout.tsx](src/app/layout.tsx)); there is no font stylesheet. `next/font` also sets size-adjusted fallback metrics, so the swap should move nothing.
+- **`next/image`: used once, for the design image.** The sidebar logo ([AppShell.tsx](src/components/AppShell.tsx)) has `sizes="134px"` and is shown at the file's real 134 px width (it was stretched to 144 px). **Deliberately not used: proofs of payment.** There is no `<img>` of a proof anywhere (a proof is only a download link to `/bff/…/proof`), and [next.config.ts](next.config.ts) makes sure it could not be: the optimizer's **allow-list is `/LogoWrap.png` only**, with no remote patterns, because its cache is shared by everyone. [private-images.spec.ts](e2e/private-images.spec.ts) proves a request for `/_next/image?url=/bff/…` is refused (400) while the logo is still served.
+- **`next/dynamic`: the two dialogs** (above). There is no proof preview and no chart in the app, so nothing else is large and client-only.
+- **Skeletons are a CLS test.** [layout-stability.spec.ts](e2e/layout-stability.spec.ts) records the browser's own layout shifts (the numbers Lighthouse reports as CLS) on the home screen, the 40-member stokvel and its long history, at phone and desktop size, and fails above **0.02** (Good is 0.1). **TODO: this test has not run since the skeleton review.** The skeletons themselves are unchanged from 9.1 (the page and card skeletons already reserve their rows' height). If the test names a skeleton that is wrong, its message lists the shifting element.
+- **Tabular figures:** `font-variant-numeric: tabular-nums` is set on `body`, so *every* amount keeps one width whatever its digits (the totals also say it in their own classes). A test measures `R 1 111,11`, `R 0 000,00` and `R 8 888,88` and requires equal widths.
+
+**INP logging (measurement only, easy to remove).** [WebVitalsLogger.tsx](src/components/WebVitalsLogger.tsx) uses `web-vitals` (6.2.3)'s `onINP` and prints each new worst interaction to the console with the element pressed and where the time went. It is **off and absent from the bundle** unless the app is built with the variable:
+
+```bash
+NEXT_PUBLIC_LOG_WEB_VITALS=1 npm run build && npm run start
+# open the console, then: record a contribution, open Close Cycle, press Cancel
+# [INP] 64 ms (good) on button#amount-submit · pointer · waiting 3 ms, handlers 41 ms, painting 20 ms
+```
+
+To remove it: delete the file and its one line in `layout.tsx`, and `npm uninstall web-vitals`.
+
+**Lighthouse (yours).** Mobile profile, `npm run start` (a production build, not `next dev`), 3 runs, **median**:
+
+| Page | Metric | Before | After | Which change made the difference |
+|---|---|---|---|---|
+| Home screen (`/dashboard/member`, or `/login` signed out) | LCP | TODO | TODO | TODO |
+| | CLS | TODO | TODO | TODO |
+| | INP | TODO | TODO | TODO |
+| 40-member stokvel ("Mabuza Burial Society", sign in as `member01@burial.test`) | LCP | TODO | TODO | TODO |
+| | CLS | TODO | TODO | TODO |
+| | INP while recording a contribution | TODO | TODO | TODO |
+| | INP while opening Close Cycle | TODO | TODO | TODO |
+
+## Metadata and indexing
+
+| Route | Indexed? | What a link preview may show |
+|---|---|---|
+| `/login` | **Yes** | Title "Sign in · RondiTrack", the product description, and the site picture ([opengraph-image.tsx](src/app/opengraph-image.tsx), fixed text) |
+| `/register` | **Yes** | Title "Create an account · RondiTrack", the same description and picture |
+| `/join?code=…` (the invite page) | **No** (`noindex, nofollow`) | "You have been invited to a stokvel on RondiTrack", "Sign in to RondiTrack to see the invitation and join.", the site picture. **No stokvel name, no amount, no code, whoever asks** |
+| Every signed-in page: `/dashboard/*`, `/stokvels*`, `/activity`, `/contributions` (and `/demo/…`) | **No**: `noindex, nofollow`, set **once** in [`(app)/layout.tsx`](src/app/(app)/layout.tsx) | Nothing useful: these are behind sign-in, so a bot is sent to `/login` and previews that |
+| `/bff/*` (JSON and proof downloads) | **No**: `X-Robots-Tag: noindex, nofollow` on **every** answer, including the 401, set in [next.config.ts](next.config.ts) | Nothing (not pages) |
+| `/robots.txt` | n/a | **Blocks nothing**: `Allow: /`. A crawler that may not fetch a page never sees its `noindex`; it could still list the address |
+| `/opengraph-image` | n/a | The picture itself. Public (a bot has no cookies); the proxy does not redirect it |
+
+**The signed-out bot decision.** The API's invite preview needs a signed-in person, and a link-preview bot (WhatsApp, Telegram, Slack) is never signed in. In 9.1 the invite page sat behind the sign-in redirect, so a bot would have been bounced to `/login` and previewed *that*. Now:
+
+1. **Where the redirect happens: nowhere, for a signed-out `GET`.** The invite page moved out of the signed-in `(app)` group into [`join/`](src/app/join) with its own layout, and [proxy.ts](src/proxy.ts) lets a signed-out `GET /join` through. Anything else sent to `/join` (the Server Action that joins) still needs a session.
+2. **What the bot sees: the page's own head, and no stokvel data.** A signed-out request gets `200`, a "You have been invited to join a stokvel; sign in to continue" page whose link is `/login?next=<the same address>`, and a head from `generateMetadata`, which **takes no arguments**. It is never given the invite code and never calls the API, so it *cannot* put the stokvel's name or the amount in the head. Nothing about the stokvel is even fetched for a request without a session.
+3. **What it does not say:** whether the invite is still valid. Only a signed-in request can find that out, and the head must be the same for everyone. (A person who is signed in gets the normal three-step flow, in the usual frame.)
+4. **A person (not a bot) who is signed out** lands on the same page and presses "Sign in to continue"; after signing in they come back to the same step and code. One extra click is the price of the bot seeing a proper head. (Register does not carry `next`; the page says "Create an account, then open your invite link again".)
+
+[metadata-and-indexing.spec.ts](e2e/metadata-and-indexing.spec.ts) proves it: a signed-in page has `noindex` (eight pages, including a stokvel and its history); a **real invite** (made through the API for a stokvel with an unusual name and amount) opened signed out returns 200 with a title, a description and every `og:` tag, none of the head (title, every meta tag) holding the name, the code or the amount in any format; the same fetched with a `WhatsApp/2` user agent and no redirects; `/bff/` has `X-Robots-Tag`, even for the 401; `robots.txt` has no `Disallow`.
+
+**Fetch the invite the way a preview bot does (yours).** Make an invite in the app ("Invite" on a stokvel you run) and copy the link, then:
+
+```bash
+curl -s -A "WhatsApp/2" "http://localhost:3100/join?code=<PASTE THE CODE>" | grep -o '<head>.*</head>' | sed 's/></>\n</g'
+```
+
+**TODO (yours): paste the `<head>` output here.** It should show `noindex, nofollow`, the title and description above and the `og:` tags, and nothing with the stokvel's name or amount. (`og:image` is an absolute address built from the `SITE_URL` environment variable; set it in production, it falls back to `http://localhost:3000`.)
