@@ -1613,7 +1613,7 @@ export interface paths {
         post?: never;
         /**
          * Remove a member from a stokvel
-         * @description Removes the member. Refuses to remove the last admin, so a stokvel always has someone who can run it. Does not delete the member's past contributions.
+         * @description Removes the member. Anyone may remove THEMSELVES (leave the stokvel); removing someone else is for a Chairperson. Refuses to remove the last admin, so a stokvel always has someone who can run it. Does not delete the member's past contributions.
          */
         delete: {
             parameters: {
