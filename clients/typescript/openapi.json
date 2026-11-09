@@ -217,6 +217,276 @@
         }
       }
     },
+    "/api/v1/stokvels/{stokvelId}/contributions/{contributionId}/proof": {
+      "post": {
+        "tags": [
+          "ContributionProofs"
+        ],
+        "summary": "Attach or replace the proof of payment",
+        "description": "multipart/form-data with one file field named \"file\". The contribution's own member, or a Treasurer or Chairperson of this stokvel. JPEG, PNG or PDF, decided by the file's first bytes (never its name or Content-Type), at most 5 MB. Uploading again replaces the proof while the cycle is open. Once the cycle is closed or paid out it is locked (409).",
+        "parameters": [
+          {
+            "name": "stokvelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "contributionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "$ref": "#/components/schemas/IFormFile"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProofResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProofResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProofResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProofResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProofResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProofResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload Too Large",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "ContributionProofs"
+        ],
+        "summary": "Remove the proof of payment",
+        "description": "Same people as upload, and only while the cycle is open (otherwise 409 proof-locked).",
+        "parameters": [
+          {
+            "name": "stokvelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "contributionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "ContributionProofs"
+        ],
+        "summary": "Download the proof of payment",
+        "description": "Only the contribution's member and this stokvel's Treasurer or Chairperson. Everyone else, including an ordinary member of the same stokvel and a treasurer of another stokvel, gets the same 404 as a contribution with no proof. The file is sent as an attachment with the detected Content-Type, X-Content-Type-Options: nosniff and Cache-Control: private, no-store.",
+        "parameters": [
+          {
+            "name": "stokvelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "contributionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileContentResult"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileContentResult"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileContentResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "image/jpeg": {},
+              "image/png": {},
+              "application/pdf": {}
+            }
+          }
+        }
+      }
+    },
     "/api/v1/stokvels/{stokvelId}/contributions": {
       "get": {
         "tags": [
@@ -748,6 +1018,472 @@
           },
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stokvels/{stokvelId}/cycles/{cycleId}/close-preview": {
+      "get": {
+        "tags": [
+          "Cycles"
+        ],
+        "summary": "Preview closing a cycle",
+        "description": "Treasurer or Chairperson of THIS stokvel only (a member gets 403, a non-member 404). Shows who would be in arrears if the cycle were closed now, counted up to asOfDate (the cycle's last day, or today if it is still running). It uses the same calculation as the real close. Send the returned version back to close; it changes whenever anything that affects the result changes. An empty arrears list is valid.",
+        "parameters": [
+          {
+            "name": "stokvelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cycleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClosePreviewResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClosePreviewResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClosePreviewResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stokvels/{stokvelId}/cycles/{cycleId}/close": {
+      "post": {
+        "tags": [
+          "Cycles"
+        ],
+        "summary": "Close a cycle",
+        "description": "Treasurer or Chairperson of THIS stokvel only. Body: the version from the preview. Requires an Idempotency-Key header. If the version no longer matches a fresh calculation nothing is closed (409 close-preview-stale). If the cycle is already closed, by the nightly job or another treasurer (409 cycle-already-closed). Otherwise it is closed exactly once, in one transaction with the arrears rows. The same Idempotency-Key repeated returns the original 200 and records the arrears once.",
+        "parameters": [
+          {
+            "name": "stokvelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cycleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A fresh UUID per attempt. Retrying the same request with the same key replays the first result instead of recording twice.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseCycleRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseCycleRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseCycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloseCycleResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloseCycleResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloseCycleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stokvels/{stokvelId}/invites": {
+      "post": {
+        "tags": [
+          "StokvelInvites"
+        ],
+        "summary": "Create an invite",
+        "description": "Treasurer or Chairperson of THIS stokvel only. Returns a code that works for 7 days. Anyone signed in who has the code can preview the stokvel and join it.",
+        "parameters": [
+          {
+            "name": "stokvelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/invites/{code}": {
+      "get": {
+        "tags": [
+          "Invites"
+        ],
+        "summary": "Preview an invite",
+        "description": "What someone who may not be a member yet is allowed to see: the stokvel's name, rules, contribution amount, frequency and cycle length, how many members it has, when the invite expires, and whether the caller is already in. Nothing about its members, balances, contributions or payout order. Guesses are rate-limited per user.",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitePreviewResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitePreviewResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitePreviewResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Gone",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/invites/{code}/join": {
+      "post": {
+        "tags": [
+          "Invites"
+        ],
+        "summary": "Join a stokvel with an invite",
+        "description": "Adds the caller as a Member. Requires an Idempotency-Key header: the same key replays the original 201, and the database allows one membership per person per stokvel, so a double click or a retry never joins twice. Already a member is a 409 (code already-member) with the stokvelId.",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A fresh UUID per attempt. Retrying the same request with the same key replays the first result instead of recording twice.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Gone",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1563,6 +2299,28 @@
           }
         }
       },
+      "ArrearItem": {
+        "required": [
+          "memberUserId",
+          "fullName",
+          "shortfallCents"
+        ],
+        "type": "object",
+        "properties": {
+          "memberUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "shortfallCents": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "description": "One member who still owes money for a cycle. Money is integer cents."
+      },
       "ChangeStokvelMemberRoleRequest": {
         "required": [
           "role"
@@ -1573,6 +2331,86 @@
             "$ref": "#/components/schemas/MemberRole"
           }
         }
+      },
+      "CloseCycleRequest": {
+        "required": [
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          }
+        },
+        "description": "The Version from the preview the treasurer looked at."
+      },
+      "CloseCycleResponse": {
+        "required": [
+          "cycleId",
+          "closedAt",
+          "arrears",
+          "totalArrearsCents"
+        ],
+        "type": "object",
+        "properties": {
+          "cycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "closedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "arrears": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArrearItem"
+            }
+          },
+          "totalArrearsCents": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "description": "A cycle that was closed, with the arrears that were recorded."
+      },
+      "ClosePreviewResponse": {
+        "required": [
+          "cycleId",
+          "cycleLabel",
+          "asOfDate",
+          "arrears",
+          "totalArrearsCents",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "cycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cycleLabel": {
+            "type": "string"
+          },
+          "asOfDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "arrears": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArrearItem"
+            }
+          },
+          "totalArrearsCents": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "description": "What closing a cycle WOULD do right now. AsOfDate is the South African calendar date the close counts up to (the cycle's\nlast day, or today if it is still running). An empty Arrears list is valid: nobody owes anything.\nVersion is opaque: send it back unchanged to close. It identifies the exact inputs of this calculation, so it changes\nwhen anything that affects the result changes, and a close that carries an older one is refused (409)."
       },
       "ContributionFrequency": {
         "enum": [
@@ -1618,9 +2456,17 @@
           "recordedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "hasProof": {
+            "type": "boolean",
+            "default": false
+          },
+          "canDownloadProof": {
+            "type": "boolean",
+            "default": false
           }
         },
-        "description": "A contribution. Money is integer cents; RecordedAt is UTC and ends in Z."
+        "description": "A contribution. Money is integer cents; RecordedAt is UTC and ends in Z. HasProof says whether a proof of payment is attached;\nCanDownloadProof says whether THE CALLER may download it (the same rule as the download itself)."
       },
       "ContributionStatus": {
         "enum": [
@@ -1651,6 +2497,12 @@
           "creatorId": {
             "type": "string",
             "format": "uuid"
+          },
+          "rules": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "description": "The contribution amount is integer cents (R500 is 50000)."
@@ -1705,6 +2557,58 @@
           "Closed",
           "PaidOut"
         ]
+      },
+      "EntityTagHeaderValue": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "$ref": "#/components/schemas/StringSegment"
+          },
+          "isWeak": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FileContentResult": {
+        "type": "object",
+        "properties": {
+          "fileContents": {
+            "type": "string",
+            "format": "byte"
+          },
+          "contentType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fileDownloadName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lastModified": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "entityTag": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EntityTagHeaderValue"
+              }
+            ]
+          },
+          "enableRangeProcessing": {
+            "type": "boolean"
+          }
+        }
       },
       "HomeCurrentCycle": {
         "required": [
@@ -1807,6 +2711,96 @@
           }
         },
         "description": "Money is integer cents (exact in JavaScript); dates are South African\ncalendar dates (\"2026-10-31\"), not UTC dates."
+      },
+      "IFormFile": {
+        "type": "string",
+        "format": "binary"
+      },
+      "InvitePreviewResponse": {
+        "required": [
+          "code",
+          "stokvelName",
+          "rules",
+          "contributionAmountCents",
+          "frequency",
+          "cycleLengthDays",
+          "memberCount",
+          "expiresAt",
+          "alreadyMember"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "stokvelName": {
+            "type": "string"
+          },
+          "rules": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "contributionAmountCents": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "frequency": {
+            "description": "How often a cycle comes round.",
+            "$ref": "#/components/schemas/ContributionFrequency"
+          },
+          "cycleLengthDays": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "description": "7 or 14 for weekly and bi-weekly; null for monthly (a calendar month).",
+            "format": "int32"
+          },
+          "memberCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "alreadyMember": {
+            "type": "boolean",
+            "description": "Whether the caller is already in this stokvel."
+          }
+        },
+        "description": "What a person sees before they join, and ONLY this. It has no member names, no user ids, no balances,\nno contributions and no payout order: the caller is not a member yet, so none of that is theirs to see."
+      },
+      "InviteResponse": {
+        "required": [
+          "code",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A new invite. The code is the whole secret: anyone who has it can read the preview and join."
+      },
+      "JoinResponse": {
+        "required": [
+          "stokvelId"
+        ],
+        "type": "object",
+        "properties": {
+          "stokvelId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
       },
       "LoginRequest": {
         "required": [
@@ -1979,6 +2973,41 @@
           }
         }
       },
+      "ProofResponse": {
+        "required": [
+          "contributionId",
+          "contentType",
+          "fileName",
+          "sizeBytes",
+          "sha256",
+          "uploadedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "contributionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "uploadedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "The proof attached to a contribution, without its bytes."
+      },
       "RecordContributionRequest": {
         "required": [
           "memberUserId",
@@ -2129,6 +3158,12 @@
                 "$ref": "#/components/schemas/StokvelCurrentCycle"
               }
             ]
+          },
+          "rules": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "description": "One stokvel with the numbers its page shows. Money is integer cents; EndsOn is a\nSouth African calendar date. CurrentCycle is null when no cycle is open."
@@ -2195,6 +3230,40 @@
             "items": {
               "$ref": "#/components/schemas/StokvelMembershipResponse"
             }
+          },
+          "rules": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "StringSegment": {
+        "type": "object",
+        "properties": {
+          "buffer": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "length": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "value": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasValue": {
+            "type": "boolean"
           }
         }
       },
@@ -2290,10 +3359,19 @@
       "name": "Auth"
     },
     {
+      "name": "ContributionProofs"
+    },
+    {
       "name": "Contributions"
     },
     {
       "name": "Cycles"
+    },
+    {
+      "name": "StokvelInvites"
+    },
+    {
+      "name": "Invites"
     },
     {
       "name": "Me"

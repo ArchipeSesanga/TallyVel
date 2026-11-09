@@ -230,6 +230,212 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stokvels/{stokvelId}/contributions/{contributionId}/proof": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download the proof of payment
+         * @description Only the contribution's member and this stokvel's Treasurer or Chairperson. Everyone else, including an ordinary member of the same stokvel and a treasurer of another stokvel, gets the same 404 as a contribution with no proof. The file is sent as an attachment with the detected Content-Type, X-Content-Type-Options: nosniff and Cache-Control: private, no-store.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    stokvelId: string;
+                    contributionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "image/jpeg": components["schemas"]["FileContentResult"];
+                        "image/png": components["schemas"]["FileContentResult"];
+                        "application/pdf": components["schemas"]["FileContentResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "image/jpeg": unknown;
+                        "image/png": unknown;
+                        "application/pdf": unknown;
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Attach or replace the proof of payment
+         * @description multipart/form-data with one file field named "file". The contribution's own member, or a Treasurer or Chairperson of this stokvel. JPEG, PNG or PDF, decided by the file's first bytes (never its name or Content-Type), at most 5 MB. Uploading again replaces the proof while the cycle is open. Once the cycle is closed or paid out it is locked (409).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    stokvelId: string;
+                    contributionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": {
+                        file?: components["schemas"]["IFormFile"];
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProofResponse"];
+                        "application/json": components["schemas"]["ProofResponse"];
+                        "text/json": components["schemas"]["ProofResponse"];
+                    };
+                };
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProofResponse"];
+                        "application/json": components["schemas"]["ProofResponse"];
+                        "text/json": components["schemas"]["ProofResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Payload Too Large */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unsupported Media Type */
+                415: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        /**
+         * Remove the proof of payment
+         * @description Same people as upload, and only while the cycle is open (otherwise 409 proof-locked).
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    stokvelId: string;
+                    contributionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stokvels/{stokvelId}/contributions": {
         parameters: {
             query?: never;
@@ -591,6 +797,415 @@ export interface paths {
                 };
                 /** @description Not Found */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Too Many Requests */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stokvels/{stokvelId}/cycles/{cycleId}/close-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview closing a cycle
+         * @description Treasurer or Chairperson of THIS stokvel only (a member gets 403, a non-member 404). Shows who would be in arrears if the cycle were closed now, counted up to asOfDate (the cycle's last day, or today if it is still running). It uses the same calculation as the real close. Send the returned version back to close; it changes whenever anything that affects the result changes. An empty arrears list is valid.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    stokvelId: string;
+                    cycleId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ClosePreviewResponse"];
+                        "application/json": components["schemas"]["ClosePreviewResponse"];
+                        "text/json": components["schemas"]["ClosePreviewResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stokvels/{stokvelId}/cycles/{cycleId}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close a cycle
+         * @description Treasurer or Chairperson of THIS stokvel only. Body: the version from the preview. Requires an Idempotency-Key header. If the version no longer matches a fresh calculation nothing is closed (409 close-preview-stale). If the cycle is already closed, by the nightly job or another treasurer (409 cycle-already-closed). Otherwise it is closed exactly once, in one transaction with the arrears rows. The same Idempotency-Key repeated returns the original 200 and records the arrears once.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description A fresh UUID per attempt. Retrying the same request with the same key replays the first result instead of recording twice. */
+                    "Idempotency-Key": string;
+                };
+                path: {
+                    stokvelId: string;
+                    cycleId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CloseCycleRequest"];
+                    "text/json": components["schemas"]["CloseCycleRequest"];
+                    "application/*+json": components["schemas"]["CloseCycleRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CloseCycleResponse"];
+                        "application/json": components["schemas"]["CloseCycleResponse"];
+                        "text/json": components["schemas"]["CloseCycleResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ValidationProblemDetails"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Too Many Requests */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stokvels/{stokvelId}/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create an invite
+         * @description Treasurer or Chairperson of THIS stokvel only. Returns a code that works for 7 days. Anyone signed in who has the code can preview the stokvel and join it.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    stokvelId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InviteResponse"];
+                        "application/json": components["schemas"]["InviteResponse"];
+                        "text/json": components["schemas"]["InviteResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invites/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview an invite
+         * @description What someone who may not be a member yet is allowed to see: the stokvel's name, rules, contribution amount, frequency and cycle length, how many members it has, when the invite expires, and whether the caller is already in. Nothing about its members, balances, contributions or payout order. Guesses are rate-limited per user.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    code: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InvitePreviewResponse"];
+                        "application/json": components["schemas"]["InvitePreviewResponse"];
+                        "text/json": components["schemas"]["InvitePreviewResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Gone */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Too Many Requests */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invites/{code}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Join a stokvel with an invite
+         * @description Adds the caller as a Member. Requires an Idempotency-Key header: the same key replays the original 201, and the database allows one membership per person per stokvel, so a double click or a retry never joins twice. Already a member is a 409 (code already-member) with the stokvelId.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description A fresh UUID per attempt. Retrying the same request with the same key replays the first result instead of recording twice. */
+                    "Idempotency-Key": string;
+                };
+                path: {
+                    code: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["JoinResponse"];
+                        "application/json": components["schemas"]["JoinResponse"];
+                        "text/json": components["schemas"]["JoinResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Gone */
+                410: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1287,12 +1902,54 @@ export interface components {
             userId: string;
             role?: components["schemas"]["MemberRole"];
         };
+        /** @description One member who still owes money for a cycle. Money is integer cents. */
+        ArrearItem: {
+            /** Format: uuid */
+            memberUserId: string;
+            fullName: string;
+            /** Format: int64 */
+            shortfallCents: number;
+        };
         ChangeStokvelMemberRoleRequest: {
             role: components["schemas"]["MemberRole"];
         };
+        /** @description The Version from the preview the treasurer looked at. */
+        CloseCycleRequest: {
+            version: string;
+        };
+        /** @description A cycle that was closed, with the arrears that were recorded. */
+        CloseCycleResponse: {
+            /** Format: uuid */
+            cycleId: string;
+            /** Format: date-time */
+            closedAt: string;
+            arrears: components["schemas"]["ArrearItem"][];
+            /** Format: int64 */
+            totalArrearsCents: number;
+        };
+        /**
+         * @description What closing a cycle WOULD do right now. AsOfDate is the South African calendar date the close counts up to (the cycle's
+         *     last day, or today if it is still running). An empty Arrears list is valid: nobody owes anything.
+         *     Version is opaque: send it back unchanged to close. It identifies the exact inputs of this calculation, so it changes
+         *     when anything that affects the result changes, and a close that carries an older one is refused (409).
+         */
+        ClosePreviewResponse: {
+            /** Format: uuid */
+            cycleId: string;
+            cycleLabel: string;
+            /** Format: date */
+            asOfDate: string;
+            arrears: components["schemas"]["ArrearItem"][];
+            /** Format: int64 */
+            totalArrearsCents: number;
+            version: string;
+        };
         /** @enum {unknown} */
         ContributionFrequency: "Weekly" | "BiWeekly" | "Monthly";
-        /** @description A contribution. Money is integer cents; RecordedAt is UTC and ends in Z. */
+        /**
+         * @description A contribution. Money is integer cents; RecordedAt is UTC and ends in Z. HasProof says whether a proof of payment is attached;
+         *     CanDownloadProof says whether THE CALLER may download it (the same rule as the download itself).
+         */
         ContributionResponse: {
             /** Format: uuid */
             id: string;
@@ -1306,6 +1963,10 @@ export interface components {
             status: components["schemas"]["ContributionStatus"];
             /** Format: date-time */
             recordedAt: string;
+            /** @default false */
+            hasProof: boolean;
+            /** @default false */
+            canDownloadProof: boolean;
         };
         /** @enum {unknown} */
         ContributionStatus: "Pending" | "Paid" | "Confirmed";
@@ -1317,6 +1978,7 @@ export interface components {
             cycle: components["schemas"]["ContributionFrequency"];
             /** Format: uuid */
             creatorId: string;
+            rules?: null | string;
         };
         CreateUserRequest: {
             email: string;
@@ -1333,6 +1995,20 @@ export interface components {
         };
         /** @enum {unknown} */
         CycleStatus: "Open" | "Closed" | "PaidOut";
+        EntityTagHeaderValue: {
+            tag?: components["schemas"]["StringSegment"];
+            isWeak?: boolean;
+        };
+        FileContentResult: {
+            /** Format: byte */
+            fileContents?: string;
+            contentType?: null | string;
+            fileDownloadName?: null | string;
+            /** Format: date-time */
+            lastModified?: null | string;
+            entityTag?: null | components["schemas"]["EntityTagHeaderValue"];
+            enableRangeProcessing?: boolean;
+        };
         /**
          * @description The stokvel's open cycle. EndsOn is the due date. StartsOn and EndsOn are
          *     null only for a cycle created before cycles had dates.
@@ -1370,6 +2046,42 @@ export interface components {
             owedThisCycleCents: number;
             /** Format: date */
             nextPayoutDate: null | string;
+        };
+        /** Format: binary */
+        IFormFile: string;
+        /**
+         * @description What a person sees before they join, and ONLY this. It has no member names, no user ids, no balances,
+         *     no contributions and no payout order: the caller is not a member yet, so none of that is theirs to see.
+         */
+        InvitePreviewResponse: {
+            code: string;
+            stokvelName: string;
+            rules: null | string;
+            /** Format: int64 */
+            contributionAmountCents: number;
+            /** @description How often a cycle comes round. */
+            frequency: components["schemas"]["ContributionFrequency"];
+            /**
+             * Format: int32
+             * @description 7 or 14 for weekly and bi-weekly; null for monthly (a calendar month).
+             */
+            cycleLengthDays: null | number;
+            /** Format: int32 */
+            memberCount: number;
+            /** Format: date-time */
+            expiresAt: string;
+            /** @description Whether the caller is already in this stokvel. */
+            alreadyMember: boolean;
+        };
+        /** @description A new invite. The code is the whole secret: anyone who has it can read the preview and join. */
+        InviteResponse: {
+            code: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        JoinResponse: {
+            /** Format: uuid */
+            stokvelId: string;
         };
         LoginRequest: {
             email: string;
@@ -1431,6 +2143,18 @@ export interface components {
             /** @description The W3C trace id of the request. */
             traceId?: null | string;
         };
+        /** @description The proof attached to a contribution, without its bytes. */
+        ProofResponse: {
+            /** Format: uuid */
+            contributionId: string;
+            contentType: string;
+            fileName: string;
+            /** Format: int64 */
+            sizeBytes: number;
+            sha256: string;
+            /** Format: date-time */
+            uploadedAt: string;
+        };
         /**
          * @description What the caller sends to record a contribution. StokvelId is
          *     deliberately not a field here — it comes from the route
@@ -1490,6 +2214,7 @@ export interface components {
             /** Format: int32 */
             memberCount: number;
             currentCycle: null | components["schemas"]["StokvelCurrentCycle"];
+            rules?: null | string;
         };
         /**
          * @description FullName is filled in by the stokvel detail endpoint, so a Treasurer can pick a member by name.
@@ -1513,6 +2238,16 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             members: components["schemas"]["StokvelMembershipResponse"][];
+            rules?: null | string;
+        };
+        StringSegment: {
+            buffer?: null | string;
+            /** Format: int32 */
+            offset?: number;
+            /** Format: int32 */
+            length?: number;
+            value?: null | string;
+            hasValue?: boolean;
         };
         /**
          * @description What a User looks like over the wire — deliberately excludes
