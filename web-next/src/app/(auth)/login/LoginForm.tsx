@@ -23,7 +23,7 @@ export function LoginForm({ next }: { next: string }) {
           type="email"
           id="email"
           name="email"
-          autoComplete="email"
+          autoComplete="username"
           placeholder="you@example.com"
           required
           className={inputClass}

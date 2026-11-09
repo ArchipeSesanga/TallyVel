@@ -101,12 +101,14 @@ export function ContributionForm({ stokvelId, cycle, youId, members, prefill, fi
               </option>
             ))}
           </select>
-          <p id="memberUserId-error" className="text-sm text-destructive">{errorsFor('memberUserId').join(' ')}</p>
+          <p id="memberUserId-error" aria-live="polite" className="text-sm text-destructive">{errorsFor('memberUserId').join(' ')}</p>
         </div>
       )}
 
       <div>
         <label htmlFor="amount" className="block text-sm font-medium">Amount (rands)</label>
+        {/* The message under a field sits in an always-present aria-live region, so when text arrives in it a screen
+            reader reads it out (not only when the person moves back to the field). aria-describedby ties it to the field. */}
         {/* inputMode="decimal" brings up a number pad on a phone; type="text" so "150,50" and spaces still reach the server */}
         <input
           id="amount"
@@ -118,7 +120,7 @@ export function ContributionForm({ stokvelId, cycle, youId, members, prefill, fi
           aria-describedby="amount-error"
           className="mt-1 w-full rounded-md border border-input bg-card px-3 py-2"
         />
-        <p id="amount-error" className="text-sm text-destructive">{errorsFor('amount').join(' ')}</p>
+        <p id="amount-error" aria-live="polite" className="text-sm text-destructive">{errorsFor('amount').join(' ')}</p>
       </div>
 
       {/* Disabled while the request runs: one click, one request. */}

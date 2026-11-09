@@ -73,3 +73,10 @@ export async function addAsMember(request: APIRequestContext, owner: Person, sto
   })
   if (!added.ok()) throw new Error(`add member failed: ${added.status()} ${await added.text()}`)
 }
+
+/** `owner` (Treasurer or Chairperson) makes an invite code for the stokvel. */
+export async function createInviteCode(request: APIRequestContext, owner: Person, stokvelId: string): Promise<string> {
+  const response = await request.post(`${API}/api/v1/stokvels/${stokvelId}/invites`, { headers: { Authorization: `Bearer ${tokenOf(owner)}` } })
+  if (!response.ok()) throw new Error(`create invite failed: ${response.status()} ${await response.text()}`)
+  return ((await response.json()) as { code: string }).code
+}
