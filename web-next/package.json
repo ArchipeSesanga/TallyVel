@@ -9,7 +9,10 @@
     "lint": "eslint",
     "api:types": "openapi-typescript http://localhost:8080/openapi/v1.json -o src/api/schema.d.ts",
     "test": "vitest run",
-    "test:tz": "TZ=UTC vitest run src/lib/saRange.test.ts src/lib/dates.test.ts && TZ=Africa/Johannesburg vitest run src/lib/saRange.test.ts src/lib/dates.test.ts"
+    "test:tz": "TZ=UTC vitest run && TZ=Africa/Johannesburg vitest run",
+    "test:repeat": "node scripts/repeat-vitest.mjs 10",
+    "e2e": "playwright test",
+    "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
     "@base-ui/react": "1.9.0",

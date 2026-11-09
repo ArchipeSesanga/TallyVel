@@ -5,10 +5,10 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src'),
+      '@': path.resolve(import.meta.dirname, 'src'),
       // "server-only" throws when imported outside Next's server build. A test never runs server code in a
       // browser, but a component may IMPORT a Server Action file, so the guard is replaced by an empty module.
-      'server-only': path.resolve(__dirname, 'src/test/serverOnlyStub.ts'),
+      'server-only': path.resolve(import.meta.dirname, 'src/test/serverOnlyStub.ts'),
     },
   },
   test: {
