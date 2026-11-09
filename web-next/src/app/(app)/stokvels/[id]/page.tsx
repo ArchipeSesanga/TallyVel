@@ -13,7 +13,8 @@ import { PinToggle } from '@/components/PinToggle'
 import { CreateInviteLink } from '@/components/CreateInviteLink'
 import { ProofControls } from '@/components/ProofControls'
 import { CloseCycleDialog } from '@/components/CloseCycleDialog'
-import { JustJoined } from '@/components/JustJoined'
+import { FlashToast } from '@/components/FlashToast'
+import { LeaveStokvelDialog } from '@/components/LeaveStokvelDialog'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -38,7 +39,7 @@ function readRecent(id: string) {
 }
 
 async function StokvelDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const justJoined = (await searchParams).joined === '1'
+  const flags = await searchParams
   // params is a Promise in Next.js 16, so it has to be awaited.
   const { id } = await params
 
@@ -72,7 +73,8 @@ async function StokvelDetail({ params, searchParams }: { params: Promise<{ id: s
 
   return (
     <div className="space-y-8">
-      {justJoined && <JustJoined name={name} />}
+      {flags.joined === '1' && <FlashToast message={`You joined ${name}.`} />}
+      {flags.created === '1' && <FlashToast message={`Created ${name}. You are its Chairperson.`} />}
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 id="stokvel-heading" tabIndex={-1} className="text-2xl font-bold break-words outline-none">{name}</h1>
@@ -122,6 +124,17 @@ async function StokvelDetail({ params, searchParams }: { params: Promise<{ id: s
           />
         </section>
       )}
+
+      {/* Leave: any member. The only Chairperson can't (the API refuses), so we say why instead of offering a button that fails. */}
+      <section className="space-y-2">
+        {entry.role === 'Chairperson' && members.filter((m) => m.role === 'Chairperson').length === 1 ? (
+          <p className="text-sm text-muted-foreground">
+            You are the only Chairperson, so you can&apos;t leave yet. Another member must be made Chairperson first.
+          </p>
+        ) : (
+          <LeaveStokvelDialog stokvelId={id} stokvelName={name} />
+        )}
+      </section>
 
       {/* Close the cycle: THIS stokvel's Treasurer only, and only while the cycle is open. */}
       {entry.role === 'Treasurer' && currentCycle !== null && currentCycle.status === 'Open' && (

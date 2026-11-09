@@ -514,6 +514,13 @@ On `/stokvels/[id]`, for THIS stokvel's Treasurer while the cycle is open, "Clos
 - **Exactly once.** The key is created by the server, stays the same for a retry after no answer or a 5xx, and changes after any finished answer or when the version changes. A double click on the confirm button closed once, and the database has one arrears row for that cycle.
 - **Other answers:** 409 `cycle-already-closed` → a message in the dialog and the page refreshed; 403 → the API's message in the dialog, nobody is signed out. **After success** the dialog closes, `refresh()` re-renders the page and a toast says what was recorded. The API opens no next cycle, so the page then shows "No open cycle" rather than the word "Closed".
 
+## Creating and leaving a stokvel
+
+- **Create** (`/stokvels/new`, [CreateStokvelForm.tsx](src/components/CreateStokvelForm.tsx), Server Action `createStokvel`): name, contribution in rands (typed as text and turned into whole cents by `parseRandsToCents`, never a fractional number), how often, and optional rules. Zod explains problems under each field first; the API's own 400 messages go under the same fields. The API only accepts the caller's own id as `creatorId` (anything else is 403), so the action takes it from the session, never from the form. The creator becomes the stokvel's **Chairperson**, so the Treasurer-only controls (invite link, close, proof download for others) are not shown to them until someone makes them Treasurer; there is no screen for changing roles yet. The button is disabled while the request runs; the create endpoint takes no Idempotency-Key, so that is the only protection against a double click.
+- **Leave** ([LeaveStokvelDialog.tsx](src/components/LeaveStokvelDialog.tsx), Server Action `leaveStokvel`): a confirmation dialog (focus on Cancel, Esc closes) that says what leaving does. The action removes the **signed-in person only**: the user id comes from the session. The only Chairperson is not offered the button; the page says why, and the API would answer 422 anyway. A 404 on a retry counts as success (they are out, which is what they wanted).
+- **API change this needed.** `DELETE /stokvels/{id}/members/{userId}` used to be Chairperson-only, so an ordinary member could not leave. It now lets anyone remove themselves (the Member policy when `userId` is the caller) and keeps Chairperson-only for removing someone else (`LeaveStokvelTests`, 7 tests). Past contributions stay.
+- **Not built: deleting a stokvel.** The API has no endpoint for it, and a stokvel holds money history; closing/archiving it needs its own rules.
+
 ## Feedback
 
 | Where | Used for | Why |
@@ -526,11 +533,20 @@ On `/stokvels/[id]`, for THIS stokvel's Treasurer while the cycle is open, "Clos
 
 ## Known gaps (9.1)
 
+- Leaving is allowed even with unpaid arrears, and the confirmation does not mention them; there is no way yet to change a member's role from the UI, and a stokvel cannot be deleted.
 - The close's version check runs at read-committed isolation, so a payment landing in the last instant before the commit could still slip in.
 - Idempotency keys are held in memory in the API, so a restart forgets them (the database's own rules still stop a second join or a second close).
 - The UI shows treasurer controls to Treasurers only, while the API also allows Chairpersons.
+- Creating a stokvel has no Idempotency-Key in the API; the button is disabled while the request runs, but a retry after a lost answer could make a second stokvel with the same name.
+- Leaving: the API keeps the person's past contributions and arrears records but the person can no longer see them; an unpaid arrear does not block leaving. The only Chairperson cannot leave (the page says so); there is no screen yet to make another member Chairperson.
+- Deleting a stokvel is not offered: the API has no delete endpoint. Archiving it (read-only, only with no open cycle or arrears) would be an API change first.
 - Proof controls appear on the five latest contributions of `/stokvels/[id]`, not yet on the full history page.
 - The invite preview and the join share one rate limit in the API (10 a minute). Each step views the preview once, so a person clicking through quickly uses a few of them.
 - Pressing Back from step 2 after signing in through an invite link goes to the sign-in page (it is in the history); the three-step Back test is done from a signed-in `/join`.
 - The API's own `dotnet test` run: 228 passed. `npm audit` reports 13 findings (2 low, 11 moderate), the same 13 as before this work, all inside the `shadcn` command-line tool and `eslint-config-next`; npm's only fix is a breaking downgrade of both, so I left them.
 - **TODO (yours):** screenshots and the 3-minute recording (see the checklist in my report). The checks above were done with a scripted Chrome, not by hand.
+
+## Create and leave a stokvel
+
+- **Create** (`/stokvels/new`, linked from "My stokvels"): name, contribution in rands (text in, whole cents out through `parseRandsToCents`), frequency, optional rules. The Server Action `createStokvel` ([src/app/stokvelActions.ts](src/app/stokvelActions.ts)) sends `creatorId` from the session, never from the form (the API refuses any other id with 403). The person becomes the stokvel's Chairperson, so the Treasurer-only controls stay hidden for them until someone makes them Treasurer. The API's field errors (400) are shown under the matching input.
+- **Leave** ("Leave <name>…" on the stokvel page, for every member): an AlertDialog with focus on Cancel that says what leaving does. The action removes the signed-in person only (`DELETE /stokvels/{id}/members/{their own id}`; the id comes from the session). **This needed one API change**: until now only a Chairperson could remove a member, so an ordinary member got 403. Now anyone may remove themselves and removing someone else is still Chairperson-only (`LeaveStokvelTests`, 7 tests). The API refuses the last Chairperson (422); the page then shows a note instead of the button.
