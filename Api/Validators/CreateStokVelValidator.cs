@@ -29,6 +29,10 @@ public class CreateStokVelValidator: AbstractValidator<CreateStokvelRequest>
     RuleFor(x => x.CreatorId)
         .NotEmpty()
         .WithMessage("CreatorId is required");
+
+    RuleFor(x => x.Rules)
+        .MaximumLength(Stokvel.MaxRulesLength)
+        .WithMessage($"Rules cannot exceed {Stokvel.MaxRulesLength} characters");
 }
 
 }

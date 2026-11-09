@@ -58,6 +58,16 @@ public sealed class TallyVelExceptionHandler : IExceptionHandler
                 StatusCodes.Status400BadRequest, "Bad Request", "invalid-argument", argumentException.Message);
         }
 
+        // The request body was bigger than the endpoint allows (Kestrel stops reading and throws): a clean 413.
+        if (exception is BadHttpRequestException { StatusCode: StatusCodes.Status413PayloadTooLarge })
+        {
+            _logger.LogInformation("Request {CorrelationId} rejected with 413 (body over the limit)",
+                Correlation.GetId(httpContext));
+            return await WriteProblemAsync(httpContext, exception,
+                StatusCodes.Status413PayloadTooLarge, "Payload Too Large", "file-too-large",
+                $"The file is larger than {ContributionProof.MaxBytes / (1024 * 1024)} MB.");
+        }
+
         // Not one of ours → it's a bug. Return a generic 500 so no internal
         // details reach the client; the correlationId links it to the logs.
         if (exception is not TallyVelException tallyVelException)
@@ -100,6 +110,9 @@ public sealed class TallyVelExceptionHandler : IExceptionHandler
             Instance = httpContext.Request.Path,
         };
         problem.Extensions["code"] = code;
+        if (exception is TallyVelException { Extensions.Count: > 0 } withExtensions)
+            foreach (var (name, value) in withExtensions.Extensions)
+                problem.Extensions[name] = value;
 
         return await _problemDetailsService.TryWriteAsync(new ProblemDetailsContext
         {
@@ -130,6 +143,10 @@ public sealed class TallyVelExceptionHandler : IExceptionHandler
             AlreadyExistsException => (StatusCodes.Status409Conflict, "Already Exists"),
             IdempotencyKeyReusedException => (StatusCodes.Status422UnprocessableEntity, "Idempotency Key Reused"),
             IdempotencyKeyInProgressException => (StatusCodes.Status409Conflict, "Request Still In Progress"),
+            GoneException => (StatusCodes.Status410Gone, "Gone"),
+            PayloadTooLargeException => (StatusCodes.Status413PayloadTooLarge, "Payload Too Large"),
+            UnsupportedFileTypeException => (StatusCodes.Status415UnsupportedMediaType, "Unsupported Media Type"),
+            ForbiddenActionException => (StatusCodes.Status403Forbidden, "Forbidden"),
 
             // Fail loudly if a new TallyVelException is added without a
             // mapping, instead of silently becoming a 500.

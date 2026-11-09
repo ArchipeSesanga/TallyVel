@@ -139,6 +139,49 @@ namespace Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Domain.ContributionProof", b =>
+                {
+                    b.Property<Guid>("ContributionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("UploadedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UploadedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ContributionId");
+
+                    b.HasIndex("UploadedByUserId");
+
+                    b.ToTable("ContributionProofs", t =>
+                        {
+                            t.HasCheckConstraint("CK_ContributionProofs_Size", "\"SizeBytes\" > 0 AND \"SizeBytes\" <= 5242880");
+                        });
+                });
+
             modelBuilder.Entity("Domain.Payout", b =>
                 {
                     b.Property<Guid>("Id")
@@ -240,9 +283,43 @@ namespace Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("Rules")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
                     b.HasKey("Id");
 
                     b.ToTable("Stokvels");
+                });
+
+            modelBuilder.Entity("Domain.StokvelInvite", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("StokvelId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Code");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("StokvelId");
+
+                    b.ToTable("StokvelInvites");
                 });
 
             modelBuilder.Entity("Domain.StokvelMember", b =>
@@ -346,6 +423,21 @@ namespace Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Domain.ContributionProof", b =>
+                {
+                    b.HasOne("Domain.Contribution", null)
+                        .WithOne()
+                        .HasForeignKey("Domain.ContributionProof", "ContributionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("UploadedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Domain.Payout", b =>
                 {
                     b.HasOne("Domain.ContributionCycle", null)
@@ -371,6 +463,21 @@ namespace Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Domain.StokvelInvite", b =>
+                {
+                    b.HasOne("Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Stokvel", null)
+                        .WithMany()
+                        .HasForeignKey("StokvelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Domain.StokvelMember", b =>

@@ -4,6 +4,12 @@ public abstract class TallyVelException : Exception
 {
     public string Code {get;}
 
+    /// <summary>
+    /// Extra fields for the problem body (for example the stokvelId of an "already-member" conflict).
+    /// Only put things here that the caller is allowed to know.
+    /// </summary>
+    public IReadOnlyDictionary<string, object?> Extensions { get; init; } = new Dictionary<string, object?>();
+
     protected TallyVelException(string code, string message) : base(message)
     {
         Code = code;
@@ -94,4 +100,28 @@ public sealed class IdempotencyKeyInProgressException : TallyVelException
     {
         IdempotencyKey = idempotencyKey;
     }
+}
+
+/// <summary>The thing existed but is no longer available (an expired or revoked invite). 410.</summary>
+public sealed class GoneException : TallyVelException
+{
+    public GoneException(string code, string message) : base(code, message) { }
+}
+
+/// <summary>An upload is bigger than the limit. 413.</summary>
+public sealed class PayloadTooLargeException : TallyVelException
+{
+    public PayloadTooLargeException(string code, string message) : base(code, message) { }
+}
+
+/// <summary>An upload is not one of the file types we accept. 415.</summary>
+public sealed class UnsupportedFileTypeException : TallyVelException
+{
+    public UnsupportedFileTypeException(string code, string message) : base(code, message) { }
+}
+
+/// <summary>The caller may not do this, but already knows the thing exists. 403 with a stable code.</summary>
+public sealed class ForbiddenActionException : TallyVelException
+{
+    public ForbiddenActionException(string code, string message) : base(code, message) { }
 }

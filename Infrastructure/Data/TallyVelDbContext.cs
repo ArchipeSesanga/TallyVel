@@ -17,6 +17,8 @@ public class TallyVelDbContext : DbContext
     public DbSet<Payout> Payouts => Set<Payout>();
     public DbSet<Arrear> Arrears => Set<Arrear>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<StokvelInvite> StokvelInvites => Set<StokvelInvite>();
+    public DbSet<ContributionProof> ContributionProofs => Set<ContributionProof>();
 
     // Each entity's table, keys, constraints and relationships live in its
     // own IEntityTypeConfiguration class in this folder; this picks them all up.

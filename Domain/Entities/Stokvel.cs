@@ -34,12 +34,16 @@ public enum MemberRole
 public sealed class Stokvel
 {
     public const int MaxNameLength = 100;
+    public const int MaxRulesLength = 2000;
 
     public Guid Id { get; private init; }
     public string Name { get; private set; }
     public decimal ContributionAmount { get; private set; }
     public ContributionFrequency Cycle { get; private set; }
     public DateTimeOffset CreatedAt { get; private init; }
+
+    /// <summary>What a person agrees to when they join, in plain text. Optional.</summary>
+    public string? Rules { get; private set; }
 
     private readonly List<StokvelMember> _members = new();
 
@@ -56,9 +60,10 @@ public sealed class Stokvel
         Name = null!;
     }
 
-    public Stokvel(string name, decimal contributionAmount, ContributionFrequency cycle, Guid creatorId)
+    public Stokvel(string name, decimal contributionAmount, ContributionFrequency cycle, Guid creatorId, string? rules = null)
     {
         Name = ValidateName(name);
+        Rules = NormalizeRules(rules);
         ContributionAmount = ValidateContributionAmount(contributionAmount);
         Cycle = cycle;
 
@@ -71,6 +76,17 @@ public sealed class Stokvel
     }
 
     public void Rename(string newName) => Name = ValidateName(newName);
+
+    public void SetRules(string? rules) => Rules = NormalizeRules(rules);
+
+    private static string? NormalizeRules(string? rules)
+    {
+        var trimmed = rules?.Trim();
+        if (string.IsNullOrEmpty(trimmed)) return null;
+        if (trimmed.Length > MaxRulesLength)
+            throw new ArgumentException($"Rules cannot exceed {MaxRulesLength} characters.", nameof(rules));
+        return trimmed;
+    }
 
     public void ChangeContributionAmount(decimal newAmount) =>
         ContributionAmount = ValidateContributionAmount(newAmount);

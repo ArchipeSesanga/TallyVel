@@ -91,7 +91,7 @@ public class StokvelController : StokvelControllerBase
         }
         try
         {
-            stokvel = new Stokvel(request.Name, Money.FromCents(request.ContributionAmountCents), request.Cycle, request.CreatorId);
+            stokvel = new Stokvel(request.Name, Money.FromCents(request.ContributionAmountCents), request.Cycle, request.CreatorId, request.Rules);
         }
         catch (ArgumentException ex)
         {

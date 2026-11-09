@@ -11,6 +11,7 @@ public sealed class StokvelConfiguration : IEntityTypeConfiguration<Stokvel>
         builder.HasKey(s => s.Id);
         builder.Property(s => s.Name).HasMaxLength(Stokvel.MaxNameLength);
         builder.Property(s => s.ContributionAmount).HasPrecision(18, 2);
+        builder.Property(s => s.Rules).HasMaxLength(Stokvel.MaxRulesLength);
         builder.Property(s => s.Cycle).HasConversion<string>().HasMaxLength(20);
 
         builder.HasMany(s => s.Members)

@@ -18,7 +18,8 @@ public sealed record StokvelResponse(
     long ContributionAmountCents,
     ContributionFrequency Cycle,
     DateTimeOffset CreatedAt,
-    IReadOnlyCollection<StokvelMembershipResponse> Members)
+    IReadOnlyCollection<StokvelMembershipResponse> Members,
+    string? Rules = null)
 {
     public static StokvelResponse FromDomain(Stokvel stokvel) =>
         new(
@@ -27,7 +28,8 @@ public sealed record StokvelResponse(
             Money.ToCents(stokvel.ContributionAmount),
             stokvel.Cycle,
             stokvel.CreatedAt,
-            stokvel.Members.Select(m => StokvelMembershipResponse.FromDomain(m)).ToList());
+            stokvel.Members.Select(m => StokvelMembershipResponse.FromDomain(m)).ToList(),
+            stokvel.Rules);
 }
 
 /// <summary>
@@ -42,7 +44,8 @@ public sealed record StokvelDetailResponse(
     DateTimeOffset CreatedAt,
     IReadOnlyCollection<StokvelMembershipResponse> Members,
     int MemberCount,
-    StokvelCurrentCycle? CurrentCycle)
+    StokvelCurrentCycle? CurrentCycle,
+    string? Rules = null)
 {
     public static StokvelDetailResponse FromDomain(
         Stokvel stokvel, StokvelSummary summary, IReadOnlyDictionary<Guid, string> memberNames) =>
@@ -56,7 +59,8 @@ public sealed record StokvelDetailResponse(
                 .Select(m => StokvelMembershipResponse.FromDomain(m, memberNames.GetValueOrDefault(m.UserId)))
                 .ToList(),
             summary.MemberCount,
-            summary.CurrentCycle);
+            summary.CurrentCycle,
+            stokvel.Rules);
 }
 
 /// <summary>
@@ -75,7 +79,8 @@ public sealed record StokvelCurrentCycle(
 public sealed record StokvelSummary(int MemberCount, StokvelCurrentCycle? CurrentCycle);
 
 /// <summary>The contribution amount is integer cents (R500 is 50000).</summary>
-public sealed record CreateStokvelRequest(string Name, long ContributionAmountCents, ContributionFrequency Cycle, Guid CreatorId);
+/// <summary>Rules is optional plain text: what a person agrees to when they join (at most 2000 characters).</summary>
+public sealed record CreateStokvelRequest(string Name, long ContributionAmountCents, ContributionFrequency Cycle, Guid CreatorId, string? Rules = null);
 
 public sealed record AddStokvelMemberRequest(Guid UserId, MemberRole Role = MemberRole.Member);
 
