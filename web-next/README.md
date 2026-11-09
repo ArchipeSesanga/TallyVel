@@ -455,3 +455,82 @@ Seeded demo, checked: in Work Stokvel Lerato's contribution has a proof; Sipho (
 ### What changed in the data
 
 One migration (`AddInvitesProofsAndRules`): the `StokvelInvites` table (the code is the primary key), the `ContributionProofs` table (one row per contribution, `bytea` content, a size check constraint) and a nullable `Stokvels.Rules` column. The demo seed adds Thandi (thandi@tallyvel.test, in no stokvel), one valid invite to Family Stokvel and one expired invite to Work Stokvel (both codes are written to the API log at startup), Sipho as Treasurer of Work Stokvel and an ordinary Member of Family Stokvel, a proof on one other member's contribution in each, and rules text on both stokvels. It runs on every Development start and only adds what is missing, so a database seeded earlier gains the new data.
+
+## Join flow
+
+Joining a stokvel with an invite takes three steps. The step is in the address: `/join?code=<code>&step=<code|rules|confirm>`. **Why the address:** it is the only place that survives a reload, works with the Back button and is what an invite link already is (`/join?code=XYZ`); React state would be lost on reload and a cookie would break the invite link.
+
+| Step | Address | What it shows | What moves it on |
+|---|---|---|---|
+| 1. Enter the code | `/join?step=code` or `/join?code=…&step=code` | A labelled input, filled from the address. A notice if the API refused the code (below). | "Continue": a GET form to `?code=…&step=rules`. |
+| 2. Check the rules | `/join?code=…&step=rules` | Stokvel name, contribution (`formatCents`), schedule, member count, when the invite expires, and the rules text. Drawn on the server. | "Continue" (a link to step 3) or "Back" (a link to step 1). |
+| 3. Confirm | `/join?code=…&step=confirm` | The name, amount and schedule from step 2 again (never asked for again) and a "Join <name>" button. | The button: a Server Action (`joinStokvel`), then `/stokvels/{id}?joined=1`. |
+
+**One function decides the step.** `decideStep(requested, hasCode, previewKind)` in [src/lib/joinFlow.ts](src/lib/joinFlow.ts) is the only place that says which step may be shown; the page redirects to `stepUrl(step, code)` whenever the answer differs from the step in the address. So steps 2 and 3 need a code the API accepted, an address with a code and no step (the invite link itself) lands on step 2, and `/join?step=confirm` goes to `/join?step=code`. The page asks the API about the code on every view (the code is the only thing it knows), so a code that expires between steps is caught at once. Tests: `joinFlow.test.ts` (every transition, including "confirm with no valid code → code"), `safeNext.test.ts` (a `next` with a query string).
+
+**The URL parsers** ([src/lib/joinParams.ts](src/lib/joinParams.ts), nuqs): `code` must match `[A-Za-z0-9_-]{1,64}` (a real code is 22 characters; the API decides whether it exists) and `step` must be one of the three words. Anything else counts as "not set". A code with odd characters (`bad code!`) is kept in the box on step 1 with "Check the code and try again", not thrown away.
+
+**What the API can answer, and what the person sees** (always a screen, never an error page):
+
+| API | Screen |
+|---|---|
+| 404 `invite-not-found` | Step 1, code kept: "Check the code and try again." |
+| 410 `invite-expired` | Step 1: "This invite has expired. Ask the treasurer for a new one." |
+| 200 with `alreadyMember: true`, or 409 `already-member` on joining | "You're already a member" with a link to `/stokvels/{stokvelId}` (the 409 carries the id; the preview does not, so for the preview case the link is found among the person's own stokvels by name, and goes to `/stokvels` if two share the name) |
+| 429 | "Try again in N seconds." (from `Retry-After`) |
+| 5xx, or no answer | On step 1 a message with the reference; on step 3 "We couldn't confirm that you joined. Press the button again", with the same key (trying again is safe) |
+
+**Never asked twice (WCAG 2.2 SC 3.3.7).** Step 1 rewrites its own history entry to `?code=<typed>&step=code` just before leaving ([CodeForm.tsx](src/components/CodeForm.tsx)), because that entry was loaded with an empty box and Back would otherwise return to it. I found this by running the flow: the address was right but the box was empty. The box reads the code from the address (`useSearchParams`) for the same reason.
+
+**What the server sends to the browser.** The preview has nine fields (`code, stokvelName, rules, contributionAmountCents, frequency, cycleLengthDays, memberCount, expiresAt, alreadyMember`) and nothing about members. The only Client Components on the join page are `CodeForm` (the code) and `JoinForm` (the code, the stokvel's name for the button, and the first Idempotency-Key); the rest is drawn on the server. I fetched the page's HTML and its server-component data as a non-member for all three steps and looked for member names: none.
+
+**Joining** is the Server Action `joinStokvel` ([src/app/inviteActions.ts](src/app/inviteActions.ts)): the person's own token, an `Idempotency-Key` the server wrote into a hidden field (it stays the same for a retry), the button disabled while pending. Pressing it twice quickly made one membership (checked). **Focus:** each step's heading ([StepHeading.tsx](src/components/StepHeading.tsx), `tabIndex={-1}`, `key={step}`) takes focus on arrival and the step list marks the current step with `aria-current="step"`. **Signed out:** the proxy sends `/join?code=…&step=…` to `/login?next=<that address>` and `safeNextPath` keeps the query string, so sign-in comes back to the same step and code (checked).
+
+**Treasurers: "Create invite link"** on `/stokvels/[id]`, only when `role === "Treasurer"` for THIS stokvel (from `/me/home`). It shows the full link and a copy button. **The UI is deliberately stricter than the API**: the API lets a Treasurer or a Chairperson create invites, close cycles and download proofs, but the controls are shown to a Treasurer only.
+
+## Uploads
+
+A proof is a JPEG, PNG or PDF of at most 5 MB (5 × 1024 × 1024 bytes). Every hop agrees, so a valid file is never refused on the way and the API has the last word:
+
+| Hop | Limit | Where it is set | What the person sees when a file is over it |
+|---|---|---|---|
+| Browser | 5 MiB; type from the file's first bytes (`%PDF-`, PNG and JPEG signatures), never the name or `Content-Type` | [src/lib/proofFile.ts](src/lib/proofFile.ts) | A message **under the input**, before anything is sent; the Upload button stays disabled |
+| Next.js proxy | buffers request bodies up to 10 MB (Next's default `proxyClientMaxBodySize`) | not changed | Not reachable first: the next hop is smaller |
+| Next.js Server Action | **6 MB** (`bodySizeLimit: '6mb'` = 6 MiB), above the API's 5 MiB plus multipart wrapping | [next.config.ts](next.config.ts), with a comment | Only reachable by getting past the browser check: a toast that stays, with a reference. The message is "The request didn't go through" because Next refuses the body before our code runs |
+| API (Kestrel, the endpoint, a filter, the file itself) | 5 MiB of file (Kestrel 5 MiB + 64 KB); type judged by bytes | the API | 413 `file-too-large` and 415 `unsupported-file-type` are shown **under the input**, in the API's words |
+
+Checked in the real app, as the treasurer of a throwaway stokvel: 6 MiB file → "This file is bigger than 5 MB…" under the input; a text file renamed `.pdf` → "This isn't a JPEG, PNG or PDF…"; a file of exactly 5 MiB and one of 5 MiB − 1 byte → uploaded ("Proof uploaded." toast, "Proof attached" and a download link); a text file `.pdf` slipped past the browser check → the API's 415 text under the input; a 6 MiB file slipped past → Next's limit, the persistent toast. (The browser check is a courtesy; the API checks again.)
+
+**Who may download what.** `GET /bff/stokvels/{id}/contributions/{contributionId}/proof` ([route.ts](src/app/bff/stokvels/%5Bid%5D/contributions/%5BcontributionId%5D/proof/route.ts)) checks the session (JSON 401 if signed out), adds the person's token, and **streams** the API's body back with `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff` and `Cache-Control: private, no-store`. It is never a public link, and the file is never held in memory here. The API decides: the contribution's own member and this stokvel's Treasurer or Chairperson get 200; everyone else gets one identical 404 (a 404 from the API is passed on as a 404). The page shows the download link only where `canDownloadProof` is true, but the 404 is what protects the file. Checked as Sipho: Work Stokvel (Treasurer) → 200 with the three headers; Family Stokvel (Member) → 404, and the page shows no link there. After the cycle is closed the page offers neither replace nor remove; the API's 409 `proof-locked` is shown as a message if it is ever sent.
+
+## Closing a cycle
+
+On `/stokvels/[id]`, for THIS stokvel's Treasurer while the cycle is open, "Close <label>…" opens a shadcn AlertDialog ([CloseCycleDialog.tsx](src/components/CloseCycleDialog.tsx)).
+
+- **The preview** comes from `GET /bff/stokvels/{id}/cycles/{cycleId}/close-preview`, which passes on the API's `{ cycleLabel, asOfDate, arrears[], totalArrearsCents, version }`. While it loads the dialog shows skeleton rows and the confirm button is disabled. The browser never calculates arrears; it shows each member's shortfall, the total and the South African date the close counts up to, or "Nobody goes into arrears."
+- **One implementation.** In the API, `CycleClosing.CalculateArrearsAsync` is the single function behind the nightly job, the preview and the close, so what the dialog shows is what is recorded.
+- **The button says what it does:** "Close 2026-11 and record R 600,00 in arrears" or "Close 2026-11 with no arrears", never "OK". Focus starts on Cancel, Esc closes (not while a close is running) and focus returns to the button that opened it. The dialog stays open while the close runs.
+- **A stale preview is refused.** The Server Action `closeCycle` ([src/app/closeActions.ts](src/app/closeActions.ts)) sends the preview's `version` and an `Idempotency-Key`. If anything changed since (a payment, a member), the API answers 409 `close-preview-stale` and writes nothing; the dialog then fetches and shows the NEW preview ("Something changed since you looked…") and the next confirmation uses a new key, because it is a different request. Checked: a payment recorded behind the open dialog gave R 500,00 → R 300,00, and only the second confirmation closed.
+- **Exactly once.** The key is created by the server, stays the same for a retry after no answer or a 5xx, and changes after any finished answer or when the version changes. A double click on the confirm button closed once, and the database has one arrears row for that cycle.
+- **Other answers:** 409 `cycle-already-closed` → a message in the dialog and the page refreshed; 403 → the API's message in the dialog, nobody is signed out. **After success** the dialog closes, `refresh()` re-renders the page and a toast says what was recorded. The API opens no next cycle, so the page then shows "No open cycle" rather than the word "Closed".
+
+## Feedback
+
+| Where | Used for | Why |
+|---|---|---|
+| Inline message, under the input | A wrong file (browser check, API 413/415) | It belongs to that input and must stay until the person fixes it; a toast would vanish and be far from the field. |
+| Inline message, next to a form or in a dialog | A refusal about the situation: join answers, `proof-locked`, 403, `close-preview-stale`, `cycle-already-closed`, "try again in N seconds" | The person must read it and act on it where they are. |
+| Toast, short | Success: "Proof uploaded.", "You joined <name>.", "Closed 2026-11. Recorded R 300,00 in arrears for 1 member." | Confirms something that is already visible; nothing to do. |
+| Toast, stays until closed, with "Reference: …" | An unexpected failure of an upload or removal (5xx, no answer, body refused by Next) | There is nothing the person can fix; they may need to quote the reference. It has a close button and no timeout. A failure that never reached the API gets a `web-…` reference that is also written to the Next server log. |
+| Dialog | Closing a cycle | It cannot be undone, and the person should see the consequence first. |
+
+## Known gaps (9.1)
+
+- The close's version check runs at read-committed isolation, so a payment landing in the last instant before the commit could still slip in.
+- Idempotency keys are held in memory in the API, so a restart forgets them (the database's own rules still stop a second join or a second close).
+- The UI shows treasurer controls to Treasurers only, while the API also allows Chairpersons.
+- Proof controls appear on the five latest contributions of `/stokvels/[id]`, not yet on the full history page.
+- The invite preview and the join share one rate limit in the API (10 a minute). Each step views the preview once, so a person clicking through quickly uses a few of them.
+- Pressing Back from step 2 after signing in through an invite link goes to the sign-in page (it is in the history); the three-step Back test is done from a signed-in `/join`.
+- The API's own `dotnet test` run: 228 passed. `npm audit` reports 13 findings (2 low, 11 moderate), the same 13 as before this work, all inside the `shadcn` command-line tool and `eslint-config-next`; npm's only fix is a breaking downgrade of both, so I left them.
+- **TODO (yours):** screenshots and the 3-minute recording (see the checklist in my report). The checks above were done with a scripted Chrome, not by hand.
