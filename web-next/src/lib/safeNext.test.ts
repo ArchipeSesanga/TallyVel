@@ -10,6 +10,16 @@ describe('safeNextPath', () => {
     expect(safeNextPath('/stokvels?tab=members')).toBe('/stokvels?tab=members')
   })
 
+  it('keeps the whole query string of a join link (the same step and code come back after sign-in)', () => {
+    expect(safeNextPath('/join?code=-7R8qvcwyFW3lqWL8Cc2Ow&step=rules')).toBe('/join?code=-7R8qvcwyFW3lqWL8Cc2Ow&step=rules')
+  })
+
+  it('keeps a query string that is encoded inside ?next= and refuses one that points elsewhere', () => {
+    const next = new URLSearchParams(new URLSearchParams({ next: '/join?code=AbC_-123&step=confirm' }).toString()).get('next')
+    expect(safeNextPath(next)).toBe('/join?code=AbC_-123&step=confirm')
+    expect(safeNextPath('//evil.example/join?code=AbC_-123&step=confirm')).toBe('/dashboard/member')
+  })
+
   it('refuses //evil.example (another site)', () => {
     expect(safeNextPath('//evil.example')).toBe('/dashboard/member')
   })

@@ -31,3 +31,11 @@ export type ContributionPage = Schemas['PagedResponseOfContributionResponse']
 export type ActivityItem = Schemas['ActivityItem']
 export type ActivityKind = Schemas['ActivityKind']
 export type ActivityPage = Schemas['PagedResponseOfActivityItem']
+
+// 9.1: the invite preview (what a non-member may see), proofs and the safe close
+export type InvitePreview = Schemas['InvitePreviewResponse']
+export type ContributionFrequency = Schemas['ContributionFrequency']
+export type ClosePreview = Schemas['ClosePreviewResponse']
+export type CloseResult = Schemas['CloseCycleResponse']
+export type ArrearItem = Schemas['ArrearItem']
+export type StokvelCurrentCycle = NonNullable<StokvelDetail['currentCycle']>
