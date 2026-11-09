@@ -12,6 +12,7 @@ import { ContributionForm } from '@/components/ContributionForm'
 import { PinToggle } from '@/components/PinToggle'
 import { CreateInviteLink } from '@/components/CreateInviteLink'
 import { ProofControls } from '@/components/ProofControls'
+import { CloseCycleDialog } from '@/components/CloseCycleDialog'
 import { JustJoined } from '@/components/JustJoined'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -74,7 +75,7 @@ async function StokvelDetail({ params, searchParams }: { params: Promise<{ id: s
       {justJoined && <JustJoined name={name} />}
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold break-words">{name}</h1>
+          <h1 id="stokvel-heading" tabIndex={-1} className="text-2xl font-bold break-words outline-none">{name}</h1>
           <PinToggle stokvelId={id} name={name} />
         </div>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
@@ -119,6 +120,14 @@ async function StokvelDetail({ params, searchParams }: { params: Promise<{ id: s
             prefill={entry.owedThisCycleCents > 0 ? centsToInput(entry.owedThisCycleCents) : ''}
             firstKey={crypto.randomUUID()}
           />
+        </section>
+      )}
+
+      {/* Close the cycle: THIS stokvel's Treasurer only, and only while the cycle is open. */}
+      {entry.role === 'Treasurer' && currentCycle !== null && currentCycle.status === 'Open' && (
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold">Close the cycle</h2>
+          <CloseCycleDialog stokvelId={id} cycleId={currentCycle.id} cycleLabel={currentCycle.label} firstKey={crypto.randomUUID()} />
         </section>
       )}
 
