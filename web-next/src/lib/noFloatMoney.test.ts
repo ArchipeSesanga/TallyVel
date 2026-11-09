@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 // A guard, not a behaviour test: the files that handle money must not contain the usual ways of losing a cent.
 // (Seconds, days and the like in other files are not money, so only these files are looked at.)
-const MONEY_FILES = ['lib/money.ts', 'lib/moneyInput.ts', 'lib/contributionSchema.ts']
+const MONEY_FILES = ['lib/money.ts', 'lib/moneyInput.ts', 'lib/contributionSchema.ts', 'lib/recordContribution.ts']
 const BANNED = [/parseFloat/, /\.toFixed\(/, /Math\.round/, /Math\.floor/, /Math\.ceil/, /\*\s*100\b/, /\/\s*100\b/, /\bNumber\([^)]*\)\s*\*/]
 
 describe('money code never uses floating-point shortcuts', () => {

@@ -8,6 +8,7 @@ import { formatDateTime } from '@/lib/dates'
 import { canRunCycle } from '@/lib/roles'
 import { centsToInput } from '@/lib/moneyInput'
 import { getSession } from '@/lib/session'
+import { recordContribution } from '@/app/actions'
 import { ContributionForm } from '@/components/ContributionForm'
 import { ProofControls } from '@/components/ProofControls'
 import { CloseCycleDialog } from '@/components/CloseCycleDialog'
@@ -101,6 +102,7 @@ async function StokvelDetailData({ params, searchParams }: { params: Promise<{ i
             members={canRun ? members.map((m) => ({ userId: m.userId, name: m.fullName ?? 'A member' })) : null}
             prefill={entry.owedThisCycleCents > 0 ? centsToInput(entry.owedThisCycleCents) : ''}
             firstKey={crypto.randomUUID()}
+            action={recordContribution}
           />
         )
       }

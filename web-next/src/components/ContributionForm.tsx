@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { recordContribution, type ContributionState } from '@/app/actions'
+import type { ContributionState } from '@/lib/recordContribution'
 import { formatCents } from '@/lib/money'
 
 export type MemberOption = { userId: string; name: string }
@@ -19,9 +19,14 @@ type ContributionFormProps = {
   prefill: string
   /** The first Idempotency-Key. The server wrote it; after each attempt the action's state carries the next one. */
   firstKey: string
+  /**
+   * What runs when the form is sent. The page passes the real Server Action (recordContribution); a test passes a
+   * stand-in. It is a prop so this file never imports server code, and the form can be tested in a browser-like place.
+   */
+  action: (previous: ContributionState, formData: FormData) => Promise<ContributionState>
 }
 
-export function ContributionForm({ stokvelId, cycle, youId, members, prefill, firstKey }: ContributionFormProps) {
+export function ContributionForm({ stokvelId, cycle, youId, members, prefill, firstKey, action }: ContributionFormProps) {
   const initialState: ContributionState = {
     message: null,
     reference: null,
@@ -31,7 +36,7 @@ export function ContributionForm({ stokvelId, cycle, youId, members, prefill, fi
     keyBody: null,
     confirmation: null,
   }
-  const [state, formAction, pending] = useActionState(recordContribution, initialState)
+  const [state, formAction, pending] = useActionState(action, initialState)
   const errorsFor = (field: string) => state.fieldErrors[field] ?? []
 
   // Two caches know about contributions. The SERVER's page one is refreshed by refresh() in the Server Action.
