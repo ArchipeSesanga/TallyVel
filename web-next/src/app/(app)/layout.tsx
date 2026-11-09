@@ -1,28 +1,13 @@
 import { Suspense } from 'react'
-import { redirect } from 'next/navigation'
+import type { Metadata } from 'next'
 import { AppShell } from '@/components/AppShell'
 import { QueryProvider } from '@/components/QueryProvider'
-import { loginPath } from '@/lib/loginPath'
-import { api } from '@/lib/api'
-import { getSession } from '@/lib/session'
+import { SignedInShell } from '@/components/SignedInShell'
 
-/** Reads the session, so it sits inside <Suspense>: the frame shows straight away without it. */
-async function SignedInShell({ children }: { children: React.ReactNode }) {
-  const session = await getSession()
-  if (session === null) redirect(await loginPath())
-  // The stokvels this member is in right now, so a pin for one they LEFT can be hidden. If the API can't
-  // be reached we pass null and hide nothing; the layout never fails because of this.
-  const home = await api
-    .GET('/api/v1/me/home', { headers: { Authorization: `Bearer ${session.accessToken}` } })
-    .catch(() => null)
-  const memberOf = home?.data ? home.data.stokvels.map((s) => s.stokvelId) : null
-
-  // Only the name, email, id and stokvel ids cross into the browser, never the session object or a token.
-  return (
-    <AppShell fullName={session.user.fullName} email={session.user.email} userId={session.user.id} memberOf={memberOf}>
-      {children}
-    </AppShell>
-  )
+// EVERY signed-in page is private: this one line, here, is the whole rule. Pages and groups below do not repeat it,
+// and robots.txt does NOT block them (a crawler that cannot fetch a page never reads its noindex).
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

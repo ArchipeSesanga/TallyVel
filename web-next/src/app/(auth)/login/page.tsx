@@ -1,7 +1,11 @@
+import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { ClearPinsOnSignIn } from '@/components/PinsProvider'
 import { LoginForm } from './LoginForm'
+
+// The browser tab and a screen reader's page title. Each page names itself; the site name is added after it.
+export const metadata: Metadata = { title: 'Sign in' }
 
 /**
  * Reads ?expired=1, ?registered=1 and ?next=. searchParams is a Promise in Next.js 16,

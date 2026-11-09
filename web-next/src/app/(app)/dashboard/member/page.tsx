@@ -1,9 +1,13 @@
+import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { api, readOrFail } from '@/lib/api'
 import { ApiErrorView } from '@/components/ApiErrorView'
 import { MemberGroups } from '@/components/MemberGroups'
 import { todayInSouthAfrica } from '@/lib/dates'
 import { groupsFromHome } from '@/lib/groupOverview'
+
+// The browser tab and a screen reader's page title. Each page names itself; the site name is added after it.
+export const metadata: Metadata = { title: 'Dashboard' }
 
 // The page itself waits for nothing: it returns the heading and a <Suspense> instantly.
 export default function MemberDashboard() {

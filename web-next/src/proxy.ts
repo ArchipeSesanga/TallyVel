@@ -26,6 +26,14 @@ export async function proxy(request: NextRequest) {
   const cookieValue = request.cookies.get(SESSION_COOKIE)?.value
   const session = cookieValue ? await decryptSession(cookieValue) : null
   if (session === null) {
+    // The invite page answers a signed-out GET itself (a link-preview bot is never signed in, and must see the page's
+    // own head, not the sign-in page's). It shows no stokvel data to anyone without a session. Anything else sent to
+    // /join, such as the Server Action that joins, still needs a session.
+    if (url.pathname === '/join' && request.method === 'GET') {
+      const passed = new Headers(request.headers)
+      passed.set(NEXT_PATH_HEADER, nextPath)
+      return NextResponse.next({ request: { headers: passed } })
+    }
     // A fetch() from the browser to /bff/... can't follow a redirect to a page: it gets a JSON 401 it can act on.
     if (isBffPath) return NextResponse.json({ error: 'unauthenticated', message: 'Your session has ended. Please sign in again.' }, { status: 401 })
     const login = new URL('/login', request.url)
@@ -67,7 +75,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // Pages and Server Actions only: not Next's assets, not files in public/ (any path ending in a file
-  // extension, e.g. /LogoWrap.png, which next/image fetches without cookies), and not the sign-in and
-  // register pages (they never redirect to /login).
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|login|register|.*\\.[a-zA-Z0-9]+$).*)'],
+  // extension, e.g. /LogoWrap.png, which next/image fetches without cookies), not the preview picture (a bot fetches it
+  // without cookies) and not the sign-in and register pages (they never redirect to /login).
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|opengraph-image|login|register|.*\\.[a-zA-Z0-9]+$).*)'],
 }

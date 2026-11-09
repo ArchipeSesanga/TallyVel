@@ -1,7 +1,11 @@
+import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { api, readOrFail } from '@/lib/api'
 import { ActivityFeed } from '@/components/ActivityFeed'
 import { ApiErrorView } from '@/components/ApiErrorView'
+
+// The browser tab and a screen reader's page title. Each page names itself; the site name is added after it.
+export const metadata: Metadata = { title: 'Activity' }
 
 // The page waits for nothing: the heading and a <Suspense> go out at once.
 export default function ActivityPage() {

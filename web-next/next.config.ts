@@ -8,6 +8,12 @@ const nextConfig: NextConfig = {
   // Links prefetch the static shell of the next page, so clicks show it immediately.
   partialPrefetching: true,
   agentRules: false,
+  // Everything under /bff/ is private data for a signed-in person (activity, contributions, proofs of payment). These
+  // are not pages, so there is no <meta> to put noindex in: the header says it. (robots.txt must NOT block them: a
+  // crawler that may not fetch a URL never sees this header.)
+  async headers() {
+    return [{ source: '/bff/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] }]
+  },
   experimental: {
     serverActions: {
       // Proof uploads travel inside a Server Action. The API's limit is 5 MB (5 * 1024 * 1024 bytes) of FILE;

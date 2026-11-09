@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { createInviteCode, createStokvelWithOpenCycle, uniqueName } from './support/api'
 import { demoPassword, PEOPLE } from './support/env'
 
@@ -8,6 +8,22 @@ import { demoPassword, PEOPLE } from './support/env'
 // The clipboard belongs to the whole computer, not to one browser tab. Two workers pasting at once would paste each
 // other's text, so every test in THIS file runs one after the other in a single worker. (No other file uses the clipboard.)
 test.describe.configure({ mode: 'serial' })
+
+/**
+ * Pastes `text` into the field with a real Ctrl/Cmd+V from the real clipboard, and waits until the field shows what a
+ * paste should have put there. The clipboard is one shared resource of the whole computer: if anything else touches it
+ * between "copy" and "paste", the paste brings the wrong text. So the WHOLE sequence (copy, empty the field, paste, check)
+ * is repeated until it holds (up to 10 seconds), instead of trusting one try.
+ */
+async function pasteInto(page: Page, field: Locator, text: string, expected: string = text) {
+  await expect(async () => {
+    await page.evaluate(async (value) => navigator.clipboard.writeText(value), text)
+    await field.fill('')
+    await field.click()
+    await page.keyboard.press('ControlOrMeta+V')
+    await expect(field).toHaveValue(expected, { timeout: 1_000 })
+  }).toPass({ timeout: 10_000 })
+}
 
 test.describe('3.3.8 Accessible authentication (sign-in)', () => {
   test.use({ storageState: { cookies: [], origins: [] }, permissions: ['clipboard-read', 'clipboard-write'] })
@@ -24,15 +40,8 @@ test.describe('3.3.8 Accessible authentication (sign-in)', () => {
     await page.goto('/login')
 
     // A real clipboard paste into each field. If the page blocked paste, the fields would stay empty.
-    await page.evaluate(async (text) => navigator.clipboard.writeText(text), PEOPLE.sipho.email)
-    await page.getByLabel('Email').focus()
-    await page.keyboard.press('ControlOrMeta+V')
-    await expect(page.getByLabel('Email')).toHaveValue(PEOPLE.sipho.email)
-
-    await page.evaluate(async (text) => navigator.clipboard.writeText(text), demoPassword())
-    await page.getByLabel('Password').focus()
-    await page.keyboard.press('ControlOrMeta+V')
-    await expect(page.getByLabel('Password')).toHaveValue(demoPassword())
+    await pasteInto(page, page.getByLabel('Email'), PEOPLE.sipho.email)
+    await pasteInto(page, page.getByLabel('Password'), demoPassword())
 
     await page.keyboard.press('Enter')
     await expect(page).toHaveURL(/\/dashboard\/member/)
@@ -95,10 +104,8 @@ test.describe('the join flow', () => {
     // The step's heading takes focus when the page loads (by design: it is what a screen reader announces). Wait for
     // that to finish, then move to the box the way a person would.
     await expect(page.getByRole('heading', { level: 1, name: /Step 1 of 3/ })).toBeFocused()
-    await page.evaluate(async (text) => navigator.clipboard.writeText(text), `https://app.example/join?code=${code}`)
-    await page.getByLabel('Invite code').click()
-    await page.keyboard.press('ControlOrMeta+V')
-    await expect(page.getByLabel('Invite code')).toHaveValue(code) // the link became just its code
+    // (The pasted TEXT is a whole link; what the box must end up holding is just its code.)
+    await pasteInto(page, page.getByLabel('Invite code'), `https://app.example/join?code=${code}`, code)
   })
 })
 

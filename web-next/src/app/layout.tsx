@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Figtree } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Toaster } from "@/components/ui/sonner";
+import { OG_IMAGE, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, siteUrl } from "@/lib/siteMetadata";
 import "./globals.css";
 
 // Figtree is the site's ONE typeface: --font-sans and --font-mono both point at it (see globals.css), so nothing
@@ -12,9 +13,14 @@ const figtree = Figtree({
   weight: ["400", "500", "600", "700"],
 });
 
+// The default head, for pages that do not set their own: the sign-in and register pages (indexable, so people can find
+// the product). The signed-in pages say noindex in (app)/layout.tsx; the invite page has its own in join/page.tsx.
 export const metadata: Metadata = {
-  title: "RondiTrack",
-  description: "Track your stokvel contributions and payouts.",
+  metadataBase: siteUrl(),
+  title: { default: SITE_TITLE, template: `%s · ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  openGraph: { type: "website", siteName: SITE_NAME, title: SITE_TITLE, description: SITE_DESCRIPTION, images: [OG_IMAGE] },
+  twitter: { card: "summary_large_image", title: SITE_TITLE, description: SITE_DESCRIPTION, images: [OG_IMAGE.url] },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

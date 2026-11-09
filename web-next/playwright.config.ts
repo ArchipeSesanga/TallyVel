@@ -54,6 +54,8 @@ export default defineConfig({
       // A developer's .env.local may set this huge to test refreshing; here the normal margin applies, or every request
       // would rotate the refresh token and saved sessions would stop working.
       REFRESH_MARGIN_SECONDS: '60',
+      // Where the site "lives": the address og:image is built from.
+      SITE_URL: BASE_URL,
     },
   },
 })

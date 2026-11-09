@@ -1,9 +1,13 @@
+import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { api, readOrFail } from '@/lib/api'
 import { ApiErrorView } from '@/components/ApiErrorView'
 import { ContributionCard } from '@/components/ContributionCard'
 import { StokvelPicker } from '@/components/StokvelPicker'
+
+// The browser tab and a screen reader's page title. Each page names itself; the site name is added after it.
+export const metadata: Metadata = { title: 'Contributions' }
 
 // The page itself waits for nothing: it returns the heading and a <Suspense> instantly.
 export default function ContributionsPage({

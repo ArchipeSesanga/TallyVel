@@ -15,6 +15,12 @@ test.describe('signed out', () => {
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
     await expectNoSeriousViolations(page, testInfo)
   })
+
+  test('the invite page as a signed-out visitor sees it', async ({ page }, testInfo) => {
+    await page.goto('/join?code=AbC_-123')
+    await expect(page.getByRole('heading', { level: 1, name: /invited/ })).toBeVisible()
+    await expectNoSeriousViolations(page, testInfo)
+  })
 })
 
 test.describe('signed in', () => {

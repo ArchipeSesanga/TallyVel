@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { CodeForm } from '@/components/CodeForm'
@@ -9,10 +10,26 @@ import { formatDateTime } from '@/lib/dates'
 import { fetchInvitePreview, kindOf, ownStokvelIdNamed, type PreviewOutcome } from '@/lib/invites'
 import { JOIN_MESSAGES, decideStep, scheduleText, stepUrl, type JoinStep } from '@/lib/joinFlow'
 import { loadJoinParams } from '@/lib/joinParams'
+import { loginPath } from '@/lib/loginPath'
+import { getSession } from '@/lib/session'
+import { inviteMetadata } from '@/lib/siteMetadata'
 import { tryAgainIn } from '@/lib/errorMessages'
 import type { InvitePreview } from '@/api/types'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
+
+/**
+ * The invite page's <head>: what a link preview (WhatsApp, Telegram, Slack...) and a search engine may see.
+ *
+ * It takes NO arguments, on purpose. It is never given the invite code (searchParams) and never calls the API, so it
+ * CANNOT put the stokvel's name or the contribution in the head, whoever asks. (The API's preview needs a signed-in
+ * person, and a preview bot is not one.) It also says noindex: this page is for one invitee, not for a search engine.
+ * It does not say whether the invite is still valid: only a signed-in request can find that out, and the head must
+ * be the same for everyone.
+ */
+export function generateMetadata(): Metadata {
+  return inviteMetadata()
+}
 
 const HEADINGS: Record<JoinStep, string> = {
   code: 'Step 1 of 3: Enter the invite code',
@@ -31,6 +48,10 @@ export default function JoinPage({ searchParams }: { searchParams: SearchParams 
 }
 
 async function Join({ searchParams }: { searchParams: SearchParams }) {
+  // Not signed in (a person who has not signed in yet, or a link-preview bot): the page answers 200 and shows what a
+  // stranger may see. The only API call this page makes needs a session, so nothing about the stokvel is read at all.
+  if ((await getSession()) === null) return <SignedOutInvite signInPath={await loginPath()} />
+
   const raw = await searchParams
   const { code, step: requested } = loadJoinParams(raw)
 
@@ -153,5 +174,24 @@ function ConfirmStep({ code, preview }: { code: string; preview: InvitePreview }
       <JoinForm code={code} stokvelName={preview.stokvelName} firstKey={crypto.randomUUID()} />
       <Link href={stepUrl('rules', code)} prefetch={false} className="inline-block text-sm underline">Back to the rules</Link>
     </div>
+  )
+}
+
+/**
+ * What a signed-out visitor (and a link-preview bot) gets: no stokvel name, no amount, no rules, only a way in.
+ * `signInPath` is /login?next=<this very address>, so after signing in the person comes straight back to the invite.
+ */
+function SignedOutInvite({ signInPath }: { signInPath: string }) {
+  return (
+    <main className="mx-auto flex max-w-md flex-col gap-5 px-4 py-12">
+      <p className="text-sm font-semibold text-muted-foreground">RondiTrack</p>
+      <h1 className="text-2xl font-bold">You have been invited to join a stokvel</h1>
+      <p>Sign in to see who invited you, what the contribution is and the rules, and then join. It takes a minute.</p>
+      <div className="flex flex-wrap items-center gap-3">
+        <Link href={signInPath} className="inline-flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground">Sign in to continue</Link>
+        <Link href="/register" className="inline-flex min-h-6 items-center text-sm font-medium underline">Create an account</Link>
+      </div>
+      <p className="text-sm text-muted-foreground">New here? Create an account, then open your invite link again.</p>
+    </main>
   )
 }

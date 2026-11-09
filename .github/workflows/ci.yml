@@ -92,6 +92,7 @@ jobs:
     env:
       # Test-only values. Nothing in this file is a real secret.
       LOGIN_RATE_LIMIT: '1000' # the API's sign-in limit is 5 a minute; the suite signs in a few times per run
+      INVITE_RATE_LIMIT: '1000' # invite previews are limited to 10 a minute per person; the join tests open several as one person
       API_BASE_URL: http://localhost:8080
       ASPNETCORE_ENVIRONMENT: Development # this is what loads the demo seed (Sipho, Lerato, Thandi, ...)
     steps:

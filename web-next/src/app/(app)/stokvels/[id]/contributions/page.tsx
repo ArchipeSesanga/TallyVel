@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -7,6 +8,9 @@ import { ContributionHistory } from '@/components/ContributionHistory'
 import { HistoryFilters } from '@/components/HistoryFilters'
 import { loadHistoryParams } from '@/lib/historyParams'
 import { apiQueryFor } from '@/lib/historyQuery'
+
+// The browser tab and a screen reader's page title. Each page names itself; the site name is added after it.
+export const metadata: Metadata = { title: 'Contribution history' }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 

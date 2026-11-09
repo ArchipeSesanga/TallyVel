@@ -41,6 +41,9 @@ services:
       # sign in several times per run, so the test and CI environments raise it (LOGIN_RATE_LIMIT=100); never do that
       # in production: this limit is what slows password guessing.
       RateLimiting__Login__PermitLimit: ${LOGIN_RATE_LIMIT:-5}
+      # Invite previews and joins allowed per minute for one signed-in person. 10 is the real value and the default.
+      # The end-to-end tests open several invites as the same demo person within a minute, so test and CI raise it.
+      RateLimiting__InviteGuess__PermitLimit: ${INVITE_RATE_LIMIT:-10}
     ports:
       - "8080:8080"
     depends_on:

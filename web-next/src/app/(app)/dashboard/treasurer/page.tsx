@@ -1,9 +1,13 @@
+import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { api, readOrFail } from '@/lib/api'
 import { ApiErrorView } from '@/components/ApiErrorView'
 import { StokvelCard } from '@/components/StokvelCard'
 import { stokvelsWhereTreasurer } from '@/lib/treasurer'
+
+// The browser tab and a screen reader's page title. Each page names itself; the site name is added after it.
+export const metadata: Metadata = { title: 'Treasurer dashboard' }
 
 // The page itself waits for nothing: it returns at once with a <Suspense>. Reading the session and the API
 // happens inside the boundary (cacheComponents refuses it anywhere else), like the member dashboard.

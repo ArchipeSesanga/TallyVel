@@ -10,10 +10,15 @@ test('a signed-out visit to a signed-in page lands on sign-in, remembering where
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
 })
 
-test('the address they were going to keeps its query string (a join link comes back to the same step and code)', async ({ page }) => {
+test('a signed-out visit to the invite page is NOT sent away: it shows a way in that remembers the invite', async ({ page }) => {
+  // (The invite page is the one signed-in-looking page that answers a signed-out request, so a link preview can read it.
+  // See "Metadata and indexing" in the README.)
   await page.goto('/join?code=AbC_-123&step=rules')
 
-  await expect(page).toHaveURL(/\/login\?next=%2Fjoin%3Fcode%3DAbC_-123%26step%3Drules$/)
+  await expect(page).toHaveURL(/\/join\?code=AbC_-123&step=rules$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'You have been invited to join a stokvel' })).toBeVisible()
+  // The way in carries the address (query string and all), so signing in brings the person back to the same step and code.
+  await expect(page.getByRole('link', { name: 'Sign in to continue' })).toHaveAttribute('href', '/login?next=%2Fjoin%3Fcode%3DAbC_-123%26step%3Drules')
 })
 
 test('a signed-out fetch of a /bff/ route gets a JSON 401, not an HTML page', async ({ request }) => {

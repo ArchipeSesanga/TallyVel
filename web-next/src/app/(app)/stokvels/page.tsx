@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { api, readOrFail } from '@/lib/api'
@@ -6,6 +7,9 @@ import { StokvelCard } from '@/components/StokvelCard'
 import { FlashToast } from '@/components/FlashToast'
 import { StokvelsHeaderConnected } from '@/components/StokvelsHeaderConnected'
 import { groupsFromHome } from '@/lib/groupOverview'
+
+// The browser tab and a screen reader's page title. Each page names itself; the site name is added after it.
+export const metadata: Metadata = { title: 'My stokvels' }
 
 // Not async: returns a <Suspense> instantly, so the page never blocks.
 export default function StokvelsPage({ searchParams }: PageProps<'/stokvels'>) {
