@@ -8,24 +8,24 @@
    Tailwind only makes a color class when the name exists in the theme, so without
    these the classes produced no CSS at all. Light values first, dark under the media query. */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --background: #EEF1F4; /* page */
+  --foreground: #17202B; /* ink */
+  --card: #FFFFFF;
+  --card-foreground: #17202B;
+  --muted-foreground: #5B6673;
+  --primary: #17322A; /* forest */
+  --primary-foreground: #FFFFFF;
+  --border: #DCE1E7; /* cards */
+  --input: #C3CAD3; /* fields, outline buttons */
+  --ring: #0E6B53;
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: #ffffff;
   --destructive-soft: #fef3f2;
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
+  --popover: #FFFFFF;
+  --popover-foreground: #17202B;
+  --secondary: #F6F8FA;
+  --secondary-foreground: #17202B;
+  --muted: #F6F8FA; /* table heads, footers, secondary buttons */
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --chart-1: oklch(0.87 0 0);
@@ -42,6 +42,15 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* TallyVel's extra colours (the stokvel pages) */
+  --divider: #E4E8ED; /* rows inside cards */
+  --success: #0E6B53;
+  --success-soft: #E3F2EC;
+  --warning: #9A4A08;
+  --warning-dot: #D97706;
+  --avatar-alt-bg: #E6EBF5;
+  --avatar-alt-fg: #2F4A86;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -59,6 +68,15 @@
     --destructive: #f97066;
     --destructive-foreground: #12181f;
     --destructive-soft: #3b1512;
+    --muted: #232d38;
+    --secondary: #232d38;
+    --secondary-foreground: #e4e7eb;
+    --divider: #2b3641;
+    --success: #5fd1a3;
+    --success-soft: #16352b;
+    --warning: #f5a65b;
+    --avatar-alt-bg: #25304a;
+    --avatar-alt-fg: #a9bdf0;
   }
 }
 
@@ -79,7 +97,14 @@
   --color-destructive-soft: var(--destructive-soft);
   --font-heading: var(--font-sans);
   --font-mono: var(--font-geist-mono);
-  --font-sans: var(--font-geist-sans), sans-serif; /* Geist, loaded by next/font in layout.tsx */
+  --font-sans: var(--font-figtree), sans-serif; /* Figtree, loaded by next/font in layout.tsx: the only sans family */
+  --color-divider: var(--divider);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-dot: var(--warning-dot);
+  --color-avatar-alt-bg: var(--avatar-alt-bg);
+  --color-avatar-alt-fg: var(--avatar-alt-fg);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -102,9 +127,10 @@
   --color-popover: var(--popover);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
+  /* Fixed sizes: 10px small controls, 12px buttons and inputs, 16px cards. */
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 }

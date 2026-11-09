@@ -1,15 +1,10 @@
 import type { Metadata } from "next";
-import { Figtree, Geist, Geist_Mono } from "next/font/google";
+import { Figtree, Geist_Mono } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-// Figtree is used by the dashboard's group overview only (it sets font-family itself).
+// Figtree is the site's only sans-serif family (see --font-sans in globals.css). Geist Mono stays for codes.
 const figtree = Figtree({
   variable: "--font-figtree",
   subsets: ["latin"],
@@ -30,7 +25,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${figtree.variable} h-full antialiased`}
+      className={`${geistMono.variable} ${figtree.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {/* nuqs keeps filters in the address bar (?member=&from=&to=). Its adapter must wrap every page that uses it. */}
