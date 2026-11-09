@@ -9,6 +9,7 @@ import { loginPath } from '@/lib/loginPath'
 import { describeApiError, localReference, tryAgainIn } from '@/lib/errorMessages'
 import { CODE_PATTERN, JOIN_MESSAGES } from '@/lib/joinFlow'
 import { isUuid } from '@/lib/ids'
+import { fetchInvitePreview } from '@/lib/invites'
 
 export type JoinState = {
   /** What went wrong, or null. Always shown to the person. */
@@ -106,4 +107,25 @@ export async function createInvite(_previous: CreateInviteState, formData: FormD
   const status = result.response.status
   if (status === 401) redirect(await loginPath({ expired: true }))
   return { ...none, message: describeApiError(status, result.response.headers.get('Retry-After')), reference: correlationIdOf(result.error) }
+}
+
+export type CheckInviteResult = { ok: true } | { ok: false; kind: 'not-found' | 'expired' | 'already-member' | 'rate-limited' | 'failed'; detail: string | null }
+
+/**
+ * The header's "Join" box: is this a code we can take to step 2? (It does NOT join: joining stays in the
+ * three steps, so the person always sees the rules and confirms.) Only the kind of answer goes back.
+ */
+export async function checkInviteCode(code: string): Promise<CheckInviteResult> {
+  if (!CODE_PATTERN.test(code)) return { ok: false, kind: 'not-found', detail: null }
+  const outcome = await fetchInvitePreview(code)
+  switch (outcome.kind) {
+    case 'valid':
+      return { ok: true }
+    case 'rate-limited':
+      return { ok: false, kind: 'rate-limited', detail: outcome.retryAfter }
+    case 'failed':
+      return { ok: false, kind: 'failed', detail: outcome.reference }
+    default:
+      return { ok: false, kind: outcome.kind, detail: null }
+  }
 }

@@ -562,3 +562,12 @@ The stokvel page lists its members and their roles. A **Chairperson** sees a rol
 - **The banner's sentence** "Everyone has paid in…" is shown only when the group is paid up; otherwise it says some members still owe.
 - **"Record payout"** calls `onRecordPayout(groupId)`; on the dashboard that opens the group's page, because the payout screen is not built yet. **"Set a date"** also opens the group's page; there is no screen to set one yet.
 - Every colour pair meets 4.5:1 (lowest: white on the calendar tab, 5.02).
+
+## "My stokvels" header
+
+[StokvelsHeader.tsx](src/components/StokvelsHeader.tsx): the title, a one-line summary, a box for an invite code and "Create a stokvel". Where it differs from the design spec, on purpose:
+- **"Join" checks the code, then opens step 2 of `/join`; it does not join by itself.** Joining stays in the three steps, so the person always sees the rules and confirms. The box takes the code (or a whole pasted link) through the Server Action `checkInviteCode`; 404 and 410, already a member, a wait (429) and no connection each show their own message under the field. `/join?code=…` still works for links opened from WhatsApp or SMS.
+- **`autoCapitalize="none"`, not `characters`:** invite codes are case-sensitive, so a phone keyboard capitalising them would break them.
+- **The summary reuses `summaryOf`** (the same words as the dashboard's list: "1 of 3 groups has money due"), so the wording agrees across pages.
+- **The page keeps its existing cards** below the header; the payout banner lives on the dashboard.
+- On desktop the error sits under the field without moving the buttons beside it. Tokens `label` and `field-border` are new; the spec's `muted` is `ink-muted` (see the dashboard section).
