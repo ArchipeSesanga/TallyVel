@@ -11,6 +11,7 @@ import { getSession } from '@/lib/session'
 import { ContributionForm } from '@/components/ContributionForm'
 import { PinToggle } from '@/components/PinToggle'
 import { CreateInviteLink } from '@/components/CreateInviteLink'
+import { ProofControls } from '@/components/ProofControls'
 import { JustJoined } from '@/components/JustJoined'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -136,7 +137,15 @@ async function StokvelDetail({ params, searchParams }: { params: Promise<{ id: s
           <Link href={`/stokvels/${id}/contributions`} className="text-sm underline">See the full history</Link>
         </div>
         <Suspense fallback={<RecentSkeleton />}>
-          <RecentContributions recentPromise={recentPromise} />
+          <RecentContributions
+            recentPromise={recentPromise}
+            stokvelId={id}
+            youId={session.user.id}
+            // Treasurer only, like the other controls here (the API would also allow a Chairperson).
+            isTreasurer={entry.role === 'Treasurer'}
+            openCycleLabel={currentCycle !== null && currentCycle.status === 'Open' ? currentCycle.label : null}
+            names={Object.fromEntries(members.map((m) => [m.userId, m.fullName ?? 'A member']))}
+          />
         </Suspense>
       </section>
     </div>
@@ -144,7 +153,16 @@ async function StokvelDetail({ params, searchParams }: { params: Promise<{ id: s
 }
 
 // NEW: awaits the request that was ALREADY started above, so it has been running all along.
-async function RecentContributions({ recentPromise }: { recentPromise: ReturnType<typeof readRecent> }) {
+async function RecentContributions({
+  recentPromise, stokvelId, youId, isTreasurer, openCycleLabel, names,
+}: {
+  recentPromise: ReturnType<typeof readRecent>
+  stokvelId: string
+  youId: string
+  isTreasurer: boolean
+  openCycleLabel: string | null
+  names: Record<string, string>
+}) {
   const recent = await recentPromise
   if (!recent.ok) return <ApiErrorView {...recent.problem} />
 
@@ -155,13 +173,23 @@ async function RecentContributions({ recentPromise }: { recentPromise: ReturnTyp
   return (
     <ul className="divide-y divide-border rounded-lg border border-border">
       {recent.data.items.map((c) => (
-        // Only what a person needs: amount, status, when, which cycle. Never memberUserId.
-        <li key={c.id} className="flex flex-wrap items-baseline justify-between gap-2 p-3">
-          <span className="font-medium whitespace-nowrap">{formatCents(c.amountCents)}</span>
-          <span>{c.status}</span>
-          <span className="text-sm text-muted-foreground">
-            {formatDateTime(c.recordedAt)} · cycle {c.cycle}
-          </span>
+        // Amount, status, when, which cycle, whose. The id itself is never shown.
+        <li key={c.id} className="p-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="font-medium whitespace-nowrap">{formatCents(c.amountCents)}</span>
+            <span>{c.status}</span>
+            <span className="text-sm text-muted-foreground">
+              {c.memberUserId === youId ? 'You' : (names[c.memberUserId] ?? 'A member')} · {formatDateTime(c.recordedAt)} · cycle {c.cycle}
+            </span>
+          </div>
+          <ProofControls
+            stokvelId={stokvelId}
+            contributionId={c.id}
+            hasProof={c.hasProof}
+            canDownload={c.canDownloadProof}
+            // Your own payment, or any payment where you are the Treasurer; only while its cycle is open.
+            canChange={(c.memberUserId === youId || isTreasurer) && c.cycle === openCycleLabel}
+          />
         </li>
       ))}
     </ul>
