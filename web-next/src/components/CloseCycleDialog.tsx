@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { BffRequestError, fetchBffJson } from '@/lib/bffClient'
 import { formatDate } from '@/lib/dates'
 import { formatCents } from '@/lib/money'
+import { closeButtonLabel, closedToastText } from '@/lib/closeRules'
 import { localReference } from '@/lib/errorMessages'
 import type { ClosePreview } from '@/api/types'
 
@@ -60,11 +61,7 @@ export function CloseCycleDialog({ stokvelId, cycleId, cycleLabel, firstKey }: P
     setShowResult(true)
     if (next.kind === 'closed' && next.closed !== null) {
       setOpen(false)
-      toast.success(
-        next.closed.memberCount === 0
-          ? `Closed ${cycleLabel}. No arrears were recorded.`
-          : `Closed ${cycleLabel}. Recorded ${formatCents(next.closed.totalArrearsCents)} in arrears for ${next.closed.memberCount} ${next.closed.memberCount === 1 ? 'member' : 'members'}.`,
-      )
+      toast.success(closedToastText(cycleLabel, next.closed.totalArrearsCents, next.closed.memberCount))
       // The trigger may be gone after the refresh, so put focus somewhere sensible instead of on <body>.
       requestAnimationFrame(() => document.getElementById('stokvel-heading')?.focus())
     }
@@ -163,13 +160,7 @@ export function CloseCycleDialog({ stokvelId, cycleId, cycleLabel, firstKey }: P
             <AlertDialogCancel ref={cancelRef} disabled={pending}>{alreadyClosed ? 'Close' : 'Cancel'}</AlertDialogCancel>
             {!alreadyClosed && (
               <Button type="submit" variant="destructive" disabled={ready === null || pending}>
-                {pending
-                  ? 'Closing…'
-                  : ready === null
-                    ? `Close ${cycleLabel}`
-                    : ready.totalArrearsCents === 0
-                      ? `Close ${cycleLabel} with no arrears`
-                      : `Close ${cycleLabel} and record ${formatCents(ready.totalArrearsCents)} in arrears`}
+                {pending ? 'Closing…' : ready === null ? `Close ${cycleLabel}` : closeButtonLabel(cycleLabel, ready.totalArrearsCents)}
               </Button>
             )}
           </AlertDialogFooter>

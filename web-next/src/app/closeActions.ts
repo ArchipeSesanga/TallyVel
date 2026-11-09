@@ -7,6 +7,7 @@ import { getSession } from '@/lib/session'
 import { loginPath } from '@/lib/loginPath'
 import { describeApiError, localReference, tryAgainIn } from '@/lib/errorMessages'
 import { isUuid } from '@/lib/ids'
+import { chooseCloseKey } from '@/lib/closeRules'
 
 export type CloseState = {
   /**
@@ -42,9 +43,7 @@ export async function closeCycle(previous: CloseState, formData: FormData): Prom
 
   // A key belongs to ONE request. If the version differs from the one this key was last sent with, it is a
   // different request (the API would answer 422 to a reused key with another body), so it gets a new key.
-  const keyWasUsedForAnotherVersion = previous.keyVersion !== null && previous.keyVersion !== version
-  const keyIsGood = /^[0-9a-f-]{36}$/i.test(keyInForm)
-  const key = keyIsGood && !keyWasUsedForAnotherVersion ? keyInForm : crypto.randomUUID()
+  const key = chooseCloseKey(keyInForm, previous.keyVersion, version, () => crypto.randomUUID())
 
   const answer = (kind: CloseState['kind'], patch: Partial<CloseState>, rotateKey: boolean): CloseState => ({
     kind, message: null, reference: null, closed: null, ...patch,
