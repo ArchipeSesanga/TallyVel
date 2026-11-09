@@ -93,11 +93,20 @@ public static class SeedData
             contributions.Add(new Contribution(stokvel.Id, member.Id, cycle.Label, amount, status, recordedAt));
         }
 
+        // The midnight-boundary row (below) belongs to the "2026-11" cycle. Once "now" is itself in
+        // November 2026, that cycle IS the current one, and Sipho would get two contributions in it,
+        // which the database refuses (one contribution per member per cycle). In that case his single
+        // contribution is the midnight row, and the 10-cent payment moves to Lindiwe, so the seed
+        // still holds every case on any day. Before November the two live in different cycles.
+        var november = CycleFor(family, StokvelCalendar.Today(MidnightBoundaryAt));
+        var currentIsNovember = CycleFor(family, today).Label == november.Label;
+
         // Current cycle, Family Stokvel: Lerato's is Pending, so she still owes R500.
         Contribute(family, thabo, 500m, ContributionStatus.Confirmed, hoursAgo: 72);
-        Contribute(family, lindiwe, 500m, ContributionStatus.Paid, hoursAgo: 48);
+        Contribute(family, lindiwe, currentIsNovember ? 0.10m : 500m, ContributionStatus.Paid, hoursAgo: 48); // exactly 10 cents when November
         Contribute(family, lerato, 500m, ContributionStatus.Pending, hoursAgo: 24);
-        Contribute(family, sipho, 0.10m, ContributionStatus.Paid, hoursAgo: 12);   // exactly 10 cents
+        if (!currentIsNovember)
+            Contribute(family, sipho, 0.10m, ContributionStatus.Paid, hoursAgo: 12);   // exactly 10 cents
 
         // Current cycle, Work Stokvel: Lerato has paid in full.
         Contribute(work, nomsa, 300m, ContributionStatus.Confirmed, hoursAgo: 60);
@@ -107,7 +116,6 @@ public static class SeedData
         // South African date of RecordedAt, which here is 1 November 2026, so it goes in the
         // "2026-11" cycle (1-30 November), not the October one its UTC date suggests.
         // It is in Family Stokvel so that one stokvel's list holds every case the frontend shows.
-        var november = CycleFor(family, StokvelCalendar.Today(MidnightBoundaryAt));
         contributions.Add(new Contribution(
             family.Id, sipho.Id, november.Label, 500m, ContributionStatus.Paid, MidnightBoundaryAt));
 
