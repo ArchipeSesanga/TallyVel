@@ -583,3 +583,116 @@ The theme in `globals.css` now carries the TallyVel palette on the shadcn variab
 - The layout lives in [StokvelDetail.tsx](src/components/StokvelDetail.tsx), which only arranges things: the page passes in the data and the existing forms and actions (record, close, invite, roles, leave, pin). Stacking happens below 768px. Measured against the spec on the real page: sizes, radii, paddings, gaps, colours and icon sizes all match.
 
 **One typeface.** Figtree is the only font: `--font-sans` and `--font-mono` both point at it (Geist and Geist Mono are no longer loaded), the Toaster is told to use it, and no component sets its own family. Checked in the browser: every text element on every page, an open dialog and a toast all report Figtree. Codes and references (`font-mono`) are therefore in Figtree too.
+
+## Plan
+
+Assignment 9.2, part A: tests, CI and the money rules. These are the seven answers that decided how it is built.
+
+**1. Which rules are pure functions, and which were buried.** Pure and tested directly (Vitest, in `src/lib/`): typed rands → whole cents and back ([moneyInput.ts](src/lib/moneyInput.ts), [money.ts](src/lib/money.ts)); South African days → UTC ranges ([saRange.ts](src/lib/saRange.ts), [dates.ts](src/lib/dates.ts)); the form's validation ([contributionSchema.ts](src/lib/contributionSchema.ts), [stokvelSchema.ts](src/lib/stokvelSchema.ts), [proofFile.ts](src/lib/proofFile.ts)); the join steps ([joinFlow.ts](src/lib/joinFlow.ts)); `next=` safety ([safeNext.ts](src/lib/safeNext.ts)); and the dashboard rules ([groupOverview.ts](src/lib/groupOverview.ts)). **Buried, and moved out first** (each with tests):
+- *The contribution rules* were inside the Server Action: validation, the Idempotency-Key choice and what each API answer means. They are now [recordContribution.ts](src/lib/recordContribution.ts), which takes a small "port" (send the request, make a key, refresh the page); the Server Action only supplies the real ones ([recordContributionApi.ts](src/lib/recordContributionApi.ts) is the real "send").
+- *The close key and the close wording* ("Close 2026-11 and record R 600,00 in arrears", the toast) were inside the close action and the dialog: now [closeRules.ts](src/lib/closeRules.ts).
+- *What the stokvel page offers each role* (treasurer actions, "only Chairperson", who may change a proof) was written inline in the page: now [stokvelView.ts](src/lib/stokvelView.ts), a function of the API's own types.
+- *The money parser* itself used `Number(...)` and a division; it is now BigInt and string logic only, and a guard test ([noFloatMoney.test.ts](src/lib/noFloatMoney.test.ts)) fails if `parseFloat`, `toFixed`, `Math.round` or `* 100` appear in the money files.
+
+**2. Which tool for which part, and why.**
+
+| Part | Tool | Why |
+|---|---|---|
+| Money, dates, validation, keys, wording | Vitest (plain) | Pure functions: tables of cases run in milliseconds, in any time zone. |
+| The contribution form (messages under fields, one click = one request, the retry) | Vitest + Testing Library | It is about what a person sees and does; no browser or server needed, and the clock is under the test's control. |
+| What a Treasurer and a Member are shown | Vitest + Testing Library, typed fixtures | The page is plain components; the fixtures are built from the generated API types so an API rename stops compiling. |
+| The exact request the API receives (token, Idempotency-Key, cents) | Vitest + MSW | Real HTTP to a fake API; checks headers and bodies that a component test can't see. |
+| Sign-in redirect with `?next=`, the JSON 401 on `/bff/`, a forged request refused by the API, the record-a-contribution journey | Playwright | They need the real proxy, real cookies, the real API and a real browser. |
+| Close dialog focus, proof download headers, the join flow | Manual and scripted checks (9.1 README), unchanged | Already checked in a real browser in 9.1; not repeated here. |
+| Accessibility, Lighthouse, metadata | Part B | Not in this part. |
+
+**3. The edges of the contribution form, and what stands in for each in a test.** The form has one real edge: the **Server Action** (it sends the payment). `ContributionForm` takes it as a prop (`action`); the page passes the real `recordContribution`, the tests pass the real rules ([recordContributionCore](src/lib/recordContribution.ts)) over a **fake API port** that answers only when the test says so. The **router**: the form never navigates; after a recorded payment the action asks for the page to refresh (`port.onRecorded`, a no-op in tests), and the end-to-end journey checks the total changes without a reload. The **URL**: the form neither reads nor writes the address (the stokvel id and cycle are hidden inputs the server wrote), so there is nothing to fake. The **query cache**: the form clears TanStack Query's cached pages after a success, so the tests wrap it in a real `QueryClientProvider`. The **session**: read inside the Server Action, not in the form; Playwright covers it.
+
+**4. The login rate limit, and how the tests get past it.** The API allows **5 sign-ins a minute per IP**. The end-to-end suite signs in once per person (3 people) plus 3 API sign-ins to prepare data, so even a single run would be refused at 5. The limit was already a setting (`RateLimiting:Login:PermitLimit`); it is now passed through `compose.yaml` as `LOGIN_RATE_LIMIT`, **default 5 (today's value)**, and the test and CI environments set 1000. It must never be raised in production: that limit is what slows password guessing. CI gets a fresh database by starting Compose on a new runner after `docker compose down --volumes`, and a fresh set of secrets made in the run with `openssl rand` (`POSTGRES_PASSWORD`, `JWT_SIGNING_KEY`, `SEED_DEMO_PASSWORD`, `SESSION_SECRET`); they are masked in the log and never written to a file. The API seeds the demo data itself, because the job runs it in Development.
+
+**5. Every route, and which a search engine should index.** Public (no session): `/login` and `/register`: these are the only pages that should be indexed (and `/` is only a redirect to the dashboard, which sends a signed-out person to `/login`). Signed in, **not** to be indexed: `/dashboard/member`, `/dashboard/treasurer`, `/stokvels`, `/stokvels/new`, `/stokvels/[id]`, `/stokvels/[id]/contributions`, `/join` (an invite link is a secret), `/activity`, `/contributions`, and the demo page `/demo/group-overview`. Never indexed: everything under `/bff/` (JSON and downloads) and the error pages. (Part B adds the metadata and `robots` rules.)
+
+**6. The LCP element on the home screen, on a phone (best estimate; to be confirmed with Lighthouse).** The signed-in home is `/dashboard/member`. On a 390px phone the largest thing above the fold is the **payout banner's heading** ("<stokvel> pays out today", 26px, wrapping over two or three lines) when a payout is due today, otherwise the **first group's name and status** in the list. Both are drawn from the streamed part of the page, so the LCP waits for: the session cookie, then the API's `/me/home` answer, then the stream arriving. The static shell (the sidebar and the page title) is already there, so it is not the LCP. The Figtree font is loaded with `next/font` (self-hosted and preloaded), so a font swap should not move it much. For a signed-out visitor the LCP is the sign-in page's headline paragraph, which has no data to wait for.
+
+**7. Dragging and typing from memory.** *Nothing needs dragging, and no payout rotation screen exists:* the sidebar has "Payouts", "Members" and "Settings" items but no pages behind them, and the API has no rotation order to edit. (The sign-in page's marketing text mentions a payout rotation; that is wording, not a feature.) So there is no drag-and-drop to make keyboard-accessible, and I did not invent one. *Typing from memory:* the **amount** is prefilled with what the member still owes, so it is rarely typed from scratch; an **invite code** (22 random characters) is never meant to be typed: people open the link, or paste it into the box. Passwords use the browser's password manager (`autocomplete="current-password"`).
+
+## Running the tests
+
+**Fast tests (no server, no Docker):**
+
+```bash
+cd web-next
+npm test                 # Vitest: unit + component tests, once
+npm run test:tz          # the whole suite twice: TZ=UTC, then TZ=Africa/Johannesburg
+npm run test:repeat      # the whole suite 10 times in a row; stops at the first failure
+npm run typecheck        # next typegen, then tsc --noEmit
+npm run lint
+```
+
+**End-to-end tests (Playwright, against the whole stack):** these need, in this order:
+
+1. The API and database with the demo seed: `LOGIN_RATE_LIMIT=1000 docker compose up -d` from the repo root (the compose file needs `POSTGRES_PASSWORD`, `JWT_SIGNING_KEY` and `SEED_DEMO_PASSWORD` in your `.env`). Without `LOGIN_RATE_LIMIT` the API stays at 5 sign-ins a minute and the suite is refused.
+2. The production build of the app: `npm run build` (the tests run `npm run start`, never `next dev`).
+3. The demo password in the environment, never in a file: `E2E_DEMO_PASSWORD="$SEED_DEMO_PASSWORD" npm run e2e`.
+4. Once per machine: `npx playwright install chromium`. (If that download is not possible, `E2E_BROWSER_CHANNEL=chrome` uses the Google Chrome that is already installed.)
+
+The app reads `API_BASE_URL` and `SESSION_SECRET` from `.env.local` as usual; the tests start it on port 3100 (`E2E_PORT` changes that) and set `REFRESH_MARGIN_SECONDS=60` for it, so a developer's test setting of a huge margin can't make every request rotate the refresh token. Each run signs in again and re-saves the sessions under `e2e/.auth/` (git-ignored: it holds cookies and tokens), because refresh tokens rotate. Each test that needs data makes its own stokvel with a unique name, so tests don't depend on each other or on what an earlier run left.
+
+## What's checked where
+
+| Behaviour | Where | Tool |
+|---|---|---|
+| Typed rands → cents: accepts `1500`, `1 500`, `1 500,50`, `R1500`, `R 1 500,50`, no-break spaces, `,5`; refuses 3 decimals, `1,500.50`, letters, empty, negatives, above the API's maximum | [moneyInput.test.ts](src/lib/moneyInput.test.ts) | Vitest |
+| Format then parse gives the same cents (0, 1, 99, 100, 150050, the maximum) | [moneyInput.test.ts](src/lib/moneyInput.test.ts) | Vitest |
+| No floating-point shortcuts in the money files | [noFloatMoney.test.ts](src/lib/noFloatMoney.test.ts) | Vitest |
+| Dates: ranges, display, and a payment at 23:30 SAST on a month's last day belongs to that month; whole suite in two time zones | [saRange.test.ts](src/lib/saRange.test.ts), [dates.test.ts](src/lib/dates.test.ts), [monthBoundaries.test.ts](src/lib/monthBoundaries.test.ts) | Vitest, `npm run test:tz` and CI |
+| The idempotency key: same on a retry (dropped connection, 5xx, refused-for-what-was-asked), different for the next payment or a changed amount or member | [recordContribution.test.ts](src/lib/recordContribution.test.ts), [recordContributionApi.test.ts](src/lib/recordContributionApi.test.ts) (the API sees it in the header) | Vitest, Vitest + MSW |
+| What each API answer means (400 per field, 409, 422, 403, 429, 5xx, 401) | [recordContribution.test.ts](src/lib/recordContribution.test.ts) | Vitest |
+| The form: a message under the right field, the reference at the top, the success line, what was typed is kept, one click = one request, the retry key | [ContributionForm.test.tsx](src/components/ContributionForm.test.tsx) | Vitest + Testing Library |
+| A Treasurer is offered record-for-others, close, invite and proof actions; a Member is offered none of them and nothing hints they exist | [StokvelDetail.roles.test.tsx](src/components/StokvelDetail.roles.test.tsx) | Vitest + Testing Library, typed fixtures |
+| The close key and the close wording | [closeRules.test.ts](src/lib/closeRules.test.ts) | Vitest |
+| Join steps, proof file checks, `next=` safety, group overview rules | `joinFlow`, `proofFile`, `safeNext`, `groupOverview` tests in `src/lib/` | Vitest |
+| A forged request from a Member is refused by the API, shown as a message, and nobody is signed out; the same for a `/bff/` route | [the-ui-is-not-the-rule.spec.ts](e2e/the-ui-is-not-the-rule.spec.ts) | Playwright |
+| Signed out: `/login?next=` (query string kept), JSON 401 from `/bff/` | [signed-out.spec.ts](e2e/signed-out.spec.ts) | Playwright |
+| Record R 150,50: the total rises by exactly 15050 cents with no reload | [journey.spec.ts](e2e/journey.spec.ts) | Playwright |
+| Close dialog behaviour, proof upload and download, the join journey | checked by hand and with a scripted Chrome in 9.1 (see the 9.1 sections above) | manual |
+| Hydration warnings, Lighthouse, accessibility, metadata | Part B | not yet |
+
+**`data-testid`:** none is used. Every element the tests need has a role, a label or visible text. (The one hidden input the forged-request test changes is found by its `name`, on purpose: it is the thing an attacker would change, and no person can see it.)
+
+## CI
+
+[.github/workflows/ci.yml](../.github/workflows/ci.yml) runs on every pull request (and on pushes to `main`), with a read-only token (`permissions: contents: read`):
+
+1. **Backend tests**, **Frontend checks** and, after the backend, **API image builds**. These are the fast jobs. *Frontend checks*: `npm ci`, lint, `next typegen` then `tsc --noEmit`, Vitest **twice** (`TZ=UTC` and `TZ=Africa/Johannesburg`) and `npm audit --omit=dev`.
+2. **End-to-end (Playwright)** has `needs: [build-test, frontend]`, so it never starts while a fast check is red. It makes throwaway secrets with `openssl rand` (masked, in the job's environment only), starts Compose on a fresh database with `LOGIN_RATE_LIMIT=1000`, installs Chromium (`npx playwright install --with-deps chromium`), builds the app, runs Playwright, and **uploads the HTML report as an artifact only when the run fails**. No real secret is in the workflow or the repository.
+
+**The deliberate red PR (to prove the gate works).** Make a one-line change that a component test notices, in a throwaway branch:
+
+```bash
+git switch -c deliberate-red
+# web-next/src/components/ContributionForm.tsx, line 130: rename the button
+sed -i '' "s/'Record contribution'/'Save contribution'/" web-next/src/components/ContributionForm.tsx
+git commit -am "Deliberately break the Record contribution button (do not merge)"
+git push -u origin deliberate-red      # then open a pull request
+```
+
+The *Frontend checks* job fails (the form tests look for a button called "Record contribution"), and **End-to-end stays skipped** because it needs the fast jobs. Copy that run's link into the table below. To go green again, revert the change and push:
+
+```bash
+git revert --no-edit HEAD && git push
+```
+
+| Run | Link |
+|---|---|
+| Red (the deliberate break) | **TODO (yours):** paste the run link |
+| Green (after the revert) | **TODO (yours):** paste the run link |
+
+## Known gaps (9.2)
+
+- The end-to-end job has **not run on GitHub yet**: I could not run Actions from here. Everything it does was run locally (the commands in `ci.yml`, a fresh-secrets Compose start was *not* repeated because Docker could not pull images from this machine, so the API was started with `dotnet run` against the Compose database with the same settings). **TODO (yours):** push and watch the first run.
+- The end-to-end suite is small on purpose (three behaviours that need the whole stack). Close, proof upload and the join journey are not in Playwright yet.
+- Component tests run without the React Compiler (Vitest compiles JSX itself); the compiler is only on in the real build, which the end-to-end tests do exercise.
+- The seeded stokvels are not safe to depend on: people change them (for example closing Family Stokvel's cycle), so every test that needs a stokvel creates its own.
+- The stokvel cards on "My stokvels" are one big link around an `article`, so the **link has no accessible name** for a screen reader. Found while writing the journey test (the test points at the card's heading instead). To fix in Part B.
+- The 40-member performance stokvel is added by the Development seed on every start if it is missing, so a long-lived local database gains it; it is made of invented people and touches no demo account.
