@@ -2,7 +2,8 @@
 
 import { useActionState, useId, useState } from 'react'
 import { toast } from 'sonner'
-import { removeProof, uploadProof, PROOF_IDLE, type ProofState } from '@/app/proofActions'
+import { removeProof, uploadProof } from '@/app/proofActions'
+import { PROOF_IDLE, type ProofState } from '@/lib/proofState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PROOF_ACCEPT, checkProofFileInBrowser } from '@/lib/proofFile'
