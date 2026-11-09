@@ -86,6 +86,10 @@ export function ContributionForm({ stokvelId, cycle, youId, members, prefill, fi
           <select
             id="memberUserId"
             name="memberUserId"
+            // key: React does not move a <select>'s default when defaultValue changes, so after a refusal the form's
+            // reset put the box back on the FIRST member and a retry would pay the wrong person. A new key makes
+            // a fresh <select> that starts on what was chosen (found by the "what was typed is not lost" test).
+            key={state.values.memberUserId}
             defaultValue={state.values.memberUserId}
             aria-invalid={errorsFor('memberUserId').length > 0 ? true : undefined}
             aria-describedby="memberUserId-error"
