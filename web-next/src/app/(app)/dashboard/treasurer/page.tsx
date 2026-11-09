@@ -1,10 +1,21 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { api, readOrFail } from '@/lib/api'
 import { ApiErrorView } from '@/components/ApiErrorView'
 import { StokvelCard } from '@/components/StokvelCard'
 import { stokvelsWhereTreasurer } from '@/lib/treasurer'
 
-export default async function TreasurerDashboard() {
+// The page itself waits for nothing: it returns at once with a <Suspense>. Reading the session and the API
+// happens inside the boundary (cacheComponents refuses it anywhere else), like the member dashboard.
+export default function TreasurerDashboardPage() {
+  return (
+    <Suspense fallback={<div className="h-32 animate-pulse rounded bg-muted" aria-busy="true" aria-label="Loading your stokvels" />}>
+      <TreasurerDashboard />
+    </Suspense>
+  )
+}
+
+async function TreasurerDashboard() {
   const home = await readOrFail((init) => api.GET('/api/v1/me/home', init))
   if (!home.ok) return <ApiErrorView {...home.problem} />
 
