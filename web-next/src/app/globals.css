@@ -18,7 +18,7 @@
   --border: #DCE1E7; /* cards */
   --input: #C3CAD3; /* fields, outline buttons */
   --ring: #0E6B53;
-  --destructive: oklch(0.577 0.245 27.325);
+  --destructive: #B42318; /* red text on white or on its own 10% tint: 6.5:1 and 5.5:1 (the old #E7000B gave 3.9:1 on the tint, below AA's 4.5:1; found by axe) */
   --destructive-foreground: #ffffff;
   --destructive-soft: #fef3f2;
   --popover: #FFFFFF;
