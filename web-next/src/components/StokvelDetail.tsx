@@ -1,48 +1,39 @@
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
-import { Avatar, CARD, FactsStrip, MembersCard, SetupCard, type OpenCycle } from '@/components/StokvelParts'
+import { Avatar, CARD, FactsStrip, MembersCard, SetupCard } from '@/components/StokvelParts'
+import { CloseCycleDialog } from '@/components/CloseCycleDialog'
+import { ContributionForm } from '@/components/ContributionForm'
 import { LeaveStokvelDialog } from '@/components/LeaveStokvelDialog'
 import { PinToggle } from '@/components/PinToggle'
 import { roleLabel } from '@/lib/roles'
-import type { MemberRole } from '@/api/types'
+import { isOnlyChairperson, type StokvelView } from '@/lib/stokvelView'
 
 const LINK = 'rounded-lg font-semibold text-success focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none'
 
 type Props = {
-  stokvelId: string
-  name: string
-  /** The signed-in person's role in THIS stokvel (from the API). */
-  role: MemberRole
+  /** Everything about the stokvel and the person's place in it (see lib/stokvelView.ts). */
+  view: StokvelView
   youId: string
-  memberCount: number
-  members: { userId: string; fullName?: string | null; role: MemberRole }[]
-  contributionCents: number
-  /** The open cycle, or null. */
-  cycle: (OpenCycle & { id: string }) | null
-  /** "YYYY-MM-DD" or null. */
-  payoutDate: string | null
-  /** Treasurer or Chairperson (the API decides; this only decides what is shown). */
-  canRun: boolean
+  /** The Server Action the contribution form sends (the page passes the real one). */
+  recordAction: React.ComponentProps<typeof ContributionForm>['action']
+  /** First Idempotency-Keys. The SERVER makes them, so the page and the browser agree on them. */
+  recordKey: string
+  closeKey: string
   /** Toasts after joining or creating. */
   flash?: React.ReactNode
-  /** The existing "Record a contribution" form, drawn by the page (open cycle only). */
-  recordForm?: React.ReactNode
-  /** The existing "Close the cycle" control, drawn by the page (open cycle, canRun only). */
-  closeControl?: React.ReactNode
   /** The recent-contributions body (list or empty state), drawn by the page because it waits for the API. */
   recent: React.ReactNode
 }
 
 /**
- * The stokvel page's layout. It only arranges things: every form and action (record, close, invite, roles, leave,
- * pin) is the existing component, and the data comes in as props. h1 keeps id="stokvel-heading" (focus target).
+ * The stokvel page's layout. It arranges things and shows or hides the actions the person's role allows; every form
+ * and action (record, close, invite, roles, leave, pin) is the existing component. h1 keeps id="stokvel-heading".
+ * Hiding is only about not offering what would be refused: the API checks the role again on every request.
  */
-export function StokvelDetail({
-  stokvelId, name, role, youId, memberCount, members, contributionCents, cycle, payoutDate, canRun,
-  flash, recordForm, closeControl, recent,
-}: Props) {
+export function StokvelDetail({ view, youId, recordAction, recordKey, closeKey, flash, recent }: Props) {
+  const { stokvelId, name, role, memberCount, members, contributionCents, cycle, payoutDate, canRun, prefill } = view
   const isChair = role === 'Chairperson'
-  const onlyChair = isChair && members.filter((m) => m.role === 'Chairperson').length === 1
+  const onlyChair = isOnlyChairperson(members, role)
   const showSetup = cycle === null || memberCount === 1
 
   return (
@@ -74,17 +65,28 @@ export function StokvelDetail({
         <SetupCard stokvelId={stokvelId} name={name} contributionCents={contributionCents} memberCount={memberCount} openCycleLabel={cycle?.label ?? null} canRun={canRun} />
       )}
 
-      {recordForm !== undefined && (
+      {/* Only while the cycle is open. */}
+      {cycle !== null && (
         <section aria-labelledby="record-heading" className={`${CARD} flex flex-col gap-3.5 px-6 py-[22px]`}>
           <h2 id="record-heading" className="text-xl font-semibold">Record a contribution</h2>
-          {recordForm}
+          <ContributionForm
+            stokvelId={stokvelId}
+            cycle={cycle.label}
+            youId={youId}
+            // Whoever runs the cycle may record for anyone; a member can only record for themselves.
+            members={canRun ? members.map((m) => ({ userId: m.userId, name: m.fullName ?? 'A member' })) : null}
+            prefill={prefill}
+            firstKey={recordKey}
+            action={recordAction}
+          />
         </section>
       )}
 
-      {closeControl !== undefined && (
+      {/* Close the cycle: whoever runs THIS stokvel's cycles, and only while it is open. */}
+      {canRun && cycle !== null && (
         <section aria-labelledby="close-heading" className={`${CARD} flex flex-wrap items-center justify-between gap-4 px-6 py-5`}>
           <h2 id="close-heading" className="text-base font-semibold">Close the cycle</h2>
-          {closeControl}
+          <CloseCycleDialog stokvelId={stokvelId} cycleId={cycle.id} cycleLabel={cycle.label} firstKey={closeKey} />
         </section>
       )}
 

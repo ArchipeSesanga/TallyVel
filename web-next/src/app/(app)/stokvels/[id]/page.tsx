@@ -1,20 +1,13 @@
 import { Suspense } from 'react'
-import { CreditCard } from 'lucide-react'
 import { notFound } from 'next/navigation'
 import { api, readOrFail } from '@/lib/api'
 import { ApiErrorView } from '@/components/ApiErrorView'
-import { formatCents } from '@/lib/money'
-import { formatDateTime } from '@/lib/dates'
-import { canRunCycle } from '@/lib/roles'
-import { centsToInput } from '@/lib/moneyInput'
 import { getSession } from '@/lib/session'
 import { recordContribution } from '@/app/actions'
-import { ContributionForm } from '@/components/ContributionForm'
-import { ProofControls } from '@/components/ProofControls'
-import { CloseCycleDialog } from '@/components/CloseCycleDialog'
 import { FlashToast } from '@/components/FlashToast'
-import { Avatar } from '@/components/StokvelParts'
+import { RecentContributionsList } from '@/components/RecentContributionsList'
 import { StokvelDetail } from '@/components/StokvelDetail'
+import { stokvelViewOf } from '@/lib/stokvelView'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -67,50 +60,24 @@ async function StokvelDetailData({ params, searchParams }: { params: Promise<{ i
   const entry = home.data.stokvels.find((s) => s.stokvelId === id)
   if (entry === undefined) notFound()
 
-  const { name, contributionAmountCents, memberCount, currentCycle, members } = stokvel.data
   const session = await getSession() // the page is inside <Suspense>, so reading the cookie is fine
   if (session === null) notFound() // readOrFail has already sent a signed-out person to /login; this only narrows the type
 
-  const canRun = canRunCycle(entry.role) // Treasurer or Chairperson, from the API (the API checks again)
-  const openCycle = currentCycle !== null && currentCycle.status === 'Open' ? currentCycle : null
+  // What the page shows and offers is worked out from the API's two answers by one plain function (lib/stokvelView.ts).
+  const view = stokvelViewOf(stokvel.data, entry)
 
   return (
     <StokvelDetail
-      stokvelId={id}
-      name={name}
-      role={entry.role}
+      view={view}
       youId={session.user.id}
-      memberCount={memberCount}
-      members={members}
-      contributionCents={contributionAmountCents}
-      cycle={openCycle}
-      payoutDate={entry.nextPayoutDate}
-      canRun={canRun}
+      recordAction={recordContribution}
+      recordKey={crypto.randomUUID()}
+      closeKey={crypto.randomUUID()}
       flash={
         <>
-          {flags.joined === '1' && <FlashToast message={`You joined ${name}.`} />}
-          {flags.created === '1' && <FlashToast message={`Created ${name}. You are its Chairperson.`} />}
+          {flags.joined === '1' && <FlashToast message={`You joined ${view.name}.`} />}
+          {flags.created === '1' && <FlashToast message={`Created ${view.name}. You are its Chairperson.`} />}
         </>
-      }
-      // Only while the cycle is open. THIS stokvel's role comes from the API (/me/home), never from the session.
-      recordForm={
-        openCycle === null ? undefined : (
-          <ContributionForm
-            stokvelId={id}
-            cycle={openCycle.label}
-            youId={session.user.id}
-            members={canRun ? members.map((m) => ({ userId: m.userId, name: m.fullName ?? 'A member' })) : null}
-            prefill={entry.owedThisCycleCents > 0 ? centsToInput(entry.owedThisCycleCents) : ''}
-            firstKey={crypto.randomUUID()}
-            action={recordContribution}
-          />
-        )
-      }
-      // Close the cycle: whoever runs THIS stokvel's cycles, and only while it is open.
-      closeControl={
-        canRun && openCycle !== null ? (
-          <CloseCycleDialog stokvelId={id} cycleId={openCycle.id} cycleLabel={openCycle.label} firstKey={crypto.randomUUID()} />
-        ) : undefined
       }
       recent={
         <Suspense fallback={<RecentSkeleton />}>
@@ -118,9 +85,9 @@ async function StokvelDetailData({ params, searchParams }: { params: Promise<{ i
             recentPromise={recentPromise}
             stokvelId={id}
             youId={session.user.id}
-            isTreasurer={canRun}
-            openCycleLabel={openCycle?.label ?? null}
-            names={Object.fromEntries(members.map((m) => [m.userId, m.fullName ?? 'A member']))}
+            canRun={view.canRun}
+            openCycleLabel={view.cycle?.label ?? null}
+            names={Object.fromEntries(view.members.map((m) => [m.userId, m.fullName ?? 'A member']))}
           />
         </Suspense>
       }
@@ -130,61 +97,11 @@ async function StokvelDetailData({ params, searchParams }: { params: Promise<{ i
 
 // Awaits the request that was ALREADY started above, so it has been running all along.
 async function RecentContributions({
-  recentPromise, stokvelId, youId, isTreasurer, openCycleLabel, names,
-}: {
-  recentPromise: ReturnType<typeof readRecent>
-  stokvelId: string
-  youId: string
-  isTreasurer: boolean
-  openCycleLabel: string | null
-  names: Record<string, string>
-}) {
+  recentPromise, ...rest
+}: { recentPromise: ReturnType<typeof readRecent> } & Omit<React.ComponentProps<typeof RecentContributionsList>, 'items'>) {
   const recent = await recentPromise
   if (!recent.ok) return <ApiErrorView {...recent.problem} />
-
-  if (recent.data.items.length === 0) {
-    return (
-      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-input px-4 py-7 text-center">
-        <CreditCard className="size-7 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
-        <p className="text-[15px] font-semibold">No contributions yet</p>
-        <p className="max-w-[260px] text-sm text-muted-foreground">Payments show up here once a cycle is open and members start paying in.</p>
-      </div>
-    )
-  }
-
-  return (
-    <ul className="divide-y divide-divider">
-      {recent.data.items.map((c) => {
-        const you = c.memberUserId === youId
-        const who = you ? 'You' : (names[c.memberUserId] ?? 'A member')
-        return (
-          // Avatar, name, date and amount. The id itself is never shown.
-          <li key={c.id} className="py-3.5 first:pt-0 last:pb-0">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <Avatar name={who} tone={you ? 'you' : 'alt'} round />
-                <div className="flex min-w-0 flex-col">
-                  <span className="text-base font-semibold break-words">{who}</span>
-                  <span className="text-[13px] text-muted-foreground tabular-nums">
-                    {formatDateTime(c.recordedAt)} · {c.status} · cycle {c.cycle}
-                  </span>
-                </div>
-              </div>
-              <span className="text-base font-semibold whitespace-nowrap tabular-nums">{formatCents(c.amountCents)}</span>
-            </div>
-            <ProofControls
-              stokvelId={stokvelId}
-              contributionId={c.id}
-              hasProof={c.hasProof}
-              canDownload={c.canDownloadProof}
-              // Your own payment, or any payment where you run the cycle; only while its cycle is open.
-              canChange={(you || isTreasurer) && c.cycle === openCycleLabel}
-            />
-          </li>
-        )
-      })}
-    </ul>
-  )
+  return <RecentContributionsList items={recent.data.items} {...rest} />
 }
 
 function HeaderSkeleton() {

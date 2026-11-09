@@ -17,5 +17,7 @@ export default defineConfig({
     // Component tests say `// @vitest-environment jsdom` at the top; plain logic tests run in Node (faster).
     environment: 'node',
     restoreMocks: true,
+    // Node's own (experimental) localStorage prints a warning in every jsdom test; jsdom brings its own, which is the one used.
+    execArgv: ['--no-experimental-webstorage'],
   },
 })
