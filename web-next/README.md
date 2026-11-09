@@ -357,3 +357,101 @@ A pin is a stokvel's id and name, and nothing else (no balance, role or member l
 - `ContributionRangeTests` and `ActivityFeedTests` run against a real database, but `dotnet test` still fails to start on its own since 1 November 2026: the development seeder gives one member two contributions in the 2026-11 cycle. (Not changed here; I ran the suite with a temporary seeder patch that I reverted.)
 - The two `Seed` tests that check the "midnight" row fail while that patch is applied; they are the only failures.
 - Screenshots and a browser recording: **TODO (yours):** see the checklist in my report. The run described above was done with a scripted Chrome, not by hand.
+
+## API check (9.1)
+
+What the running API does for the join flow, proof of payment and the safe close. Checked against the rebuilt API on :8080 with the seeded accounts, and with throwaway accounts and stokvels for anything that changes data, so the demo stays as seeded. Unless it says otherwise every error is `application/problem+json` with a stable `code` and a `correlationId`.
+
+### 1. Invites: what do create, preview and join answer, including for an unknown code, an expired code and someone who is already a member?
+
+| Call | Answer |
+|---|---|
+| `POST /stokvels/{id}/invites` by the stokvel's Treasurer or Chairperson | **201** `{ "code": "-7R8qvcwyFW3lqWL8Cc2Ow", "expiresAt": "2026-11-16T08:17:03Z" }` (7 days). The code is 22 URL-safe characters (128 random bits from the operating system's CSPRNG) and is the table's primary key, so it is unique. |
+| ...by an ordinary Member (Nandi, Work Stokvel) | **403** |
+| ...by someone who is not in the stokvel (Thandi) | **404**, the same as a stokvel that does not exist |
+| `GET /invites/{code}` with a code that does not exist | **404** `invite-not-found`: "No invite was found with that code." |
+| `GET /invites/{code}` or `POST …/join` with an **expired** (or revoked) code | **410** `invite-expired`: "This invite has expired or was withdrawn. Ask for a new one." |
+| `POST /invites/{code}/join` by someone who is **already a member** | **409** `already-member` with the stokvel's id in the problem: `{"code":"already-member","stokvelId":"b12b7944-…", …}` (the caller is a member, so they may know it) |
+| `POST /invites/{code}/join` without an `Idempotency-Key` | **400** "An Idempotency-Key header is required." |
+| Joining for the first time | **201** `{ "stokvelId": "7219ce83-…" }`; the caller is now a Member |
+| The same `Idempotency-Key` again | **201**, the original answer, and still one membership. Two requests with the same key at the same moment also both get 201 and make one membership. |
+| A new key after joining | **409** `already-member` |
+| Two joins at once with different keys | one **201** and one **409**: the database's one-membership-per-person key lets only one in |
+| More than 10 preview or join requests a minute from one user | **429** with `Retry-After: 60` |
+
+Tests: `InviteTests` (20 tests, e.g. `A_treasurer_creates_an_invite_that_expires_in_seven_days`, `An_expired_code_gets_410_with_the_invite_expired_code`, `Joining_when_already_a_member_gets_409_with_the_stokvel_id_in_the_problem`, `A_double_click_with_the_same_key_at_the_same_time_makes_one_membership_and_two_201s`, `Two_joins_at_once_with_different_keys_make_one_membership_and_the_database_decides_the_loser`, `Guessing_codes_too_fast_gets_429_with_Retry_After`).
+
+### 2. What exactly is in the invite preview, and is there any member data?
+
+`GET /invites/{code}` (signed in) returns exactly these nine fields and nothing else:
+
+```
+code, stokvelName, rules, contributionAmountCents, frequency, cycleLengthDays, memberCount, expiresAt, alreadyMember
+```
+
+For the seeded Family Stokvel: `stokvelName: "Family Stokvel"`, `contributionAmountCents: 50000`, `frequency: "Monthly"`, `cycleLengthDays: null` (a calendar month is not a fixed number of days; weekly is 7 and bi-weekly 14), `memberCount: 4`, and the stokvel's `rules` text. **There are no member names, no user ids, no balances, no contributions and no payout order.** The caller is not a member yet, so none of that is theirs to see. The query selects only these fields, and `The_preview_has_only_the_allowed_fields_and_nothing_about_members` asserts the exact set of fields and that no member id or name appears anywhere in the body.
+
+### 3. What can be uploaded as proof of payment, how big, and who decides the type?
+
+`POST /stokvels/{id}/contributions/{contributionId}/proof` takes `multipart/form-data` with one file field named `file`. **JPEG, PNG and PDF only, at most 5 MB (5 × 1024 × 1024 bytes). The type is decided by the file's first bytes, never by its name or the client's Content-Type.** Run against the real server:
+
+| Upload | Answer |
+|---|---|
+| A text file named `receipt.pdf`, sent with Content-Type `application/pdf` | **415** `unsupported-file-type` |
+| A PNG named `../../x<y>.txt`, sent as `text/plain` | **200**, stored as `image/png`, named `x_y_.png` (no path, odd characters replaced, extension of the real type) |
+| Exactly 5,242,880 bytes | **201** |
+| 5,242,881 bytes | **413** `file-too-large` (problem+json) |
+| 12 MB | **413** `file-too-large` (problem+json), not a connection reset |
+| No `file` field | **400** |
+| Uploading again while the cycle is open | **200**, the proof is replaced (still one per contribution) |
+| Upload, replace or delete once the cycle is closed or paid out | **409** `proof-locked` |
+
+The limit is enforced in four agreeing places: the endpoint's `RequestSizeLimit` and `RequestFormLimits`, a filter that refuses a declared length over the limit before the form is read, Kestrel's own `MaxRequestBodySize` (5 MB plus 64 KB of multipart wrapping), and a check on the file itself. The proof is stored in PostgreSQL (`bytea`), which is fine for files of at most 5 MB in a project this size; a larger system would use object storage. Tests: `ProofTests` (19 tests).
+
+### 4. Who may download a proof?
+
+`GET …/proof`: only **the contribution's member (the uploader)** and **this stokvel's Treasurer or Chairperson**. Everyone else gets the **same 404** as a contribution with no proof, so nobody can tell whether a proof exists.
+
+| Caller | Answer |
+|---|---|
+| The uploader | **200**: `Content-Type: image/png`, `Content-Disposition: attachment; filename=…`, `X-Content-Type-Options: nosniff`, `Cache-Control: private, no-store` |
+| This stokvel's Chairperson or Treasurer | **200** |
+| An ordinary member of the same stokvel | **404** `proof-not-found` |
+| A treasurer of a different stokvel | **404** `proof-not-found` (identical to the one above and to a contribution with no proof) |
+
+Seeded demo, checked: in Work Stokvel Lerato's contribution has a proof; Sipho (its Treasurer) gets 200, Nandi (an ordinary member) gets 404 and Thabo (Family's Chairperson, a stranger to Work) gets 404. In Family Stokvel Thabo's contribution has a proof; Lerato (its Treasurer) gets 200 and Sipho (an ordinary member there) gets 404. Contributions carry `hasProof` and `canDownloadProof` (computed by the same rule as the download): the ordinary member above sees `hasProof: true, canDownloadProof: false`. Tests: `An_ordinary_member_and_another_stokvels_treasurer_get_the_same_404_as_a_contribution_with_no_proof`, `Contributions_say_whether_they_have_a_proof_and_whether_the_caller_may_download_it`.
+
+### 5. What does the close preview contain, and is it the same code as the real close?
+
+`GET /stokvels/{id}/cycles/{cycleId}/close-preview` (Treasurer or Chairperson of **this** stokvel; an ordinary member gets **403**, a non-member **404**):
+
+```json
+{ "cycleId": "ac791e19-…", "cycleLabel": "2026-11", "asOfDate": "2026-11-09",
+  "arrears": [ { "memberUserId": "702fa832-…", "fullName": "Live payer", "shortfallCents": 10000 } ],
+  "totalArrearsCents": 10000, "version": "dad98def…" }
+```
+
+`asOfDate` is the South African calendar date the close counts up to: the cycle's last day, or today if it is still running. An empty `arrears` list is valid (nobody owes anything, and the close still works). **It is the same code as the real close**: `CycleClosing.CalculateArrearsAsync` is the one function that works out the arrears, and the nightly job (6.4), the preview and the treasurer's close all call it (`The_nightly_job_records_exactly_the_arrears_the_preview_showed` moves a fake clock past the cycle's end and compares).
+
+`version` is the SHA-256 (hex) of the calculation's inputs, in a fixed order: `v1 | cycleId | label | asOfDate | contributionAmountCents`, then for every member counted (ordered by user id) `| userId:paidCents`. It changes whenever anything that affects the result changes: a counted contribution added, removed, edited or changing status, a member joining or leaving the counted group, the amount owed, or the as-of date. A Pending contribution that still does not count does not change it, because it cannot change the result.
+
+### 6. What happens with a stale preview, and with a repeated close?
+
+`POST …/close` takes `{ "version": "…" }` and an `Idempotency-Key`. Same roles as the preview.
+
+| Situation | Answer |
+|---|---|
+| A payment came in after the treasurer looked (old `version`) | **409** `close-preview-stale`: "Something changed since you looked… Nothing was closed." No arrears are written and the cycle stays open. |
+| The same key retried with the **new** version after a stale refusal | **200**: a refused request does not use up its key |
+| A good close | **200** `{ cycleId, closedAt, arrears, totalArrearsCents }`, the very list the preview showed; the arrears rows and the next cycle are written in the same transaction |
+| The same `Idempotency-Key` again | **200**, the original answer (identical body, same `closedAt`); the arrears are recorded once |
+| Two closes at the same moment with the **same** key | one close; both get the same 200 |
+| A **different** key with the same version, after it closed (or at the same moment) | **409** `cycle-already-closed`, and the arrears exist once |
+| Already closed by the nightly job or another treasurer | **409** `cycle-already-closed` (also for the preview) |
+| No `Idempotency-Key`, or no `version` | **400** |
+
+"Exactly once" is the 6.4 mechanism: the close is claimed with `UPDATE … SET ClosedAt = now WHERE Id = … AND ClosedAt IS NULL` and the row count says who won; a second close waits for the first to commit, then matches no row. The version is re-checked inside that transaction, so what was checked is what was written, and a stale version rolls the claim back. Tests: `CycleCloseTests` (17 tests).
+
+### What changed in the data
+
+One migration (`AddInvitesProofsAndRules`): the `StokvelInvites` table (the code is the primary key), the `ContributionProofs` table (one row per contribution, `bytea` content, a size check constraint) and a nullable `Stokvels.Rules` column. The demo seed adds Thandi (thandi@tallyvel.test, in no stokvel), one valid invite to Family Stokvel and one expired invite to Work Stokvel (both codes are written to the API log at startup), Sipho as Treasurer of Work Stokvel and an ordinary Member of Family Stokvel, a proof on one other member's contribution in each, and rules text on both stokvels. It runs on every Development start and only adds what is missing, so a database seeded earlier gains the new data.
