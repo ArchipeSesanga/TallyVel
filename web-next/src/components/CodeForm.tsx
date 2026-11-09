@@ -4,7 +4,7 @@ import Form from 'next/form'
 import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { stepUrl } from '@/lib/joinFlow'
+import { extractCode, stepUrl } from '@/lib/joinFlow'
 
 /**
  * Step 1's form. A GET form that goes to ?code=…&step=rules.
@@ -23,14 +23,21 @@ export function CodeForm({ code: codeFromServer }: { code: string | null }) {
       key={code ?? ''} // a different code means a fresh input, so Back always shows the code in the address
       className="space-y-3"
       onSubmit={(event) => {
-        const typed = String(new FormData(event.currentTarget).get('code') ?? '').trim()
+        // A pasted link becomes its code before the form reads it.
+        const box = event.currentTarget.elements.namedItem('code') as HTMLInputElement
+        box.value = extractCode(box.value)
+        const typed = box.value
         if (typed !== '') window.history.replaceState(window.history.state, '', stepUrl('code', typed))
       }}
     >
       <div>
         <label htmlFor="code" className="block text-sm font-medium">Invite code</label>
-        <Input id="code" name="code" defaultValue={code ?? ''} required maxLength={64} autoComplete="off" spellCheck={false}
-          pattern="[A-Za-z0-9_\-]{1,64}" title="Letters, numbers, - and _ only" className="mt-1 font-mono" />
+        {/* No pattern= and no maxLength: a pasted link is longer than a code and is turned into the code on paste
+            and on submit. The page and the API judge the code itself. */}
+        <Input id="code" name="code" defaultValue={code ?? ''} required autoComplete="off" spellCheck={false}
+          onChange={(e) => { const c = extractCode(e.currentTarget.value); if (c !== e.currentTarget.value) e.currentTarget.value = c }}
+          className="mt-1 font-mono" />
+        <p className="mt-1 text-sm text-muted-foreground">You can paste the whole invite link here.</p>
       </div>
       <input type="hidden" name="step" value="rules" />
       <Button type="submit" size="lg">Continue</Button>

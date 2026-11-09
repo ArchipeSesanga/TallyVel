@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CODE_PATTERN, decideStep, inviteLink, scheduleText, stepUrl, type JoinStep, type PreviewKind } from './joinFlow'
+import { CODE_PATTERN, decideStep, extractCode, inviteLink, scheduleText, stepUrl, type JoinStep, type PreviewKind } from './joinFlow'
 
 const REQUESTED: (JoinStep | null)[] = [null, 'code', 'rules', 'confirm']
 const BAD_ANSWERS: PreviewKind[] = ['not-found', 'expired', 'already-member', 'rate-limited', 'failed']
@@ -92,5 +92,21 @@ describe('CODE_PATTERN', () => {
     expect(CODE_PATTERN.test('abc/../x')).toBe(false)
     expect(CODE_PATTERN.test('')).toBe(false)
     expect(CODE_PATTERN.test('a'.repeat(65))).toBe(false)
+  })
+})
+
+describe('extractCode', () => {
+  it('takes the code out of a pasted invite link', () => {
+    expect(extractCode('http://localhost:3000/join?code=ObN1dNox0mg8IAE9OuF1pg&step=rules')).toBe('ObN1dNox0mg8IAE9OuF1pg')
+    expect(extractCode('/join?step=rules&code=-7R8qvcwyFW3lqWL8Cc2Ow')).toBe('-7R8qvcwyFW3lqWL8Cc2Ow')
+  })
+
+  it('leaves a plain code alone, trimmed', () => {
+    expect(extractCode('  -7R8qvcwyFW3lqWL8Cc2Ow ')).toBe('-7R8qvcwyFW3lqWL8Cc2Ow')
+  })
+
+  it('leaves other text alone for the API to refuse', () => {
+    expect(extractCode('https://evil.example/')).toBe('https://evil.example/')
+    expect(extractCode('')).toBe('')
   })
 })

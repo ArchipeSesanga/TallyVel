@@ -67,3 +67,20 @@ export const JOIN_MESSAGES = {
   'not-found': 'Check the code and try again.',
   expired: 'This invite has expired. Ask the treasurer for a new one.',
 } as const
+
+/**
+ * What was typed or pasted into the code box, as a code. People paste the whole invite link
+ * ("https://site/join?code=XYZ&step=rules"), so if the text is a link with a ?code=, that is the code.
+ * Otherwise the text itself, trimmed. (Whether it is a real code is for CODE_PATTERN and the API.)
+ */
+export function extractCode(typed: string): string {
+  const text = typed.trim()
+  if (!/[/?=]/.test(text)) return text
+  try {
+    const fromLink = new URL(text, 'http://our.site').searchParams.get('code')
+    if (fromLink !== null && fromLink.trim() !== '') return fromLink.trim()
+  } catch {
+    // not a link: fall through
+  }
+  return text
+}
