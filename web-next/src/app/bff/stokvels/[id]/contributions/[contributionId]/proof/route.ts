@@ -13,7 +13,7 @@ const SAFE_TYPES = new Set(['image/jpeg', 'image/png', 'application/pdf'])
 
 // One 404 for everything "not yours" or "not there", the same words the API uses: nobody can tell which it was.
 function notFoundProof(): Response {
-  return Response.json({ error: 'proof-not-found', message: 'No proof was found.' }, { status: 404, headers: { 'Cache-Control': 'private, no-store' } })
+  return Response.json({ error: 'proof-not-found', message: 'No proof was found.' }, { status: 404, headers: { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' } })
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string; contributionId: string }> }) {

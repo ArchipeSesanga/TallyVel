@@ -55,7 +55,7 @@ export function CloseCycleDialog({ stokvelId, cycleId, cycleLabel, firstKey }: P
       next = await closeCycle(previous, formData)
     } catch (error) {
       console.error('closeCycle failed', error)
-      next = { ...previous, kind: 'failed', message: "Can't reach RondiTrack. Check your connection. Press the button again: trying again is safe.", reference: localReference(), closed: null }
+      next = { ...previous, kind: 'failed', message: "The request didn't go through. Press the button again: trying again is safe, the arrears are recorded once.", reference: localReference(), closed: null }
     }
     setShowResult(true)
     if (next.kind === 'closed' && next.closed !== null) {

@@ -44,9 +44,9 @@ export function ProofControls({ stokvelId, contributionId, hasProof, canDownload
       if (next.unexpected !== null) showUnexpected("Couldn't upload the proof", next.unexpected)
       return next
     } catch (error) {
-      // The request itself failed (offline, or Next refused the body). Not a wrong file: a toast that stays.
+      // The request itself failed (offline, or Next refused a body over its limit). Not a wrong file: a toast that stays.
       console.error('uploadProof failed', error)
-      const failure = { message: "Can't reach RondiTrack. Check your connection.", reference: localReference() }
+      const failure = { message: "The request didn't go through. Check your connection and try again.", reference: localReference() }
       showUnexpected("Couldn't upload the proof", failure)
       return { ...PROOF_IDLE, unexpected: failure }
     }
@@ -60,7 +60,7 @@ export function ProofControls({ stokvelId, contributionId, hasProof, canDownload
       return next
     } catch (error) {
       console.error('removeProof failed', error)
-      const failure = { message: "Can't reach RondiTrack. Check your connection.", reference: localReference() }
+      const failure = { message: "The request didn't go through. Check your connection and try again.", reference: localReference() }
       showUnexpected("Couldn't remove the proof", failure)
       return { ...PROOF_IDLE, unexpected: failure }
     }
