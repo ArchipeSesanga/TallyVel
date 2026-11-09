@@ -109,6 +109,27 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* The group overview's palette (dashboard). Names follow the design spec, with one change: the spec's "muted"
+   is called ink-muted here, because shadcn already owns --color-muted (used for skeletons and quiet backgrounds). */
+@theme {
+  --color-page: #EEF1F4;
+  --color-ink: #17202B;
+  --color-ink-muted: #5B6673;
+  --color-line: #DCE1E7;
+  --color-line-soft: #E4E8ED;
+  --color-head: #F6F8FA;
+  --color-paid: #0E6B53;
+  --color-paid-bg: #E3F2EC;
+  --color-due: #9A4A08;
+  --color-due-dot: #D97706;
+  --color-due-tab: #B45309;
+  --color-forest: #17322A;
+  --color-forest-soft: #B9D3C9;
+  --color-forest-text: #D5E4DE;
+  --color-c1-bg: #E6EBF5;
+  --color-c1-fg: #2F4A86;
+}
+
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);

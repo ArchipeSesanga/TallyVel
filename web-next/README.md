@@ -553,3 +553,12 @@ On `/stokvels/[id]`, for THIS stokvel's Treasurer while the cycle is open, "Clos
 ## Members and roles
 
 The stokvel page lists its members and their roles. A **Chairperson** sees a role picker and "Change role" on each row (`changeMemberRole` in [src/app/stokvelActions.ts](src/app/stokvelActions.ts) → `PUT /stokvels/{id}/members/{userId}/role`); everyone else sees the role as text. This is how a Treasurer is chosen: the creator of a stokvel is its Chairperson, invites join people as Members, and the Chairperson promotes. The API decides: only a Chairperson of THIS stokvel may change roles, and it refuses a change that would leave no Chairperson (422), which the row shows with its reference. Checked in the browser: promote a member to Treasurer (toast, and that member then sees the invite and close controls), and the only Chairperson trying to demote themselves is refused.
+
+## Dashboard group overview
+
+`/dashboard/member` shows a payout banner (only when a group's next payout is today, in South African time) above a list of the person's groups ([GroupOverview.tsx](src/components/GroupOverview.tsx); its rules are plain functions in [groupOverview.ts](src/lib/groupOverview.ts), with tests). `/demo/group-overview` shows every state with fixed data. Where it differs from the design spec, on purpose:
+- **Tokens** are in `globals.css` under `@theme` (Tailwind 4 has no `tailwind.config`). The spec's `muted` is `ink-muted`, because shadcn already owns `--color-muted`.
+- **Money is whole cents and dates are `"YYYY-MM-DD"` text**, not fractional rands and `Date` objects, like everywhere else here. Amounts go through `formatCents`, which gives "R 1 500,00" (comma decimals, no-break spaces).
+- **The banner's sentence** "Everyone has paid in…" is shown only when the group is paid up; otherwise it says some members still owe.
+- **"Record payout"** calls `onRecordPayout(groupId)`; on the dashboard that opens the group's page, because the payout screen is not built yet. **"Set a date"** also opens the group's page; there is no screen to set one yet.
+- Every colour pair meets 4.5:1 (lowest: white on the calendar tab, 5.02).

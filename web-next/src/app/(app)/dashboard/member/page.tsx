@@ -1,8 +1,9 @@
 import { Suspense } from 'react'
 import { api, readOrFail } from '@/lib/api'
 import { ApiErrorView } from '@/components/ApiErrorView'
-import { formatCents } from '@/lib/money'
-import { formatDate } from '@/lib/dates'
+import { MemberGroups } from '@/components/MemberGroups'
+import { todayInSouthAfrica } from '@/lib/dates'
+import { groupsFromHome } from '@/lib/groupOverview'
 
 // The page itself waits for nothing: it returns the heading and a <Suspense> instantly.
 export default function MemberDashboard() {
@@ -24,18 +25,8 @@ async function MemberStokvels() {
   const stokvels = home.data.stokvels
   if (stokvels.length === 0) return <p>You&apos;re not in any stokvel yet. Ask a treasurer to add you.</p>
 
-  return (
-    <ul className="grid gap-4 md:grid-cols-2">
-      {stokvels.map((s) => (
-        <li key={s.stokvelId} className="rounded-lg border border-border p-4">
-          <h2 className="font-semibold">{s.name}</h2>
-          <p>Paid this cycle: {formatCents(s.paidThisCycleCents)}</p>
-          <p>{s.owedThisCycleCents === 0 ? 'All paid up for this cycle' : `Still owed: ${formatCents(s.owedThisCycleCents)}`}</p>
-          <p>Next payout: {s.nextPayoutDate === null ? 'No payout scheduled' : formatDate(s.nextPayoutDate)}</p>
-        </li>
-      ))}
-    </ul>
-  )
+  // Server side: work out today's South African date once and pass plain data on. The component does the layout.
+  return <MemberGroups groups={groupsFromHome(stokvels)} today={todayInSouthAfrica()} />
 }
 
 // Shaped like the real cards, so nothing jumps when the data arrives.

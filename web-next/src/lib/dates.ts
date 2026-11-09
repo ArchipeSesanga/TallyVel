@@ -27,3 +27,8 @@ export function formatDateTime(instant: string): string {
 export function formatDate(date: string): string {
   return dateFormat.format(new Date(date))
 }
+
+/** Today's calendar date in South Africa as "YYYY-MM-DD" ("en-CA" is just the locale that writes dates that way). */
+export function todayInSouthAfrica(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
+}
