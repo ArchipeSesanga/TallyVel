@@ -96,7 +96,7 @@ export function StokvelDetail({ view, youId, recordAction, recordKey, closeKey, 
         <section aria-labelledby="recent-heading" className={`${CARD} flex flex-col gap-[18px] px-6 py-[22px]`}>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 id="recent-heading" className="text-xl font-semibold">Recent contributions</h2>
-            <Link href={`/stokvels/${stokvelId}/contributions`} className={`text-sm ${LINK}`}>Full history</Link>
+            <Link href={`/stokvels/${stokvelId}/contributions`} className={`inline-flex min-h-6 items-center text-sm ${LINK}`}>Full history</Link>
           </div>
           {recent}
         </section>

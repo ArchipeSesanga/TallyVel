@@ -198,7 +198,9 @@ function Shell({ fullName, email, userId, memberOf, children }: AppShellProps) {
       {/* Sidebar: slid off-screen by default (phones), always in place from lg up. */}
       <aside
         id="sidebar"
-        className={`fixed inset-y-0 left-0 z-40 w-64 transition-transform duration-300 ease-in-out lg:translate-x-0 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+        // Closed on a phone, the drawer is off-screen AND invisible: "invisible" takes its links out of the Tab order, so
+        // keyboard focus can't disappear into a menu nobody can see (WCAG 2.4.11 / 2.4.7). From lg up it is always shown.
+        className={`fixed inset-y-0 left-0 z-40 w-64 transition-[transform,visibility] duration-300 ease-in-out lg:translate-x-0 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full max-lg:invisible"}`}
         aria-label="Sidebar navigation"
       >
         <div className="flex h-full flex-col overflow-auto py-6 px-4 bg-[#0F3D32] text-white border-r border-white/10">
@@ -219,7 +221,7 @@ function Shell({ fullName, email, userId, memberOf, children }: AppShellProps) {
                   </path>
                 </svg>
                 <input type="search" placeholder="Search..."
-                  className="text-sm text-white placeholder:text-white/60 w-full outline-none bg-transparent" />
+                  className="text-sm text-white placeholder:text-white/60 min-h-6 w-full outline-none bg-transparent" />
               </form>
             </div>
 
@@ -278,7 +280,7 @@ function Shell({ fullName, email, userId, memberOf, children }: AppShellProps) {
                 onClick={() => setSidebarOpen(!isSidebarOpen)}
                 aria-expanded={isSidebarOpen}
                 aria-controls="sidebar"
-                className="cursor-pointer rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-white lg:hidden"
+                className="flex size-9 cursor-pointer items-center justify-center rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-white lg:hidden"
               >
                 <span className="sr-only">Toggle sidebar menu</span>
                 <svg xmlns="http://www.w3.org/2000/svg" className="size-[18px] fill-white" viewBox="0 0 20 20" aria-hidden="true">
@@ -293,7 +295,7 @@ function Shell({ fullName, email, userId, memberOf, children }: AppShellProps) {
               <div className="flex items-center flex-wrap gap-5 ml-auto">
                 {/* Notification Bell */}
                 <a href="#"
-                  className="relative block focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded">
+                  className="relative flex size-9 items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-white rounded">
                   <span className="sr-only">View notifications</span>
                   <svg xmlns="http://www.w3.org/2000/svg"
                     className="size-5 fill-white overflow-visible"

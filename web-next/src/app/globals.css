@@ -202,6 +202,19 @@
   }
   html {
     @apply font-sans;
+    /* WCAG 2.4.11 Focus not obscured: when the browser scrolls a focused control into view it leaves this much room, so
+       the sticky header (68px) at the top and the toasts at the bottom never cover it. */
+    scroll-padding-top: 6rem;
+    scroll-padding-bottom: 6rem;
+  }
+  /* WCAG 2.4.7 Focus visible: the default for EVERY control. A component may replace it with its own ring (the
+     buttons do), but none may end up with nothing. */
+  :focus-visible,
+  /* The calendar button inside a date field is part of the browser's own control; it takes focus as its own Tab stop
+     and the rule above does not reach into it. */
+  input::-webkit-calendar-picker-indicator:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 }
 
