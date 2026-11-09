@@ -13,6 +13,7 @@ public static class RateLimitPolicies
 {
     public const string Login = "login";
     public const string Money = "money";
+    public const string InviteGuess = "invite-guess";
 
     public static IServiceCollection AddTallyVelRateLimiting(this IServiceCollection services, IConfiguration config)
     {
@@ -28,6 +29,11 @@ public static class RateLimitPolicies
         var moneyTokensPerPeriod = config.GetValue("RateLimiting:Money:TokensPerPeriod", 10);
         var moneyPeriod = TimeSpan.FromSeconds(config.GetValue("RateLimiting:Money:ReplenishmentPeriodSeconds", 60));
 
+        // Invite codes (preview and join): a fixed window per signed-in user. A code is 128 random bits, so
+        // guessing is hopeless anyway; this keeps a script from trying anyway and from probing for 404 versus 410.
+        var invitePermitLimit = config.GetValue("RateLimiting:InviteGuess:PermitLimit", 10);
+        var inviteWindow = TimeSpan.FromSeconds(config.GetValue("RateLimiting:InviteGuess:WindowSeconds", 60));
+
         return services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -41,6 +47,20 @@ public static class RateLimitPolicies
                     Window = loginWindow,
                     QueueLimit = 0,
                 }));
+
+            options.AddPolicy(InviteGuess, http =>
+            {
+                var userId = http.User.FindFirst("sub")?.Value;
+                if (userId is null)
+                    return RateLimitPartition.GetNoLimiter("anonymous"); // not signed in: authorization answers 401
+
+                return RateLimitPartition.GetFixedWindowLimiter(userId, _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = invitePermitLimit,
+                    Window = inviteWindow,
+                    QueueLimit = 0,
+                });
+            });
 
             options.AddPolicy(Money, http =>
             {

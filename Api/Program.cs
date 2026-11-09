@@ -70,7 +70,9 @@ builder.Services.AddOpenApi(options => options.AddOperationTransformer((operatio
     // The controller reads the header by hand (Request.Headers) so a missing key stays a 400 from the
     // service. Declaring it here only describes it, so generated clients send it; behavior is unchanged.
     if (context.Description.ActionDescriptor.RouteValues.TryGetValue("action", out var action) &&
-        action == nameof(Api.Presentation.Controllers.ContributionsController.RecordContribution))
+        action is nameof(Api.Presentation.Controllers.ContributionsController.RecordContribution)
+            or nameof(Api.Presentation.Controllers.InvitesController.Join)
+            or "Close")
     {
         operation.Parameters ??= [];
         operation.Parameters.Add(new OpenApiParameter
@@ -138,6 +140,8 @@ builder.Services.AddScoped<PayoutService>();
 builder.Services.AddScoped<MemberHomeService>();
 builder.Services.AddScoped<StokvelSummaryService>();
 builder.Services.AddScoped<ActivityService>();
+builder.Services.AddScoped<IdempotentExecutor>();
+builder.Services.AddScoped<InviteService>();
 // Saves changes made to tracked entities (e.g. stokvel memberships) at the
 // end of each successful request.
 // Enums travel as names ("Chairperson", "Monthly"). Numbers are still
