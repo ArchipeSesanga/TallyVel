@@ -8,6 +8,12 @@ const nextConfig: NextConfig = {
   // Links prefetch the static shell of the next page, so clicks show it immediately.
   partialPrefetching: true,
   agentRules: false,
+  // next/image's optimizer keeps ONE cache that every visitor shares. A proof of payment must never go in it, so the
+  // optimizer is told, by an allow-list, that the ONLY local files it may touch are the site's own design images in
+  // public/. A request for /_next/image?url=/bff/... (a proof) is refused. (And no remotePatterns: nothing remote.)
+  images: {
+    localPatterns: [{ pathname: '/LogoWrap.png' }],
+  },
   // Everything under /bff/ is private data for a signed-in person (activity, contributions, proofs of payment). These
   // are not pages, so there is no <meta> to put noindex in: the header says it. (robots.txt must NOT block them: a
   // crawler that may not fetch a URL never sees this header.)

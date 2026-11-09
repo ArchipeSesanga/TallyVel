@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useRef, useState } from 'react'
+import { useActionState, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { closeCycle, type CloseState } from '@/app/closeActions'
 import {
@@ -20,33 +20,42 @@ type Preview =
   | { status: 'ready'; data: ClosePreview; changed: boolean }
   | { status: 'error'; message: string; reference: string | null }
 
-type Props = { stokvelId: string; cycleId: string; cycleLabel: string; firstKey: string }
+type Props = {
+  stokvelId: string; cycleId: string; cycleLabel: string; firstKey: string
+  /** Open straight away. Used by LazyCloseCycleDialog, which only loads this file once the person has asked for it. */
+  startOpen?: boolean
+}
 
 /**
  * "Close <cycle>…": a confirmation that says what will happen, from the API's own preview.
  * The browser never works out who owes what; it only shows the preview and sends back its `version`.
  */
-export function CloseCycleDialog({ stokvelId, cycleId, cycleLabel, firstKey }: Props) {
-  const [open, setOpen] = useState(false)
+export function CloseCycleDialog({ stokvelId, cycleId, cycleLabel, firstKey, startOpen = false }: Props) {
+  const [open, setOpen] = useState(startOpen)
   const [preview, setPreview] = useState<Preview>({ status: 'loading' })
   // Whether to show the last answer: not when the dialog has just been opened again.
   const [showResult, setShowResult] = useState(false)
   const cancelRef = useRef<HTMLButtonElement>(null)
   const loadingRef = useRef<AbortController | null>(null)
 
+  /** Asks the API for the preview and returns what to show. It sets no state itself, so an effect may use it too. */
+  async function requestPreview(changed: boolean, signal: AbortSignal): Promise<Preview> {
+    try {
+      const data = await fetchBffJson<ClosePreview>(`/bff/stokvels/${stokvelId}/cycles/${cycleId}/close-preview`, signal)
+      return { status: 'ready', data, changed }
+    } catch (error) {
+      const e = error instanceof BffRequestError ? error : null
+      return { status: 'error', message: e?.message ?? 'Something went wrong. Please try again.', reference: e?.reference ?? null }
+    }
+  }
+
   async function loadPreview(changed: boolean) {
     loadingRef.current?.abort() // only the latest request may answer
     const controller = new AbortController()
     loadingRef.current = controller
     setPreview({ status: 'loading' })
-    try {
-      const data = await fetchBffJson<ClosePreview>(`/bff/stokvels/${stokvelId}/cycles/${cycleId}/close-preview`, controller.signal)
-      setPreview({ status: 'ready', data, changed })
-    } catch (error) {
-      if (controller.signal.aborted) return
-      const e = error instanceof BffRequestError ? error : null
-      setPreview({ status: 'error', message: e?.message ?? 'Something went wrong. Please try again.', reference: e?.reference ?? null })
-    }
+    const next = await requestPreview(changed, controller.signal)
+    if (!controller.signal.aborted) setPreview(next)
   }
 
   const initial: CloseState = { kind: 'idle', message: null, reference: null, idempotencyKey: firstKey, keyVersion: null, closed: null }
@@ -79,6 +88,20 @@ export function CloseCycleDialog({ stokvelId, cycleId, cycleLabel, firstKey }: P
       loadingRef.current?.abort()
     }
   }
+
+  // Opened on arrival (see startOpen): fetch the preview that onOpenChange(true) would have fetched. The preview
+  // state already starts as 'loading', so nothing needs setting until the answer comes.
+  useEffect(() => {
+    if (!startOpen) return
+    const controller = new AbortController()
+    loadingRef.current = controller
+    void requestPreview(false, controller.signal).then((next) => {
+      if (!controller.signal.aborted) setPreview(next)
+    })
+    return () => controller.abort()
+    // Once, when the dialog first appears: requestPreview only reads the ids above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const ready = preview.status === 'ready' ? preview.data : null
   const alreadyClosed = showResult && state.kind === 'already-closed'

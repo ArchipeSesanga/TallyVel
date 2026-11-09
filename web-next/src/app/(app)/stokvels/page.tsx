@@ -7,6 +7,7 @@ import { StokvelCard } from '@/components/StokvelCard'
 import { FlashToast } from '@/components/FlashToast'
 import { StokvelsHeaderConnected } from '@/components/StokvelsHeaderConnected'
 import { groupsFromHome } from '@/lib/groupOverview'
+import { roleLabel } from '@/lib/roles'
 
 // The browser tab and a screen reader's page title. Each page names itself; the site name is added after it.
 export const metadata: Metadata = { title: 'My stokvels' }
@@ -45,7 +46,13 @@ async function StokvelsContent() {
         <ul className="grid gap-4 md:grid-cols-2">
           {stokvels.map((entry) => (
             <li key={entry.stokvelId}>
-              <Link href={`/stokvels/${entry.stokvelId}`} className="block rounded-lg focus-visible:ring-2 focus-visible:ring-ring">
+              {/* aria-label: the card is one big link around many lines of text, so without it a screen reader reads the whole
+                  card as the link's name (or, for some, nothing useful). It now says who and in which role: "Work Stokvel, Treasurer". */}
+              <Link
+                href={`/stokvels/${entry.stokvelId}`}
+                aria-label={`${entry.name}, ${roleLabel(entry.role)}`}
+                className="block rounded-lg focus-visible:ring-2 focus-visible:ring-ring"
+              >
                 <StokvelCard entry={entry} />
               </Link>
             </li>

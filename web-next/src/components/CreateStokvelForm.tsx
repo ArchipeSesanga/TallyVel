@@ -4,7 +4,7 @@ import { useActionState } from 'react'
 import { createStokvel, type CreateStokvelState } from '@/app/stokvelActions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { FREQUENCIES, FREQUENCY_LABELS, NAME_MAX, RULES_MAX } from '@/lib/stokvelSchema'
+import { FREQUENCIES, FREQUENCY_LABELS, NAME_MAX, RULES_MAX } from '@/lib/stokvelFields'
 
 const INITIAL: CreateStokvelState = { message: null, reference: null, fieldErrors: {}, values: { name: '', amount: '', frequency: 'Monthly', rules: '' } }
 

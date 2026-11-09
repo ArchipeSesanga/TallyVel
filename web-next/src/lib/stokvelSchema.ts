@@ -1,16 +1,10 @@
 import { z } from 'zod'
 import { parseRandsToCents } from './moneyInput'
 
-// The API's limits (Stokvel.MaxNameLength and MaxRulesLength). The API checks again; this just explains early.
-export const NAME_MAX = 100
-export const RULES_MAX = 2000
+import { FREQUENCIES, NAME_MAX, RULES_MAX } from './stokvelFields'
 
-export const FREQUENCIES = ['Weekly', 'BiWeekly', 'Monthly'] as const
-export const FREQUENCY_LABELS: Record<(typeof FREQUENCIES)[number], string> = {
-  Weekly: 'Weekly',
-  BiWeekly: 'Every two weeks',
-  Monthly: 'Monthly',
-}
+// Re-exported so the tests (and the server) keep one place to import from. The browser form imports stokvelFields instead.
+export { FREQUENCIES, FREQUENCY_LABELS, NAME_MAX, RULES_MAX } from './stokvelFields'
 
 export const createStokvelSchema = z.object({
   name: z.string().trim().min(1, 'Enter a name for the stokvel.').max(NAME_MAX, `Use ${NAME_MAX} characters or fewer.`),

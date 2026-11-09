@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { Avatar, CARD, FactsStrip, MembersCard, SetupCard } from '@/components/StokvelParts'
-import { CloseCycleDialog } from '@/components/CloseCycleDialog'
+import { LazyCloseCycleDialog } from '@/components/LazyCloseCycleDialog'
 import { ContributionForm } from '@/components/ContributionForm'
-import { LeaveStokvelDialog } from '@/components/LeaveStokvelDialog'
+import { LazyLeaveStokvelDialog } from '@/components/LazyLeaveStokvelDialog'
 import { PinToggle } from '@/components/PinToggle'
 import { roleLabel } from '@/lib/roles'
 import { isOnlyChairperson, type StokvelView } from '@/lib/stokvelView'
@@ -86,7 +86,7 @@ export function StokvelDetail({ view, youId, recordAction, recordKey, closeKey, 
       {canRun && cycle !== null && (
         <section aria-labelledby="close-heading" className={`${CARD} flex flex-wrap items-center justify-between gap-4 px-6 py-5`}>
           <h2 id="close-heading" className="text-base font-semibold">Close the cycle</h2>
-          <CloseCycleDialog stokvelId={stokvelId} cycleId={cycle.id} cycleLabel={cycle.label} firstKey={closeKey} />
+          <LazyCloseCycleDialog stokvelId={stokvelId} cycleId={cycle.id} cycleLabel={cycle.label} firstKey={closeKey} />
         </section>
       )}
 
@@ -111,7 +111,7 @@ export function StokvelDetail({ view, youId, recordAction, recordKey, closeKey, 
               : "You'll stop seeing this stokvel and its contributions."}
           </p>
         </div>
-        <LeaveStokvelDialog stokvelId={stokvelId} stokvelName={name} blocked={onlyChair} />
+        <LazyLeaveStokvelDialog stokvelId={stokvelId} stokvelName={name} blocked={onlyChair} />
       </section>
     </div>
   )

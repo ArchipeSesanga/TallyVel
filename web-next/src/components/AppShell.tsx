@@ -208,7 +208,10 @@ function Shell({ fullName, email, userId, memberOf, children }: AppShellProps) {
               <Link href="/dashboard/member" className="min-h-9 inline-block focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded">
                 <span className="sr-only">TalliVel</span>
                 {/* alt is empty because the sr-only text above already names the link */}
-                <Image src="/LogoWrap.png" alt="" width={134} height={30} className="w-36 h-auto block" priority />
+                {/* The file is 134 x 30, so it is shown at 134 wide (not stretched to 144) and `sizes` says so: next/image then asks
+                    for the right file for the screen's pixel density instead of guessing. It is the site's own design image,
+                    so the optimizer may serve it (next.config.ts allow-lists exactly this file). Proofs never use next/image. */}
+                <Image src="/LogoWrap.png" alt="" width={134} height={30} sizes="134px" className="w-[134px] h-auto block" priority />
               </Link>
 
               {/* Search Box */}

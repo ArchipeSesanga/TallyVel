@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Figtree } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Toaster } from "@/components/ui/sonner";
+import { WebVitalsLogger } from "@/components/WebVitalsLogger";
 import { OG_IMAGE, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, siteUrl } from "@/lib/siteMetadata";
 import "./globals.css";
 
@@ -34,6 +35,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <NuqsAdapter>{children}</NuqsAdapter>
         {/* Toasts (sonner). One place for the whole site; each toast sets its own duration. */}
         <Toaster position="bottom-right" />
+        {/* Measurement only: logs INP to the console when built with NEXT_PUBLIC_LOG_WEB_VITALS=1, otherwise does nothing. */}
+        <WebVitalsLogger />
       </body>
     </html>
   );

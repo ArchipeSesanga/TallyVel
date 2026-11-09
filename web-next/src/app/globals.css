@@ -199,6 +199,10 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Tabular figures: every digit is the same width, so an amount or a total does not change width (and push the text
+       beside it) when its digits change or when the font finishes loading. Figtree has them. Set once, for the whole
+       site, so no amount can be missed; the totals also say tabular-nums in their own classes. */
+    font-variant-numeric: tabular-nums;
   }
   html {
     @apply font-sans;

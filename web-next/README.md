@@ -694,5 +694,5 @@ git revert --no-edit HEAD && git push
 - The end-to-end suite is small on purpose (three behaviours that need the whole stack). Close, proof upload and the join journey are not in Playwright yet.
 - Component tests run without the React Compiler (Vitest compiles JSX itself); the compiler is only on in the real build, which the end-to-end tests do exercise.
 - The seeded stokvels are not safe to depend on: people change them (for example closing Family Stokvel's cycle), so every test that needs a stokvel creates its own.
-- The stokvel cards on "My stokvels" are one big link around an `article`, so the **link has no accessible name** for a screen reader. Found while writing the journey test (the test points at the card's heading instead). To fix in Part B.
+- ~~The stokvel cards on "My stokvels" are one big link around an `article`, so the link has no accessible name.~~ Fixed in Part B (the link now has an `aria-label`: "Work Stokvel, Treasurer"; see the Accessibility table).
 - The 40-member performance stokvel is added by the Development seed on every start if it is missing, so a long-lived local database gains it; it is made of invented people and touches no demo account.
