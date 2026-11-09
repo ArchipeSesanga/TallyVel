@@ -32,6 +32,7 @@ public static class DatabaseSeeder
             logger.LogDebug("Database already has data; skipping the first seed");
             // A database seeded before 9.1 still gets the newer demo data (and one seeded after it is left alone).
             await DemoAdditions.EnsureAsync(db, logger, newPasswordHash, clock);
+            await PerformanceDemo.EnsureAsync(db, logger, newPasswordHash, clock);
             return;
         }
 
@@ -47,5 +48,6 @@ public static class DatabaseSeeder
             seed.Users.Count, seed.Stokvels.Count, seed.Contributions.Count);
 
         await DemoAdditions.EnsureAsync(db, logger, newPasswordHash, clock);
+        await PerformanceDemo.EnsureAsync(db, logger, newPasswordHash, clock);
     }
 }
