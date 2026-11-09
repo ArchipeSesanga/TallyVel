@@ -126,13 +126,16 @@ public class StokvelController : StokvelControllerBase
 
     [HttpDelete("{id:guid}/members/{userId:guid}")]
     [EndpointSummary("Remove a member from a stokvel")]
-    [EndpointDescription("Removes the member. Refuses to remove the last admin, so a stokvel always has someone who can run it. Does not delete the member's past contributions.")]
+    [EndpointDescription("Removes the member. Anyone may remove THEMSELVES (leave the stokvel); removing someone else is for a Chairperson. Refuses to remove the last admin, so a stokvel always has someone who can run it. Does not delete the member's past contributions.")]
     [ProducesResponseType<StokvelResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
     public async Task<IActionResult> RemoveMember(Guid id, Guid userId)
     {
-        if (await AuthorizeStokvelAsync(id, StokvelPolicies.Chairperson) is { } denied) return denied;
+        // Leaving is your own choice, so any member may remove THEMSELVES. Removing somebody else stays
+        // the Chairperson's job. (A non-member still gets 404 either way.)
+        var policy = userId == CallerId ? StokvelPolicies.Member : StokvelPolicies.Chairperson;
+        if (await AuthorizeStokvelAsync(id, policy) is { } denied) return denied;
 
         // NotFoundException and BusinessRuleViolationException propagate to
         // TallyVelExceptionHandler, the only place that turns a domain
