@@ -16,6 +16,7 @@ public class CyclesController : StokvelControllerBase
     private readonly ICycleRepository _cycles;
     private readonly PayoutService _payouts;
     private readonly CycleCloseService _closing;
+    private readonly PayoutOrderService _payoutOrder;
     private readonly IValidator<OpenCycleRequest> _openValidator;
     private readonly IValidator<PayoutRequest> _payoutValidator;
 
@@ -23,12 +24,14 @@ public class CyclesController : StokvelControllerBase
         ICycleRepository cycles,
         PayoutService payouts,
         CycleCloseService closing,
+        PayoutOrderService payoutOrder,
         IValidator<OpenCycleRequest> openValidator,
         IValidator<PayoutRequest> payoutValidator)
     {
         _cycles = cycles;
         _payouts = payouts;
         _closing = closing;
+        _payoutOrder = payoutOrder;
         _openValidator = openValidator;
         _payoutValidator = payoutValidator;
     }
@@ -61,6 +64,23 @@ public class CyclesController : StokvelControllerBase
 
         var cycle = await _cycles.OpenAsync(stokvelId, request.Label, ct);
         return CreatedAtAction(nameof(List), new { stokvelId }, CycleResponse.FromDomain(cycle));
+    }
+
+    [HttpGet("{cycleId:guid}/payouts")]
+    [EndpointSummary("The payout order, and who is next")]
+    [EndpointDescription(
+        "Any member of the stokvel can read it (a non-member gets 404). The server decides the order: members by when they " +
+        "joined (ties by user id). A member is PaidOut once they have a payout in this stokvel, Next if they are the first in " +
+        "that order who has not been paid, otherwise Upcoming. nextMemberId is null once everyone has been paid. amountCents " +
+        "and paidAt are those of the member's payout (the one for this cycle if there is one) and are null until they are paid. " +
+        "potCents is what a payout of this cycle is or was.")]
+    [ProducesResponseType<CyclePayoutsResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public async Task<IActionResult> Payouts(Guid stokvelId, Guid cycleId, CancellationToken ct)
+    {
+        if (await AuthorizeStokvelAsync(stokvelId, StokvelPolicies.Member) is { } denied) return denied;
+
+        return Ok(await _payoutOrder.GetAsync(stokvelId, cycleId, ct));
     }
 
     [HttpPost("{cycleId:guid}/payout")]
