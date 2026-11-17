@@ -66,6 +66,27 @@ jobs:
       - name: Audit (production dependencies)
         run: npm audit --omit=dev
 
+  # The snapshot itself is checked by a backend test (OpenApiClientContractTests). This checks the step after it: the
+  # generated TypeScript types must be what the committed snapshot produces, and must still compile with `tsc --strict`.
+  client-types:
+    name: TypeScript client types are current
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: clients/typescript
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: clients/typescript/package-lock.json
+      - run: npm ci
+      - name: Generate the types and compile them
+        run: npm run contract
+      - name: Fail if generating changed anything
+        run: git diff --exit-code -- .
+
   image:
     name: API image builds
     needs: build-test # only runs if every test passed
