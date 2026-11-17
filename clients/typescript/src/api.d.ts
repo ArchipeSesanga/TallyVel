@@ -129,7 +129,7 @@ export interface paths {
                 /** @description Too Many Requests */
                 429: {
                     headers: {
-                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). It is the length of the limiter's window, not the time left in it. */
+                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). */
                         "Retry-After": number;
                         [name: string]: unknown;
                     };
@@ -382,7 +382,7 @@ export interface paths {
                 /** @description Too Many Requests */
                 429: {
                     headers: {
-                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). It is the length of the limiter's window, not the time left in it. */
+                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). */
                         "Retry-After": number;
                         [name: string]: unknown;
                     };
@@ -609,7 +609,7 @@ export interface paths {
                 /** @description Too Many Requests */
                 429: {
                     headers: {
-                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). It is the length of the limiter's window, not the time left in it. */
+                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). */
                         "Retry-After": number;
                         [name: string]: unknown;
                     };
@@ -844,7 +844,7 @@ export interface paths {
                 /** @description Too Many Requests */
                 429: {
                     headers: {
-                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). It is the length of the limiter's window, not the time left in it. */
+                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). */
                         "Retry-After": number;
                         [name: string]: unknown;
                     };
@@ -1024,7 +1024,7 @@ export interface paths {
                 /** @description Too Many Requests */
                 429: {
                     headers: {
-                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). It is the length of the limiter's window, not the time left in it. */
+                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). */
                         "Retry-After": number;
                         [name: string]: unknown;
                     };
@@ -1155,7 +1155,7 @@ export interface paths {
                 /** @description Too Many Requests */
                 429: {
                     headers: {
-                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). It is the length of the limiter's window, not the time left in it. */
+                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). */
                         "Retry-After": number;
                         [name: string]: unknown;
                     };
@@ -1259,7 +1259,7 @@ export interface paths {
                 /** @description Too Many Requests */
                 429: {
                     headers: {
-                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). It is the length of the limiter's window, not the time left in it. */
+                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). */
                         "Retry-After": number;
                         [name: string]: unknown;
                     };

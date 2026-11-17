@@ -153,7 +153,7 @@
             "description": "Too Many Requests",
             "headers": {
               "Retry-After": {
-                "description": "How long to wait before trying again, in whole seconds (never an HTTP date). It is the length of the limiter\u0027s window, not the time left in it.",
+                "description": "How long to wait before trying again, in whole seconds (never an HTTP date).",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -374,7 +374,7 @@
             "description": "Too Many Requests",
             "headers": {
               "Retry-After": {
-                "description": "How long to wait before trying again, in whole seconds (never an HTTP date). It is the length of the limiter\u0027s window, not the time left in it.",
+                "description": "How long to wait before trying again, in whole seconds (never an HTTP date).",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -841,7 +841,7 @@
             "description": "Too Many Requests",
             "headers": {
               "Retry-After": {
-                "description": "How long to wait before trying again, in whole seconds (never an HTTP date). It is the length of the limiter\u0027s window, not the time left in it.",
+                "description": "How long to wait before trying again, in whole seconds (never an HTTP date).",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -1174,7 +1174,7 @@
             "description": "Too Many Requests",
             "headers": {
               "Retry-After": {
-                "description": "How long to wait before trying again, in whole seconds (never an HTTP date). It is the length of the limiter\u0027s window, not the time left in it.",
+                "description": "How long to wait before trying again, in whole seconds (never an HTTP date).",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -1416,7 +1416,7 @@
             "description": "Too Many Requests",
             "headers": {
               "Retry-After": {
-                "description": "How long to wait before trying again, in whole seconds (never an HTTP date). It is the length of the limiter\u0027s window, not the time left in it.",
+                "description": "How long to wait before trying again, in whole seconds (never an HTTP date).",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -1569,7 +1569,7 @@
             "description": "Too Many Requests",
             "headers": {
               "Retry-After": {
-                "description": "How long to wait before trying again, in whole seconds (never an HTTP date). It is the length of the limiter\u0027s window, not the time left in it.",
+                "description": "How long to wait before trying again, in whole seconds (never an HTTP date).",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -1695,7 +1695,7 @@
             "description": "Too Many Requests",
             "headers": {
               "Retry-After": {
-                "description": "How long to wait before trying again, in whole seconds (never an HTTP date). It is the length of the limiter\u0027s window, not the time left in it.",
+                "description": "How long to wait before trying again, in whole seconds (never an HTTP date).",
                 "required": true,
                 "schema": {
                   "type": "integer",

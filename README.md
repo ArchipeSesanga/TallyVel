@@ -1258,7 +1258,7 @@ cd clients/typescript && npm install && npm run contract   # generate + tsc --no
 
 The `OpenApiDocumentTests` test only writes the file when `OPENAPI_OUTPUT` is set. A normal `dotnet test` writes nothing.
 
-**The snapshot cannot go stale quietly.** `OpenApiClientContractTests.The_committed_openapi_snapshot_is_what_the_api_serves` compares the served document with `clients/typescript/openapi.json` and fails with the two commands above if they differ. CI's `client-types` job then regenerates `src/api.d.ts` and fails on any diff. The same test class pins what a generated client cannot guess: the `Bearer` security scheme, a `Retry-After` header (integer seconds) on every 429, and the optional `code` on problem bodies. `Retry-After` is the length of the limiter's window (60), not the time left in it.
+**The snapshot cannot go stale quietly.** `OpenApiClientContractTests.The_committed_openapi_snapshot_is_what_the_api_serves` compares the served document with `clients/typescript/openapi.json` and fails with the two commands above if they differ. CI's `client-types` job then regenerates `src/api.d.ts` and fails on any diff. The same test class pins what a generated client cannot guess: the `Bearer` security scheme, a `Retry-After` header (integer seconds) on every 429, and the optional `code` on problem bodies.
 
 **Rename experiment.** I renamed `OwedThisCycleCents` → `AmountOwedCents` in `HomeStokvelCard`, regenerated, and ran `npm run contract`:
 

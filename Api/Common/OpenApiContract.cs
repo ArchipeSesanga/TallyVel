@@ -72,8 +72,7 @@ public static class OpenApiContract
             response.Headers ??= new Dictionary<string, IOpenApiHeader>();
             response.Headers["Retry-After"] = new OpenApiHeader
             {
-                Description = "How long to wait before trying again, in whole seconds (never an HTTP date). "
-                    + "It is the length of the limiter's window, not the time left in it.",
+                Description = "How long to wait before trying again, in whole seconds (never an HTTP date).",
                 Required = true,
                 Schema = new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32" },
             };
