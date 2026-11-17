@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://localhost:8080/"
+      "url": "https://localhost/"
     }
   ],
   "paths": {
@@ -29,7 +29,7 @@
                 "$ref": "#/components/schemas/RegisterRequest"
               }
             },
-            "application/*+json": {
+            "application/*\u002Bjson": {
               "schema": {
                 "$ref": "#/components/schemas/RegisterRequest"
               }
@@ -61,7 +61,7 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
@@ -71,7 +71,7 @@
           "409": {
             "description": "Conflict",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -100,7 +100,7 @@
                 "$ref": "#/components/schemas/LoginRequest"
               }
             },
-            "application/*+json": {
+            "application/*\u002Bjson": {
               "schema": {
                 "$ref": "#/components/schemas/LoginRequest"
               }
@@ -132,7 +132,7 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
@@ -142,7 +142,7 @@
           "401": {
             "description": "Unauthorized",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -152,7 +152,7 @@
           "429": {
             "description": "Too Many Requests",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -193,7 +193,7 @@
           "401": {
             "description": "Unauthorized",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -209,7 +209,7 @@
           "Auth"
         ],
         "summary": "Log out",
-        "description": "Revokes the refresh cookie's login and clears the cookie. Always returns 204, so it is safe to call twice.",
+        "description": "Revokes the refresh cookie\u0027s login and clears the cookie. Always returns 204, so it is safe to call twice.",
         "responses": {
           "204": {
             "description": "No Content"
@@ -223,7 +223,7 @@
           "ContributionProofs"
         ],
         "summary": "Attach or replace the proof of payment",
-        "description": "multipart/form-data with one file field named \"file\". The contribution's own member, or a Treasurer or Chairperson of this stokvel. JPEG, PNG or PDF, decided by the file's first bytes (never its name or Content-Type), at most 5 MB. Uploading again replaces the proof while the cycle is open. Once the cycle is closed or paid out it is locked (409).",
+        "description": "multipart/form-data with one file field named \u0022file\u0022. The contribution\u0027s own member, or a Treasurer or Chairperson of this stokvel. JPEG, PNG or PDF, decided by the file\u0027s first bytes (never its name or Content-Type), at most 5 MB. Uploading again replaces the proof while the cycle is open. Once the cycle is closed or paid out it is locked (409).",
         "parameters": [
           {
             "name": "stokvelId",
@@ -260,8 +260,8 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK",
+          "201": {
+            "description": "Created",
             "content": {
               "text/plain": {
                 "schema": {
@@ -280,8 +280,8 @@
               }
             }
           },
-          "201": {
-            "description": "Created",
+          "200": {
+            "description": "OK",
             "content": {
               "text/plain": {
                 "schema": {
@@ -303,7 +303,7 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -313,7 +313,7 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -323,7 +323,7 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -333,7 +333,7 @@
           "409": {
             "description": "Conflict",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -343,7 +343,7 @@
           "413": {
             "description": "Payload Too Large",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -353,7 +353,7 @@
           "415": {
             "description": "Unsupported Media Type",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -395,7 +395,7 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -405,7 +405,7 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -415,7 +415,7 @@
           "409": {
             "description": "Conflict",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -429,7 +429,7 @@
           "ContributionProofs"
         ],
         "summary": "Download the proof of payment",
-        "description": "Only the contribution's member and this stokvel's Treasurer or Chairperson. Everyone else, including an ordinary member of the same stokvel and a treasurer of another stokvel, gets the same 404 as a contribution with no proof. The file is sent as an attachment with the detected Content-Type, X-Content-Type-Options: nosniff and Cache-Control: private, no-store.",
+        "description": "Only the contribution\u0027s member and this stokvel\u0027s Treasurer or Chairperson. Everyone else, including an ordinary member of the same stokvel and a treasurer of another stokvel, gets the same 404 as a contribution with no proof. The file is sent as an attachment with the detected Content-Type, X-Content-Type-Options: nosniff and Cache-Control: private, no-store.",
         "parameters": [
           {
             "name": "stokvelId",
@@ -474,7 +474,7 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -492,8 +492,8 @@
         "tags": [
           "Contributions"
         ],
-        "summary": "List a stokvel's contributions, one page at a time",
-        "description": "Filters, sorting and paging all run in the database. pageSize defaults to 20 and is capped at 100; sort is recordedAt (default) or amount, prefixed with '-' for descending. Pass nextPageToken back as pageToken for the next page; an empty nextPageToken means there are no more results. minAmountCents and maxAmountCents filter by amount, in integer cents. from and to are UTC instants in ISO 8601 ending in Z, compared with recordedAt in the database: from is INCLUDED and to is EXCLUDED, so one range ends exactly where the next begins. memberUserId must belong to this stokvel. A pageToken only works with the same filter and sort that produced it (otherwise 400, code page-token-filter-mismatch).",
+        "summary": "List a stokvel\u0027s contributions, one page at a time",
+        "description": "Filters, sorting and paging all run in the database. pageSize defaults to 20 and is capped at 100; sort is recordedAt (default) or amount, prefixed with \u0027-\u0027 for descending. Pass nextPageToken back as pageToken for the next page; an empty nextPageToken means there are no more results. minAmountCents and maxAmountCents filter by amount, in integer cents. from and to are UTC instants in ISO 8601 ending in Z, compared with recordedAt in the database: from is INCLUDED and to is EXCLUDED, so one range ends exactly where the next begins. memberUserId must belong to this stokvel. A pageToken only works with the same filter and sort that produced it (otherwise 400, code page-token-filter-mismatch).",
         "parameters": [
           {
             "name": "stokvelId",
@@ -596,7 +596,7 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -606,7 +606,7 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -620,7 +620,7 @@
           "Contributions"
         ],
         "summary": "Record a contribution",
-        "description": "Records a member's payment for a stokvel cycle. Any member can record their own. Recording for another member needs the Treasurer or Chairperson role in this stokvel. The member must belong to the stokvel. Requires an Idempotency-Key header, and rejects a second contribution from the same member for the same cycle.",
+        "description": "Records a member\u0027s payment for a stokvel cycle. Any member can record their own. Recording for another member needs the Treasurer or Chairperson role in this stokvel. The member must belong to the stokvel. Requires an Idempotency-Key header, and rejects a second contribution from the same member for the same cycle.",
         "parameters": [
           {
             "name": "stokvelId",
@@ -654,7 +654,7 @@
                 "$ref": "#/components/schemas/RecordContributionRequest"
               }
             },
-            "application/*+json": {
+            "application/*\u002Bjson": {
               "schema": {
                 "$ref": "#/components/schemas/RecordContributionRequest"
               }
@@ -686,7 +686,7 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
@@ -696,7 +696,7 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -706,7 +706,7 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -716,7 +716,7 @@
           "409": {
             "description": "Conflict",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -726,7 +726,7 @@
           "422": {
             "description": "Unprocessable Entity",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -736,7 +736,7 @@
           "429": {
             "description": "Too Many Requests",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -797,7 +797,7 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -812,7 +812,7 @@
         "tags": [
           "Cycles"
         ],
-        "summary": "List a stokvel's contribution cycles",
+        "summary": "List a stokvel\u0027s contribution cycles",
         "description": "Any member of the stokvel can list its cycles.",
         "parameters": [
           {
@@ -886,7 +886,7 @@
                 "$ref": "#/components/schemas/OpenCycleRequest"
               }
             },
-            "application/*+json": {
+            "application/*\u002Bjson": {
               "schema": {
                 "$ref": "#/components/schemas/OpenCycleRequest"
               }
@@ -918,7 +918,7 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
@@ -928,7 +928,68 @@
           "409": {
             "description": "Conflict",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stokvels/{stokvelId}/cycles/{cycleId}/payouts": {
+      "get": {
+        "tags": [
+          "Cycles"
+        ],
+        "summary": "The payout order, and who is next",
+        "description": "Any member of the stokvel can read it (a non-member gets 404). The server decides the order: members by when they joined (ties by user id). A member is PaidOut once they have a payout in this stokvel, Next if they are the first in that order who has not been paid, otherwise Upcoming. nextMemberId is null once everyone has been paid. amountCents and paidAt are those of the member\u0027s payout (the one for this cycle if there is one) and are null until they are paid. potCents is what a payout of this cycle is or was.",
+        "parameters": [
+          {
+            "name": "stokvelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cycleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CyclePayoutsResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CyclePayoutsResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CyclePayoutsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -944,7 +1005,7 @@
           "Cycles"
         ],
         "summary": "Pay out a cycle",
-        "description": "Pays the cycle's total contributions to one member and closes the cycle. Treasurer or Chairperson only.",
+        "description": "Pays the cycle\u0027s total contributions to one member and closes the cycle. Treasurer or Chairperson only.",
         "parameters": [
           {
             "name": "stokvelId",
@@ -977,7 +1038,7 @@
                 "$ref": "#/components/schemas/PayoutRequest"
               }
             },
-            "application/*+json": {
+            "application/*\u002Bjson": {
               "schema": {
                 "$ref": "#/components/schemas/PayoutRequest"
               }
@@ -1009,7 +1070,7 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
@@ -1019,7 +1080,7 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1029,7 +1090,7 @@
           "422": {
             "description": "Unprocessable Entity",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1039,7 +1100,7 @@
           "429": {
             "description": "Too Many Requests",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1055,7 +1116,7 @@
           "Cycles"
         ],
         "summary": "Preview closing a cycle",
-        "description": "Treasurer or Chairperson of THIS stokvel only (a member gets 403, a non-member 404). Shows who would be in arrears if the cycle were closed now, counted up to asOfDate (the cycle's last day, or today if it is still running). It uses the same calculation as the real close. Send the returned version back to close; it changes whenever anything that affects the result changes. An empty arrears list is valid.",
+        "description": "Treasurer or Chairperson of THIS stokvel only (a member gets 403, a non-member 404). Shows who would be in arrears if the cycle were closed now, counted up to asOfDate (the cycle\u0027s last day, or today if it is still running). It uses the same calculation as the real close. Send the returned version back to close; it changes whenever anything that affects the result changes. An empty arrears list is valid.",
         "parameters": [
           {
             "name": "stokvelId",
@@ -1100,7 +1161,7 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1110,7 +1171,7 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1120,7 +1181,7 @@
           "409": {
             "description": "Conflict",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1179,7 +1240,7 @@
                 "$ref": "#/components/schemas/CloseCycleRequest"
               }
             },
-            "application/*+json": {
+            "application/*\u002Bjson": {
               "schema": {
                 "$ref": "#/components/schemas/CloseCycleRequest"
               }
@@ -1211,7 +1272,7 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
@@ -1221,7 +1282,7 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1231,7 +1292,7 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1241,7 +1302,7 @@
           "409": {
             "description": "Conflict",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1251,7 +1312,7 @@
           "422": {
             "description": "Unprocessable Entity",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1261,7 +1322,7 @@
           "429": {
             "description": "Too Many Requests",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1313,7 +1374,7 @@
           "403": {
             "description": "Forbidden",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1323,7 +1384,7 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1339,7 +1400,7 @@
           "Invites"
         ],
         "summary": "Preview an invite",
-        "description": "What someone who may not be a member yet is allowed to see: the stokvel's name, rules, contribution amount, frequency and cycle length, how many members it has, when the invite expires, and whether the caller is already in. Nothing about its members, balances, contributions or payout order. Guesses are rate-limited per user.",
+        "description": "What someone who may not be a member yet is allowed to see: the stokvel\u0027s name, rules, contribution amount, frequency and cycle length, how many members it has, when the invite expires, and whether the caller is already in. Nothing about its members, balances, contributions or payout order. Guesses are rate-limited per user.",
         "parameters": [
           {
             "name": "code",
@@ -1374,7 +1435,7 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1384,7 +1445,7 @@
           "410": {
             "description": "Gone",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1394,7 +1455,7 @@
           "429": {
             "description": "Too Many Requests",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1455,7 +1516,7 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1465,7 +1526,7 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1475,7 +1536,7 @@
           "409": {
             "description": "Conflict",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1485,7 +1546,7 @@
           "410": {
             "description": "Gone",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1495,7 +1556,7 @@
           "422": {
             "description": "Unprocessable Entity",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1505,7 +1566,7 @@
           "429": {
             "description": "Too Many Requests",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1546,7 +1607,7 @@
           "401": {
             "description": "Unauthorized",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1587,7 +1648,7 @@
           "401": {
             "description": "Unauthorized",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1603,7 +1664,7 @@
           "Me"
         ],
         "summary": "My recent activity",
-        "description": "Contributions recorded, payouts made and members joined, across ONLY the stokvels the caller belongs to, newest first. pageSize defaults to 20 and is capped at 100. Pass nextPageToken back as pageToken for the next page; nextPageToken is an empty string (\"\") on the last page. occurredAt is UTC and ends in Z. amountCents is null when no money is involved. personName is the member the line is about, and is null once they are no longer in that stokvel.",
+        "description": "Contributions recorded, payouts made and members joined, across ONLY the stokvels the caller belongs to, newest first. pageSize defaults to 20 and is capped at 100. Pass nextPageToken back as pageToken for the next page; nextPageToken is an empty string (\u0022\u0022) on the last page. occurredAt is UTC and ends in Z. amountCents is null when no money is involved. personName is the member the line is about, and is null once they are no longer in that stokvel.",
         "parameters": [
           {
             "name": "pageSize",
@@ -1645,7 +1706,7 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1655,7 +1716,7 @@
           "401": {
             "description": "Unauthorized",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1722,7 +1783,7 @@
                 "$ref": "#/components/schemas/CreateStokvelRequest"
               }
             },
-            "application/*+json": {
+            "application/*\u002Bjson": {
               "schema": {
                 "$ref": "#/components/schemas/CreateStokvelRequest"
               }
@@ -1754,7 +1815,7 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
@@ -1806,7 +1867,7 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1846,7 +1907,7 @@
                 "$ref": "#/components/schemas/AddStokvelMemberRequest"
               }
             },
-            "application/*+json": {
+            "application/*\u002Bjson": {
               "schema": {
                 "$ref": "#/components/schemas/AddStokvelMemberRequest"
               }
@@ -1878,7 +1939,7 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1888,7 +1949,7 @@
           "409": {
             "description": "Conflict",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1904,7 +1965,7 @@
           "Stokvel"
         ],
         "summary": "Remove a member from a stokvel",
-        "description": "Removes the member. Refuses to remove the last admin, so a stokvel always has someone who can run it. Does not delete the member's past contributions.",
+        "description": "Removes the member. Anyone may remove THEMSELVES (leave the stokvel); removing someone else is for a Chairperson. Refuses to remove the last admin, so a stokvel always has someone who can run it. Does not delete the member\u0027s past contributions.",
         "parameters": [
           {
             "name": "id",
@@ -1949,7 +2010,7 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1959,7 +2020,7 @@
           "422": {
             "description": "Unprocessable Entity",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1974,8 +2035,8 @@
         "tags": [
           "Stokvel"
         ],
-        "summary": "Change a member's role",
-        "description": "Changes a member's role within the stokvel. Refuses a change that would leave the stokvel without an admin.",
+        "summary": "Change a member\u0027s role",
+        "description": "Changes a member\u0027s role within the stokvel. Refuses a change that would leave the stokvel without an admin.",
         "parameters": [
           {
             "name": "id",
@@ -2008,7 +2069,7 @@
                 "$ref": "#/components/schemas/ChangeStokvelMemberRoleRequest"
               }
             },
-            "application/*+json": {
+            "application/*\u002Bjson": {
               "schema": {
                 "$ref": "#/components/schemas/ChangeStokvelMemberRoleRequest"
               }
@@ -2040,7 +2101,7 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -2050,7 +2111,7 @@
           "422": {
             "description": "Unprocessable Entity",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -2117,7 +2178,7 @@
                 "$ref": "#/components/schemas/CreateUserRequest"
               }
             },
-            "application/*+json": {
+            "application/*\u002Bjson": {
               "schema": {
                 "$ref": "#/components/schemas/CreateUserRequest"
               }
@@ -2149,7 +2210,7 @@
           "400": {
             "description": "Bad Request",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ValidationProblemDetails"
                 }
@@ -2201,7 +2262,7 @@
           "404": {
             "description": "Not Found",
             "content": {
-              "application/problem+json": {
+              "application/problem\u002Bjson": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -2274,7 +2335,7 @@
             ]
           }
         },
-        "description": "One line in the signed-in member's activity feed. Only stokvels the member belongs to ever appear.\nId is unique and stable, but opaque: do not parse it. OccurredAt is UTC and ends in Z.\nAmountCents is null when no money is involved (MemberJoined). PersonName is the member the line is about\n(who paid, who was paid, who joined), and is null when that person is no longer a member of the stokvel."
+        "description": "One line in the signed-in member\u0027s activity feed. Only stokvels the member belongs to ever appear.\nId is unique and stable, but opaque: do not parse it. OccurredAt is UTC and ends in Z.\nAmountCents is null when no money is involved (MemberJoined). PersonName is the member the line is about\n(who paid, who was paid, who joined), and is null when that person is no longer a member of the stokvel."
       },
       "ActivityKind": {
         "enum": [
@@ -2282,7 +2343,7 @@
           "PayoutMade",
           "MemberJoined"
         ],
-        "description": "What happened. Sent as the name (for example \"ContributionRecorded\")."
+        "description": "What happened. Sent as the name (for example \u0022ContributionRecorded\u0022)."
       },
       "AddStokvelMemberRequest": {
         "required": [
@@ -2410,7 +2471,7 @@
             "type": "string"
           }
         },
-        "description": "What closing a cycle WOULD do right now. AsOfDate is the South African calendar date the close counts up to (the cycle's\nlast day, or today if it is still running). An empty Arrears list is valid: nobody owes anything.\nVersion is opaque: send it back unchanged to close. It identifies the exact inputs of this calculation, so it changes\nwhen anything that affects the result changes, and a close that carries an older one is refused (409)."
+        "description": "What closing a cycle WOULD do right now. AsOfDate is the South African calendar date the close counts up to (the cycle\u0027s\nlast day, or today if it is still running). An empty Arrears list is valid: nobody owes anything.\nVersion is opaque: send it back unchanged to close. It identifies the exact inputs of this calculation, so it changes\nwhen anything that affects the result changes, and a close that carries an older one is refused (409)."
       },
       "ContributionFrequency": {
         "enum": [
@@ -2525,6 +2586,47 @@
             "type": "string"
           }
         }
+      },
+      "CyclePayoutsResponse": {
+        "required": [
+          "cycleId",
+          "cycleLabel",
+          "cycleStatus",
+          "potCents",
+          "nextMemberId",
+          "entries"
+        ],
+        "type": "object",
+        "properties": {
+          "cycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cycleLabel": {
+            "type": "string"
+          },
+          "cycleStatus": {
+            "$ref": "#/components/schemas/CycleStatus"
+          },
+          "potCents": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nextMemberId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayoutEntry"
+            }
+          }
+        },
+        "description": "The payout order of a stokvel, as seen from one cycle. The server decides the order (the order members joined, ties by\nuser id) and who is next (the first member in that order who has not been paid out), so no client works it out.\nNextMemberId is null once everyone has been paid. PotCents is what a payout of this cycle is, or was: the sum of its\ncontributions that count (Paid and Confirmed). Money is integer cents."
       },
       "CycleResponse": {
         "required": [
@@ -2645,7 +2747,7 @@
             "format": "date"
           }
         },
-        "description": "The stokvel's open cycle. EndsOn is the due date. StartsOn and EndsOn are\nnull only for a cycle created before cycles had dates."
+        "description": "The stokvel\u0027s open cycle. EndsOn is the due date. StartsOn and EndsOn are\nnull only for a cycle created before cycles had dates."
       },
       "HomeResponse": {
         "required": [
@@ -2660,7 +2762,7 @@
             }
           }
         },
-        "description": "Exactly what the member home screen shows: one card per stokvel the caller\nbelongs to. Only the caller's own amounts; no member lists."
+        "description": "Exactly what the member home screen shows: one card per stokvel the caller\nbelongs to. Only the caller\u0027s own amounts; no member lists."
       },
       "HomeStokvelCard": {
         "required": [
@@ -2710,7 +2812,7 @@
             "format": "date"
           }
         },
-        "description": "Money is integer cents (exact in JavaScript); dates are South African\ncalendar dates (\"2026-10-31\"), not UTC dates."
+        "description": "Money is integer cents (exact in JavaScript); dates are South African\ncalendar dates (\u00222026-10-31\u0022), not UTC dates."
       },
       "IFormFile": {
         "type": "string",
@@ -2852,7 +2954,7 @@
             "type": "string"
           }
         },
-        "description": "One page of a list endpoint. NextPageToken is opaque to the client:\npass it back as ?pageToken= to get the next page. An empty string\nmeans this is the last page. No total count, on purpose — counting\nwould cost an extra COUNT(*) query on every page."
+        "description": "One page of a list endpoint. NextPageToken is opaque to the client:\npass it back as ?pageToken= to get the next page. An empty string\nmeans this is the last page. No total count, on purpose \u2014 counting\nwould cost an extra COUNT(*) query on every page."
       },
       "PagedResponseOfContributionResponse": {
         "required": [
@@ -2871,7 +2973,65 @@
             "type": "string"
           }
         },
-        "description": "One page of a list endpoint. NextPageToken is opaque to the client:\npass it back as ?pageToken= to get the next page. An empty string\nmeans this is the last page. No total count, on purpose — counting\nwould cost an extra COUNT(*) query on every page."
+        "description": "One page of a list endpoint. NextPageToken is opaque to the client:\npass it back as ?pageToken= to get the next page. An empty string\nmeans this is the last page. No total count, on purpose \u2014 counting\nwould cost an extra COUNT(*) query on every page."
+      },
+      "PayoutEntry": {
+        "required": [
+          "memberUserId",
+          "fullName",
+          "position",
+          "amountCents",
+          "paidAt",
+          "status",
+          "isNext",
+          "isForThisCycle"
+        ],
+        "type": "object",
+        "properties": {
+          "memberUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "amountCents": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int64"
+          },
+          "paidAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PayoutEntryStatus"
+          },
+          "isNext": {
+            "type": "boolean"
+          },
+          "isForThisCycle": {
+            "type": "boolean"
+          }
+        },
+        "description": "One member\u0027s place in the payout order. Position starts at 1. AmountCents and PaidAt are those of the member\u0027s payout\n(the one for THIS cycle if there is one, otherwise their most recent), and null until they have been paid. PaidAt is\nUTC and ends in Z. IsNext is true exactly when Status is Next. IsForThisCycle says the payout shown is the one for the\ncycle in the URL."
+      },
+      "PayoutEntryStatus": {
+        "enum": [
+          "PaidOut",
+          "Next",
+          "Upcoming"
+        ],
+        "description": "Where a member stands in the payout order."
       },
       "PayoutRequest": {
         "required": [
@@ -3028,7 +3188,7 @@
             "format": "int64"
           }
         },
-        "description": "What the caller sends to record a contribution. StokvelId is\ndeliberately not a field here — it comes from the route\n(POST /api/stokvels/{stokvelId}/contributions) so a client can never\nsend a body that disagrees with the URL it actually called.\nThe amount is integer cents (R100.50 is 10050)."
+        "description": "What the caller sends to record a contribution. StokvelId is\ndeliberately not a field here \u2014 it comes from the route\n(POST /api/stokvels/{stokvelId}/contributions) so a client can never\nsend a body that disagrees with the URL it actually called.\nThe amount is integer cents (R100.50 is 10050)."
       },
       "RegisterRequest": {
         "required": [
@@ -3291,7 +3451,7 @@
             "format": "date-time"
           }
         },
-        "description": "What a User looks like over the wire — deliberately excludes\nPasswordHash so it can never leak into a response body."
+        "description": "What a User looks like over the wire \u2014 deliberately excludes\nPasswordHash so it can never leak into a response body."
       },
       "ValidationProblemDetails": {
         "type": "object",

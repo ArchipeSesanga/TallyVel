@@ -137,6 +137,7 @@ builder.Services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
 builder.Services.AddScoped<StokvelMembershipService>();
 builder.Services.AddScoped<IContributionService, ContributionServices>();
 builder.Services.AddScoped<PayoutService>();
+builder.Services.AddScoped<PayoutOrderService>();
 builder.Services.AddScoped<MemberHomeService>();
 builder.Services.AddScoped<StokvelSummaryService>();
 builder.Services.AddScoped<ActivityService>();

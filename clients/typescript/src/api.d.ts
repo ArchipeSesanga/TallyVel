@@ -744,6 +744,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stokvels/{stokvelId}/cycles/{cycleId}/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The payout order, and who is next
+         * @description Any member of the stokvel can read it (a non-member gets 404). The server decides the order: members by when they joined (ties by user id). A member is PaidOut once they have a payout in this stokvel, Next if they are the first in that order who has not been paid, otherwise Upcoming. nextMemberId is null once everyone has been paid. amountCents and paidAt are those of the member's payout (the one for this cycle if there is one) and are null until they are paid. potCents is what a payout of this cycle is or was.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    stokvelId: string;
+                    cycleId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CyclePayoutsResponse"];
+                        "application/json": components["schemas"]["CyclePayoutsResponse"];
+                        "text/json": components["schemas"]["CyclePayoutsResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stokvels/{stokvelId}/cycles/{cycleId}/payout": {
         parameters: {
             query?: never;
@@ -1613,7 +1666,7 @@ export interface paths {
         post?: never;
         /**
          * Remove a member from a stokvel
-         * @description Removes the member. Refuses to remove the last admin, so a stokvel always has someone who can run it. Does not delete the member's past contributions.
+         * @description Removes the member. Anyone may remove THEMSELVES (leave the stokvel); removing someone else is for a Chairperson. Refuses to remove the last admin, so a stokvel always has someone who can run it. Does not delete the member's past contributions.
          */
         delete: {
             parameters: {
@@ -1985,6 +2038,23 @@ export interface components {
             fullName: string;
             passwordHash: string;
         };
+        /**
+         * @description The payout order of a stokvel, as seen from one cycle. The server decides the order (the order members joined, ties by
+         *     user id) and who is next (the first member in that order who has not been paid out), so no client works it out.
+         *     NextMemberId is null once everyone has been paid. PotCents is what a payout of this cycle is, or was: the sum of its
+         *     contributions that count (Paid and Confirmed). Money is integer cents.
+         */
+        CyclePayoutsResponse: {
+            /** Format: uuid */
+            cycleId: string;
+            cycleLabel: string;
+            cycleStatus: components["schemas"]["CycleStatus"];
+            /** Format: int64 */
+            potCents: number;
+            /** Format: uuid */
+            nextMemberId: null | string;
+            entries: components["schemas"]["PayoutEntry"][];
+        };
         CycleResponse: {
             /** Format: uuid */
             id: string;
@@ -2112,6 +2182,31 @@ export interface components {
             items: components["schemas"]["ContributionResponse"][];
             nextPageToken: string;
         };
+        /**
+         * @description One member's place in the payout order. Position starts at 1. AmountCents and PaidAt are those of the member's payout
+         *     (the one for THIS cycle if there is one, otherwise their most recent), and null until they have been paid. PaidAt is
+         *     UTC and ends in Z. IsNext is true exactly when Status is Next. IsForThisCycle says the payout shown is the one for the
+         *     cycle in the URL.
+         */
+        PayoutEntry: {
+            /** Format: uuid */
+            memberUserId: string;
+            fullName: string;
+            /** Format: int32 */
+            position: number;
+            /** Format: int64 */
+            amountCents: null | number;
+            /** Format: date-time */
+            paidAt: null | string;
+            status: components["schemas"]["PayoutEntryStatus"];
+            isNext: boolean;
+            isForThisCycle: boolean;
+        };
+        /**
+         * @description Where a member stands in the payout order.
+         * @enum {unknown}
+         */
+        PayoutEntryStatus: "PaidOut" | "Next" | "Upcoming";
         PayoutRequest: {
             /** Format: uuid */
             recipientUserId: string;

@@ -1198,6 +1198,20 @@ The test that proves it is `RateLimitTests.A_rate_limited_contribution_does_not_
 - **Paid** matches contributions by cycle **label**, because that is how `Contribution` links to a cycle.
 - **Next payout date.** Payouts repeat every period (Weekly 7 days, BiWeekly 14 days, Monthly 1 calendar month), counted from the stokvel's `CreatedAt` date in UTC. The field is the first such date **on or after today** (UTC). Monthly dates keep the creation day, clamped to the month's end (created on the 31st → 30 November). A stokvel's actual payout day is not stored anywhere, so this is a convention, tested in `NextPayoutDateTests`.
 
+### 6b. The payout order: `GET /api/v1/stokvels/{id}/cycles/{cycleId}/payouts`
+
+The server decides whose turn it is, so no client works it out. `PayoutOrderService` holds the rule in one place:
+
+| | Rule |
+|---|---|
+| Order | Members by `JoinedAt`, then by user id (a fixed order even when two joined at the same instant). `position` starts at 1. |
+| `PaidOut` | The member has at least one payout in this stokvel. `amountCents` and `paidAt` come from their payout for *this* cycle if there is one, otherwise their most recent. |
+| `Next` | The first member in the order who is not paid out. At most one entry; `isNext` is true exactly then, and `nextMemberId` names them. |
+| `Upcoming` | Not paid out and not next. |
+| Everyone paid | Nobody is `Next`; `nextMemberId` is `null`. |
+
+`potCents` is what a payout of the cycle is (or was): its Paid and Confirmed contributions. Any member may read it; a non-member gets 404 (like every stokvel route); a cycle of another stokvel is 404 `cycle-not-found`. Nothing stops a treasurer paying someone out of turn, so "next" is the order's answer, not a lock. Tests: `CyclePayoutsTests`.
+
 ### 7. One error contract
 
 - **FluentValidation.** Every controller calls `ValidationProblem(result.ToModelState())` (`Api/Common/ValidationProblems.cs`). The keys are the camelCase field names the client sent (`email`, not `Email`). Going through `ModelStateDictionary` means `ProblemDetailsFactory` builds the body, so it has `type`, `traceId` and `correlationId`. Before this change, the controller 400s had no `correlationId`.
