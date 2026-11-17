@@ -129,6 +129,8 @@ export interface paths {
                 /** @description Too Many Requests */
                 429: {
                     headers: {
+                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). */
+                        "Retry-After": number;
                         [name: string]: unknown;
                     };
                     content: {
@@ -377,6 +379,30 @@ export interface paths {
                         "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
+                /** @description Too Many Requests */
+                429: {
+                    headers: {
+                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). */
+                        "Retry-After": number;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": {
+                            type?: null | string;
+                            title?: null | string;
+                            /** Format: int32 */
+                            status?: null | number;
+                            detail?: null | string;
+                            instance?: null | string;
+                            /** @description The reference a member can quote to support. Also written to the server log. */
+                            correlationId?: null | string;
+                            /** @description The W3C trace id of the request. */
+                            traceId?: null | string;
+                            /** @description A stable, machine-readable reason. Present on problems the API raises itself; absent on framework ones (401, 403, 404, 405, 415, validation 400). Tell two errors with one status apart by this, not by title. */
+                            code?: null | string;
+                        };
+                    };
+                };
             };
         };
         /**
@@ -583,6 +609,8 @@ export interface paths {
                 /** @description Too Many Requests */
                 429: {
                     headers: {
+                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). */
+                        "Retry-After": number;
                         [name: string]: unknown;
                     };
                     content: {
@@ -816,6 +844,8 @@ export interface paths {
                 /** @description Too Many Requests */
                 429: {
                     headers: {
+                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). */
+                        "Retry-After": number;
                         [name: string]: unknown;
                     };
                     content: {
@@ -994,6 +1024,8 @@ export interface paths {
                 /** @description Too Many Requests */
                 429: {
                     headers: {
+                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). */
+                        "Retry-After": number;
                         [name: string]: unknown;
                     };
                     content: {
@@ -1123,6 +1155,8 @@ export interface paths {
                 /** @description Too Many Requests */
                 429: {
                     headers: {
+                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). */
+                        "Retry-After": number;
                         [name: string]: unknown;
                     };
                     content: {
@@ -1225,6 +1259,8 @@ export interface paths {
                 /** @description Too Many Requests */
                 429: {
                     headers: {
+                        /** @description How long to wait before trying again, in whole seconds (never an HTTP date). */
+                        "Retry-After": number;
                         [name: string]: unknown;
                     };
                     content: {
@@ -1613,7 +1649,7 @@ export interface paths {
         post?: never;
         /**
          * Remove a member from a stokvel
-         * @description Removes the member. Refuses to remove the last admin, so a stokvel always has someone who can run it. Does not delete the member's past contributions.
+         * @description Removes the member. Anyone may remove THEMSELVES (leave the stokvel); removing someone else is for a Chairperson. Refuses to remove the last admin, so a stokvel always has someone who can run it. Does not delete the member's past contributions.
          */
         delete: {
             parameters: {
@@ -2142,6 +2178,8 @@ export interface components {
             correlationId?: null | string;
             /** @description The W3C trace id of the request. */
             traceId?: null | string;
+            /** @description A stable, machine-readable reason. Present on problems the API raises itself; absent on framework ones (401, 403, 404, 405, 415, validation 400). Tell two errors with one status apart by this, not by title. */
+            code?: null | string;
         };
         /** @description The proof attached to a contribution, without its bytes. */
         ProofResponse: {
@@ -2275,6 +2313,8 @@ export interface components {
             correlationId?: null | string;
             /** @description The W3C trace id of the request. */
             traceId?: null | string;
+            /** @description A stable, machine-readable reason. Present on problems the API raises itself; absent on framework ones (401, 403, 404, 405, 415, validation 400). Tell two errors with one status apart by this, not by title. */
+            code?: null | string;
         };
     };
     responses: never;
