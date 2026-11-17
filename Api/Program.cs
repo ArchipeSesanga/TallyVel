@@ -65,7 +65,7 @@ builder.Logging.AddDebug();
 // Add services to the container.
 // The custom DateTimeOffset converter (writes Z) hides the type from the schema exporter,
 // so say what it is: a date-time string.
-builder.Services.AddOpenApi(options => options.AddOperationTransformer((operation, context, _) =>
+builder.Services.AddOpenApi(options => options.AddBearerScheme().AddRetryAfterOnRateLimited().AddOperationTransformer((operation, context, _) =>
 {
     // The controller reads the header by hand (Request.Headers) so a missing key stays a 400 from the
     // service. Declaring it here only describes it, so generated clients send it; behavior is unchanged.
@@ -114,6 +114,14 @@ builder.Services.AddOpenApi(options => options.AddOperationTransformer((operatio
         {
             Type = JsonSchemaType.String | JsonSchemaType.Null,
             Description = "The W3C trace id of the request.",
+        };
+        // The stable machine-readable reason ("close-preview-stale", "page-token-filter-mismatch"). Only problems
+        // written by TallyVelExceptionHandler have one, so it is optional: a framework 401/403/404 has none.
+        schema.Properties["code"] = new OpenApiSchema
+        {
+            Type = JsonSchemaType.String | JsonSchemaType.Null,
+            Description = "A stable, machine-readable reason. Present on problems the API raises itself; absent on "
+                + "framework ones (401, 403, 404, 405, 415, validation 400). Tell two errors with one status apart by this, not by title.",
         };
     }
     return Task.CompletedTask;
