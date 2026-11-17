@@ -1130,7 +1130,7 @@ Only the built-in `AddRateLimiter` is used. The policy names live in `Api/Common
 
 **Every rejection** is a 429 with:
 
-- a `Retry-After` header in whole seconds, taken from the lease metadata;
+- a `Retry-After` header in whole seconds: the time **left** until the limiter refills, rounded up. The built-in limiters report the whole window however much has passed, so `Api/Common/RemainingTimeLimiter.cs` wraps them and does `period - (time since start) mod period`, because both refill on a timer that starts when the limiter is created (`RetryAfterTests`);
 - problem JSON written through `IProblemDetailsService`, with type `https://tools.ietf.org/html/rfc6585#section-4`, title `Too Many Requests` and a detail sentence. `correlationId` is added like on every other problem;
 - a log line at `Information`: `Rate limit {Policy} rejected a request from {UserId}`. The user id is `anonymous` when there is none. No email and no body (POPIA).
 
