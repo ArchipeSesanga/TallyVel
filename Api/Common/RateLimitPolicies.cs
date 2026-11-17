@@ -39,14 +39,8 @@ public static class RateLimitPolicies
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = WriteRejectionAsync;
 
-            options.AddPolicy(Login, http => RateLimitPartition.GetFixedWindowLimiter(
-                http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = loginPermitLimit,
-                    Window = loginWindow,
-                    QueueLimit = 0,
-                }));
+            options.AddPolicy(Login, http => FixedWindow(
+                http.Connection.RemoteIpAddress?.ToString() ?? "unknown", loginPermitLimit, loginWindow));
 
             options.AddPolicy(InviteGuess, http =>
             {
@@ -54,12 +48,7 @@ public static class RateLimitPolicies
                 if (userId is null)
                     return RateLimitPartition.GetNoLimiter("anonymous"); // not signed in: authorization answers 401
 
-                return RateLimitPartition.GetFixedWindowLimiter(userId, _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = invitePermitLimit,
-                    Window = inviteWindow,
-                    QueueLimit = 0,
-                });
+                return FixedWindow(userId, invitePermitLimit, inviteWindow);
             });
 
             options.AddPolicy(Money, http =>
@@ -70,17 +59,33 @@ public static class RateLimitPolicies
                 if (userId is null)
                     return RateLimitPartition.GetNoLimiter("anonymous");
 
-                return RateLimitPartition.GetTokenBucketLimiter(userId, _ => new TokenBucketRateLimiterOptions
-                {
-                    TokenLimit = moneyTokenLimit,
-                    TokensPerPeriod = moneyTokensPerPeriod,
-                    ReplenishmentPeriod = moneyPeriod,
-                    QueueLimit = 0,
-                    AutoReplenishment = true,
-                });
+                return RateLimitPartition.Get(userId, _ => new RemainingTimeLimiter(
+                    new TokenBucketRateLimiter(new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = moneyTokenLimit,
+                        TokensPerPeriod = moneyTokensPerPeriod,
+                        ReplenishmentPeriod = moneyPeriod,
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    }),
+                    moneyPeriod,
+                    TimeProvider.System));
             });
         });
     }
+
+    // A fixed window whose refusals say how long is LEFT in the window (see RemainingTimeLimiter), not its whole length.
+    private static RateLimitPartition<string> FixedWindow(string key, int permitLimit, TimeSpan window) =>
+        RateLimitPartition.Get(key, _ => new RemainingTimeLimiter(
+            new FixedWindowRateLimiter(new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permitLimit,
+                Window = window,
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            }),
+            window,
+            TimeProvider.System));
 
     // Every rejection: 429, Retry-After in seconds, and problem+json written
     // through IProblemDetailsService so correlationId is added like any error.
