@@ -111,4 +111,35 @@ public class OpenApiClientContractTests(PostgresApiFactory factory)
 
         Assert.True(wrong.Count == 0, string.Join("\n", wrong));
     }
+
+    /// <summary>
+    /// clients/typescript/openapi.json is what other repos copy (the mobile app's contract/ folder, the TypeScript types).
+    /// It is exported by hand, so it can silently fall behind the controllers: it already did once, by one description.
+    /// This fails the build when it does.
+    /// </summary>
+    [Fact]
+    public async Task The_committed_openapi_snapshot_is_what_the_api_serves()
+    {
+        var snapshotPath = Path.Combine(RepositoryRoot(), "clients", "typescript", "openapi.json");
+
+        var served = Normalise(await DocumentAsync());
+        var committed = Normalise(JsonNode.Parse(await File.ReadAllTextAsync(snapshotPath))!);
+
+        Assert.True(JsonNode.DeepEquals(served, committed),
+            "clients/typescript/openapi.json is out of date. Regenerate it from the repo root and commit the result:\n" +
+            "  OPENAPI_OUTPUT=$PWD/clients/typescript/openapi.json dotnet test --filter \"FullyQualifiedName~OpenApiDocument\"\n" +
+            "  (cd clients/typescript && npm run contract)");
+    }
+
+    // Same line-ending rule as the exporter above: a checkout on Windows must not look like a change.
+    private static JsonNode Normalise(JsonNode node) =>
+        JsonNode.Parse(node.ToJsonString().Replace("\\r\\n", "\\n"))!;
+
+    private static string RepositoryRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "TallyVel.slnx")))
+            dir = dir.Parent;
+        return dir?.FullName ?? throw new InvalidOperationException("TallyVel.slnx not found above " + AppContext.BaseDirectory);
+    }
 }
